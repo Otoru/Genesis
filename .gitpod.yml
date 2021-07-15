@@ -1,0 +1,11 @@
+image:
+  file: .gitpod.Dockerfile
+
+tasks:
+  - init: pip install pipenv
+    command: pipenv install
+
+vscode:
+  extensions:
+    - ms-python.python
+    - ms-azuretools.vscode-docker
