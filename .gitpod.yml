@@ -2,8 +2,9 @@ image:
   file: .gitpod.Dockerfile
 
 tasks:
-  - init: pip install --upgrade pip
-    command: pip install -r requirements.txt
+  - before: pip install --upgrade pip
+    init: pip install -r requirements.txt
+    command: python setup.py develop
 
 vscode:
   extensions:

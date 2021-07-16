@@ -27,7 +27,9 @@ By [wikipedia](https://en.wikipedia.org/wiki/FreeSWITCH).
 
 ESL is a way to communicate with FreeSwitch. See more details [here](https://freeswitch.org/confluence/display/FREESWITCH/Event+Socket+Library).
 
+## Why asyncio?
 
+Asynchronous programming is a type of parallel programming in which a unit of work is allowed to run separately from the primary application thread. When the work is complete, it notifies the main thread about completion or failure of the worker thread. There are numerous benefits to using it, such as improved application performance and enhanced responsiveness. We adopted this way of working, as integrating genesis with other applications is simpler, since you only need to deal with python's native asynchronous programming interface.
 ## Contributors
 
 Will be welcome ❤️

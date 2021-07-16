@@ -12,35 +12,11 @@ Aggregate created to provide the necessary material to simulate a freeswitrch se
 
 Remembering that we only simulate the communication via ESL and not the processing of SIP calls.
 """
-from asyncio import StreamReader, StreamWriter, start_server, CancelledError
+from asyncio import StreamReader, StreamWriter, start_server, CancelledError, sleep
 from typing import List, Awaitable, Callable
 from copy import copy
 
-STATUS = """UP 0 years, 80 days, 8 hours, 25 minutes, 5 seconds, 869 milliseconds, 87 microseconds
-FreeSWITCH (Version 1.10.3-release git e52b1a8 2020-09-09 12:16:24Z 64bit) is ready
-7653 session(s) since startup
-0 session(s) - peak 2, last 5min 0
-0 session(s) per Sec out of max 30, peak 14, last 5min 0
-1000 session(s) max
-min idle cpu 0.00/99.00
-Current Stack Size/Max 240K/8192K
-"""
-
-CONSOSE = "+OK console log level set to DEBUG"
-
-COLORIZE = "+OK console color enabled"
-
-VERSION = "FreeSWITCH Version 1.10.3-release+git~20200909T121624Z~e52b1a859b~64bit (git e52b1a8 2020-09-09 12:16:24Z 64bit)"
-
-UPTIME = "6943047"
-
-COMMANDS = {
-    "uptime": UPTIME,
-    "version": VERSION,
-    "api status": STATUS,
-    "api console loglevel": CONSOSE,
-    "api console colorize": COLORIZE,
-}
+from environment import COMMANDS, EVENTS
 
 
 class Server:
@@ -61,7 +37,9 @@ class Server:
 
     def __init__(self, host: str, port: int, password: str) -> None:
         self.password = password
+        self.commands = COMMANDS
         self.is_running = False
+        self.events = EVENTS
         self.server = None
         self.host = host
         self.port = port
@@ -78,10 +56,13 @@ class Server:
         self.is_running = True
         handler = await self.factory()
         self.server = await start_server(handler, self.host, self.port)
+
         try:
             await self.server.serve_forever()
         except CancelledError:
             pass
+
+        return self
 
     async def __aexit__(self, *args, **kwargs):
         """Interface used to implement a context manager."""
@@ -96,19 +77,32 @@ class Server:
         writer.write("\n".encode("utf-8"))
         await writer.drain()
 
+    async def event(self, writer: StreamWriter, event: str) -> Awaitable[None]:
+        content = self.events.get(event)
+        length = len(content)
+        await self.send(
+            writer, ["Content-Type: text/event-plain", f"Content-Length: {length}"]
+        )
+        await self.send(writer, [content.strip()])
+
     async def command(self, writer: StreamWriter, command: str) -> Awaitable[None]:
         """Response an ESL command received."""
         await self.send(
             writer, ["Content-Type: command/reply", f"Reply-Text: {command}"]
         )
 
-    async def api(self, writer: StreamWriter, content: List[str]) -> Awaitable[None]:
+    async def setup(self, writer: StreamWriter) -> Awaitable[None]:
+        while self.is_running:
+            await sleep(20)
+            await self.event(writer, "HEARTBEAT")
+
+    async def api(self, writer: StreamWriter, content: str) -> Awaitable[None]:
         """Response an API statement received via ESL."""
+        length = len(content)
         await self.send(
-            writer,
-            ["Content-Type: api/response", f"Content-Length: {len(''.join(content))}"],
+            writer, ["Content-Type: api/response", f"Content-Length: {length}"]
         )
-        await self.send(writer, content.split())
+        await self.send(writer, [content.strip()])
 
     async def disconnect(self, writer: StreamWriter) -> Awaitable[None]:
         """Appropriately closes an ESL connection."""
@@ -119,8 +113,7 @@ class Server:
             writer,
             ["Disconnected, goodbye.", "See you at ClueCon! http://www.cluecon.com/"],
         )
-        self.is_running = False
-        self.server.close()
+        await self.stop()
 
     async def process(self, writer: StreamWriter, request: str) -> Awaitable[None]:
         """Given an ESL event, we process it."""
@@ -131,6 +124,7 @@ class Server:
 
             if self.password == received_password:
                 await self.command(writer, "+OK accepted")
+                await self.setup(writer)
 
             else:
                 await self.command(writer, "-ERR invalid")
@@ -138,11 +132,10 @@ class Server:
 
         elif payload == "exit":
             await self.command(writer, "+OK bye")
-            await self.disconnect(writter)
-            await self.stop()
+            await self.disconnect(writer)
 
-        elif payload in COMMANDS:
-            response = COMMANDS.get(payload)
+        elif payload in self.commands:
+            response = self.commands.get(payload)
 
             if payload.startswith("api"):
                 await self.api(writer, response)
@@ -171,7 +164,7 @@ class Server:
                     try:
                         content = await reader.read(1)
 
-                    except Exception as exc:
+                    except:
                         self.is_running = False
                         writer.close()
                         break
