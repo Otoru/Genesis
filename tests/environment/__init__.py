@@ -1,4 +1,4 @@
 from .raw import COMMANDS, EVENTS
-from .freeswitch import Server
+from .freeswitch import Freeswitch
 
-__all__ = ["COMMANDS", "EVENTS", "Server"]
+__all__ = ["COMMANDS", "EVENTS", "Freeswitch"]

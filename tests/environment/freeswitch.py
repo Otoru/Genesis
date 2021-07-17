@@ -7,21 +7,22 @@ Aggregate created to provide the necessary material to simulate a freeswitrch se
 
     Example:
 
-    async with freeswitch.Server("0.0.0.0", 8021, "Cluecon"):
+    async with Freeswitch("0.0.0.0", 8021, "Cluecon") as server:
         ...
 
 Remembering that we only simulate the communication via ESL and not the processing of SIP calls.
 """
 from asyncio import StreamReader, StreamWriter, start_server, CancelledError, sleep
-from typing import List, Awaitable, Callable
+from typing import List, Awaitable, Callable, Optional
+from asyncio.base_events import Server
 from copy import copy
 
 from environment import COMMANDS, EVENTS
 
 
-class Server:
+class Freeswitch:
     """
-    Server class
+    Freeswitch class
     ------------
 
     Given a valid address, simulate a freeswitch server for testing using ESL.
@@ -36,26 +37,26 @@ class Server:
     """
 
     def __init__(self, host: str, port: int, password: str) -> None:
+        self.server: Optional[Server] = None
         self.password = password
         self.commands = COMMANDS
         self.is_running = False
         self.events = EVENTS
-        self.server = None
         self.host = host
         self.port = port
 
     async def stop(self) -> Awaitable[None]:
         """Stop current server."""
-        self.is_running = False
-        self.server.close()
+        if self.server:
+            self.is_running = False
+            self.server.close()
 
-        await self.server.wait_closed()
+            await self.server.wait_closed()
 
-    async def __aenter__(self) -> Awaitable[None]:
+    async def __aenter__(self) -> Awaitable[Freeswitch]:
         """Interface used to implement a context manager."""
+        self.server = await start_server(self.factory(), self.host, self.port)
         self.is_running = True
-        handler = await self.factory()
-        self.server = await start_server(handler, self.host, self.port)
 
         try:
             await self.server.serve_forever()
@@ -64,7 +65,7 @@ class Server:
 
         return self
 
-    async def __aexit__(self, *args, **kwargs):
+    async def __aexit__(self, *args, **kwargs) -> Awaitable[None]:
         """Interface used to implement a context manager."""
         await self.stop()
 
@@ -91,11 +92,6 @@ class Server:
             writer, ["Content-Type: command/reply", f"Reply-Text: {command}"]
         )
 
-    async def setup(self, writer: StreamWriter) -> Awaitable[None]:
-        while self.is_running:
-            await sleep(20)
-            await self.event(writer, "HEARTBEAT")
-
     async def api(self, writer: StreamWriter, content: str) -> Awaitable[None]:
         """Response an API statement received via ESL."""
         length = len(content)
@@ -111,9 +107,14 @@ class Server:
         )
         await self.send(
             writer,
-            ["Disconnected, goodbye.", "See you at ClueCon! http://www.cluecon.com/"],
+            [
+                "Disconnected, goodbye.",
+                "See you at ClueCon! http://www.cluecon.com/",
+            ],
         )
-        await self.stop()
+        if not writer.is_closing():
+            writer.close()
+            await writer.wait_closed()
 
     async def process(self, writer: StreamWriter, request: str) -> Awaitable[None]:
         """Given an ESL event, we process it."""
@@ -124,7 +125,6 @@ class Server:
 
             if self.password == received_password:
                 await self.command(writer, "+OK accepted")
-                await self.setup(writer)
 
             else:
                 await self.command(writer, "-ERR invalid")
@@ -133,6 +133,7 @@ class Server:
         elif payload == "exit":
             await self.command(writer, "+OK bye")
             await self.disconnect(writer)
+            await self.stop()
 
         elif payload in self.commands:
             response = self.commands.get(payload)
@@ -150,7 +151,7 @@ class Server:
         else:
             await self.command(writer, "-ERR command not found")
 
-    async def factory(self) -> Callable[[StreamReader, StreamWriter], Awaitable[None]]:
+    def factory(self) -> Callable[[StreamReader, StreamWriter], Awaitable[None]]:
         """Returns a handler to handle new ESL-based connections."""
 
         async def reading(reader: StreamReader, writer: StreamWriter) -> None:
@@ -160,13 +161,13 @@ class Server:
                 buffer = ""
                 request = None
 
-                while self.is_running:
+                while self.is_running and not writer.is_closing():
                     try:
                         content = await reader.read(1)
 
                     except:
                         self.is_running = False
-                        writer.close()
+                        await self.stop()
                         break
 
                     buffer += content.decode("utf-8")
@@ -177,9 +178,10 @@ class Server:
 
                 request = buffer.strip()
 
-                if not request and not self.is_running:
+                if not request or not self.is_running:
                     break
 
-                await self.process(writer, request)
+                else:
+                    await self.process(writer, request)
 
         return reading
