@@ -11,6 +11,9 @@
   <a href="https://gitpod.io/#https://github.com/Otoru/Genesis">
     <img alt="License" src="https://img.shields.io/badge/Gitpod-ready--to--code-908a85?logo=gitpod">
   </a>
+  <a href="https://github.com/Otoru/Genesis/actions/workflows/tests.yml">
+    <img alt="Tests" src="https://github.com/Otoru/Genesis/actions/workflows/tests.yml/badge.svg">
+  </a>
   <a href="https://github.com/Otoru/Genesis/blob/master/LICENSE.md">
     <img alt="License" src="https://img.shields.io/github/license/otoru/Genesis.svg">
   </a>
