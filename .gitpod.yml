@@ -4,7 +4,7 @@ image:
 tasks:
   - before: pip install --upgrade pip
     init: pip install -r requirements.txt
-    command: python setup.py develop
+    command: pip install -e .
 
 vscode:
   extensions:
