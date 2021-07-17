@@ -1,4 +1,4 @@
-name: Run python tests
+name: Tests
 
 on:
   push:
