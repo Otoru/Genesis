@@ -4,6 +4,8 @@ Genesis inbound
 
 ESL implementation used for incoming connections on freeswitch.
 """
+from __future__ import annotations
+
 from asyncio import StreamReader, StreamWriter, open_connection, wait_for, TimeoutError
 from typing import Awaitable, Optional, Dict
 

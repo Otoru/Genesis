@@ -12,6 +12,8 @@ Aggregate created to provide the necessary material to simulate a freeswitrch se
 
 Remembering that we only simulate the communication via ESL and not the processing of SIP calls.
 """
+from __future__ import annotations
+
 from asyncio import StreamReader, StreamWriter, start_server, CancelledError, sleep
 from typing import List, Awaitable, Callable, Optional
 from asyncio.base_events import Server
