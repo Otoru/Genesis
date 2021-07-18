@@ -7,17 +7,25 @@ Aggregate created to provide the necessary material to simulate a freeswitrch se
 
     Example:
 
-    async with Freeswitch("0.0.0.0", 8021, "Cluecon") as server:
+    async with Freeswitch("0.0.0.0", 8021, "Cluecon"):
         ...
 
 Remembering that we only simulate the communication via ESL and not the processing of SIP calls.
 """
 from __future__ import annotations
 
-from asyncio import StreamReader, StreamWriter, start_server, CancelledError, sleep
+from asyncio import (
+    CancelledError,
+    ensure_future,
+    StreamReader,
+    StreamWriter,
+    start_server,
+    sleep,
+)
 from typing import List, Awaitable, Callable, Optional
 from asyncio.base_events import Server
 from copy import copy
+import socket
 
 from environment import COMMANDS, EVENTS
 
@@ -39,6 +47,7 @@ class Freeswitch:
     """
 
     def __init__(self, host: str, port: int, password: str) -> None:
+        self.processor: Optional[Awaitable] = None
         self.server: Optional[Server] = None
         self.password = password
         self.commands = COMMANDS
@@ -52,20 +61,24 @@ class Freeswitch:
         if self.server:
             self.is_running = False
             self.server.close()
-
             await self.server.wait_closed()
 
-    async def __aenter__(self) -> Awaitable[Freeswitch]:
-        """Interface used to implement a context manager."""
-        self.server = await start_server(self.factory(), self.host, self.port)
+            if self.processor:
+                self.processor.cancel()
+
+            await sleep(0.00001)
+
+    async def start(self) -> Awaitable[None]:
+        self.server = await start_server(
+            self.factory(), self.host, self.port, family=socket.AF_INET
+        )
+        self.processor = ensure_future(self.server.serve_forever())
         self.is_running = True
 
-        try:
-            await self.server.serve_forever()
-        except CancelledError:
-            pass
-
-        return self
+    async def __aenter__(self) -> Awaitable[Server]:
+        """Interface used to implement a context manager."""
+        await self.start()
+        return await self.server.__aenter__()
 
     async def __aexit__(self, *args, **kwargs) -> Awaitable[None]:
         """Interface used to implement a context manager."""
@@ -153,15 +166,17 @@ class Freeswitch:
         else:
             await self.command(writer, "-ERR command not found")
 
-    def factory(self) -> Callable[[StreamReader, StreamWriter], Awaitable[None]]:
+    def factory(self) -> Callable[None, Callable[StreamReader, StreamWriter]]:
         """Returns a handler to handle new ESL-based connections."""
 
-        async def reading(reader: StreamReader, writer: StreamWriter) -> None:
+        async def reading(
+            reader: StreamReader, writer: StreamWriter
+        ) -> Awaitable[None]:
             await self.send(writer, ["Content-Type: auth/request"])
 
             while self.is_running:
-                buffer = ""
                 request = None
+                buffer = ""
 
                 while self.is_running and not writer.is_closing():
                     try:

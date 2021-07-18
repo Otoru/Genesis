@@ -6,15 +6,31 @@ ESL implementation used for incoming connections on freeswitch.
 """
 from __future__ import annotations
 
-from asyncio import StreamReader, StreamWriter, open_connection, wait_for, TimeoutError
-from typing import Awaitable, Optional, Dict
+from asyncio import (
+    open_connection,
+    ensure_future,
+    StreamReader,
+    StreamWriter,
+    TimeoutError,
+    wait_for,
+    Queue,
+    Event,
+)
+from typing import Awaitable, Optional, List, Dict
+import logging
 
-from genesis.exceptions import ConnectionTimeoutError, AuthenticationError
+from genesis.exceptions import (
+    ConnectionTimeoutError,
+    AuthenticationError,
+    UnconnectedError,
+)
+from genesis.protocol import BaseProtocol
+from genesis.parser import parse
 
 
-class Inbound:
+class Client(BaseProtocol):
     """
-    Inbound class
+    Client class
     -------------
 
     Given a valid set of information, establish a connection to a freeswitch server.
@@ -33,13 +49,18 @@ class Inbound:
     def __init__(self, host: str, port: int, password: str, timeout: int = 5) -> None:
         self.reader: Optional[StreamReader] = None
         self.writer: Optional[StreamWriter] = None
+        self.processor: Optional[Awaitable] = None
+        self.crusher: Awaitable = None
         self.is_connected = False
         self.password = password
+        self.commands = Queue()
+        self.trigger = Event()
         self.timeout = timeout
+        self.events = Queue()
         self.host = host
         self.port = port
 
-    async def __aenter__(self) -> Awaitable[Inbound]:
+    async def __aenter__(self) -> Awaitable[Client]:
         """Interface used to implement a context manager."""
         await self.connect()
         return self
@@ -48,16 +69,75 @@ class Inbound:
         """Interface used to implement a context manager."""
         await self.disconnect()
 
-    async def send(self, message: str) -> Awaitable[Dict[str, str]]:
-        # TODO(Vitor): Define how our client will actually communicate with freeswitch.
-        raise NotImplementedError()
+    async def send(self, command: str) -> Awaitable[Dict[str, str]]:
+        """Method used to send commands to or freeswitch."""
+
+        if not self.is_connected:
+            raise UnconnectedError()
+
+        content = command.splitlines()
+        logging.debug(f"Send command: {content}")
+
+        await super().send(self.writer, content)
+        response = await self.commands.get()
+        return response
 
     async def authenticate(self) -> Awaitable[None]:
         """Authenticates to the freeswitch server. Raises an exception on failure."""
+        await self.trigger.wait()
         response = await self.send(f"auth {self.password}")
 
         if response["Reply-Text"] != "+OK accepted":
             raise AuthenticationError("Invalid password")
+
+    async def handler(self) -> Awaitable[None]:
+        """Defines intelligence to treat received events."""
+        while self.is_connected:
+            request = None
+            buffer = ""
+
+            while self.is_connected:
+                try:
+                    content = await self.reader.read(1)
+                    buffer += content.decode("utf-8")
+
+                except:
+                    self.is_connected = False
+                    break
+
+                if buffer[-2:] == "\n\n" or buffer[-4:] == "\r\n\r\n":
+                    request = buffer
+                    break
+
+            if not request or not self.is_connected:
+                break
+
+            event = parse(request)
+            await self.events.put(event)
+
+    async def setup(self) -> Awaitable[None]:
+        """Arm all event processors."""
+        self.is_connected = True
+        self.processor = ensure_future(self.handler())
+
+        while self.is_connected:
+            event = await self.events.get()
+            logging.debug(f"Event received: {event}")
+
+            if "Content-Type" in event:
+                if event["Content-Type"] == "auth/request":
+                    self.trigger.set()
+
+                elif event["Content-Type"] == "command/reply":
+                    await self.commands.put(event)
+
+                elif event["Content-Type"] == "api/response":
+                    data = await self.events.get()
+                    event["Reply-Text"] = data[""]
+                    await self.commands.put(event)
+
+                elif event["Content-Type"] == "text/disconnect-notice":
+                    await self.disconnect()
 
     async def connect(self) -> Awaitable[None]:
         """Initiates an authenticated connection to a freeswitch server."""
@@ -67,8 +147,18 @@ class Inbound:
         except TimeoutError:
             raise ConnectionTimeoutError()
 
+        self.crusher = ensure_future(self.setup())
         await self.authenticate()
 
     async def disconnect(self) -> Awaitable[None]:
         """Terminates connection to a freeswitch server."""
-        await self.send("exit")
+        if self.writer and not self.writer.is_closing():
+            self.writer.close()
+
+        self.is_connected = False
+
+        if self.processor:
+            self.processor.cancel()
+
+        if self.crusher:
+            self.crusher.cancel()
