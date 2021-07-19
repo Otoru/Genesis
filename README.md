@@ -32,6 +32,15 @@ ESL is a way to communicate with FreeSwitch. See more details [here](https://fre
 
 Asynchronous programming is a type of parallel programming in which a unit of work is allowed to run separately from the primary application thread. When the work is complete, it notifies the main thread about completion or failure of the worker thread. There are numerous benefits to using it, such as improved application performance and enhanced responsiveness. We adopted this way of working, as integrating genesis with other applications is simpler, since you only need to deal with python's native asynchronous programming interface.
 
+## How to contribute?
+
+If you are thinking of contributing in any way to the project, you will be very welcome.
+Whether it's improving existing documentation, suggesting new features or running existing bugs, it's only by working together that the project will grow.
+Do not forget to see our [Contributing Guide][2] and our [Code of Conduct][3] to always be aligned with the ideas of the project.
+
+[2]: https://github.com/Otoru/Genesis/blob/master/CONTRIBUTING.md
+[3]: https://github.com/Otoru/Genesis/blob/master/CODE_OF_CONDUCT.md
+
 ## Contributors
 
 Will be welcome ❤️
