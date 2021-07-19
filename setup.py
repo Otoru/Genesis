@@ -37,7 +37,7 @@ setup(
         "Topic :: Software Development",
     ],
     keywords="ESL, FreeSwitch",
-    packages=find_packages(exclude=["docs", "examples", "tests"]),
+    packages=find_packages(exclude=["tests"]),
     install_requires=production,
     extras_require={"dev": development},
     zip_safe=False,
