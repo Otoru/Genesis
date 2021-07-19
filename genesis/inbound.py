@@ -8,15 +8,16 @@ from __future__ import annotations
 
 from asyncio import (
     open_connection,
-    ensure_future,
+    CancelledError,
     StreamReader,
     StreamWriter,
     TimeoutError,
+    create_task,
     wait_for,
     Queue,
     Event,
 )
-from typing import Awaitable, Optional, List, Dict
+from typing import Awaitable, Optional, List, Dict, NoReturn
 import logging
 
 from genesis.exceptions import (
@@ -90,7 +91,7 @@ class Client(BaseProtocol):
         if response["Reply-Text"] != "+OK accepted":
             raise AuthenticationError("Invalid password")
 
-    async def handler(self) -> Awaitable[None]:
+    async def handler(self) -> Awaitable[NoReturn]:
         """Defines intelligence to treat received events."""
         while self.is_connected:
             request = None
@@ -115,10 +116,10 @@ class Client(BaseProtocol):
             event = parse(request)
             await self.events.put(event)
 
-    async def setup(self) -> Awaitable[None]:
+    async def setup(self) -> Awaitable[NoReturn]:
         """Arm all event processors."""
         self.is_connected = True
-        self.processor = ensure_future(self.handler())
+        self.processor = create_task(self.handler())
 
         while self.is_connected:
             event = await self.events.get()
@@ -147,7 +148,7 @@ class Client(BaseProtocol):
         except TimeoutError:
             raise ConnectionTimeoutError()
 
-        self.crusher = ensure_future(self.setup())
+        self.crusher = create_task(self.setup())
         await self.authenticate()
 
     async def disconnect(self) -> Awaitable[None]:
