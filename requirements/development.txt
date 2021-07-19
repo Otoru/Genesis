@@ -1,3 +1,4 @@
+tox
 black
 pytest
 pylint

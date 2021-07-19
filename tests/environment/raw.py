@@ -5,8 +5,7 @@ FreeSWITCH (Version 1.10.3-release git e52b1a8 2020-09-09 12:16:24Z 64bit) is re
 0 session(s) per Sec out of max 30, peak 14, last 5min 0
 1000 session(s) max
 min idle cpu 0.00/99.00
-Current Stack Size/Max 240K/8192K
-"""
+Current Stack Size/Max 240K/8192K"""
 
 CONSOSE = "+OK console log level set to DEBUG"
 
@@ -41,8 +40,7 @@ Session-Per-Sec-FiveMin: 0
 Session-Since-Startup: 34
 Session-Peak-Max: 4
 Session-Peak-FiveMin: 0
-Idle-CPU: 98.700000
-"""
+Idle-CPU: 98.700000"""
 
 SHUTDOWN = """Event-Info: System Shutting Down
 Event-Name: SHUTDOWN
@@ -55,8 +53,7 @@ Event-Date-GMT: Wed,%2023%20Jan%202008%2018%3A48%3A13%20GMT
 Event-Date-timestamp: 1201114093012795
 Event-Calling-File: switch_core.c
 Event-Calling-Function: switch_core_destroy
-Event-Calling-Line-Number: 1046
-"""
+Event-Calling-Line-Number: 1046"""
 
 MODULE_LOAD = """type: codec
 name: LPC-10%202.4kbps
@@ -70,8 +67,7 @@ Event-Date-GMT: Mon,%2017%20Dec%202007%2004%3A24%3A56%20GMT
 Event-Date-timestamp: 1197865496783828
 Event-Calling-File: switch_loadable_module.c
 Event-Calling-Function: switch_loadable_module_process
-Event-Calling-Line-Number: 174
-"""
+Event-Calling-Line-Number: 174"""
 
 MODULE_UNLOAD = """
 type: application
@@ -88,8 +84,7 @@ Event-Date-GMT: Thu,%2011%20Dec%202008%2012%3A14%3A23%20GMT
 Event-Date-timestamp: 1228997663531389
 Event-Calling-File: switch_loadable_module.c
 Event-Calling-Function: switch_loadable_module_unprocess
-Event-Calling-Line-Number: 524
-"""
+Event-Calling-Line-Number: 524"""
 
 RELOADXML = """Event-Name: RELOADXML
 Core-UUID: 6c6def18-9562-de11-a8e0-001fc6ab49e2
@@ -101,8 +96,7 @@ Event-Date-GMT: Fri,%2026%20Jun%202009%2021%3A06%3A33%20GMT
 Event-Date-Timestamp: 1246050393884782
 Event-Calling-File: switch_xml.c
 Event-Calling-Function: switch_xml_open_root
-Event-Calling-Line-Number: 1917
-"""
+Event-Calling-Line-Number: 1917"""
 
 MESSAGE = """sip_mailbox: 1006
 sip_auth_username: 1006
@@ -125,8 +119,7 @@ Event-Date-GMT: Mon,%2017%20Dec%202007%2004%3A28%3A29%20GMT
 Event-Date-timestamp: 1197865709262950
 Event-Calling-File: sofia_reg.c
 Event-Calling-Function: sofia_reg_handle_sip_i_register
-Event-Calling-Line-Number: 636
-"""
+Event-Calling-Line-Number: 636"""
 
 
 CHANNEL_CREATE = """Event-Name: CHANNEL_CREATE
@@ -278,8 +271,7 @@ a=rtpmap:9 G722/8000
 a=rtpmap:101 telephone-event/8000
 a=fmtp:101 0-15
 a=rtcp:4017 IN IP4 172.16.7.70
-variable_endpoint_disposition: DELAYED NEGOTIATION
-"""
+variable_endpoint_disposition: DELAYED NEGOTIATION"""
 
 COMMANDS = {
     "uptime": UPTIME,
