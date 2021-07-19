@@ -34,8 +34,8 @@ Asynchronous programming is a type of parallel programming in which a unit of wo
 
 ## How to contribute?
 
-If you are thinking of contributing in any way to the project, you will be very welcome.
-Whether it's improving existing documentation, suggesting new features or running existing bugs, it's only by working together that the project will grow.
+If you are thinking of contributing in any way to the project, you will be very welcome. Whether it's improving existing documentation, suggesting new features or running existing bugs, it's only by working together that the project will grow.
+
 Do not forget to see our [Contributing Guide][2] and our [Code of Conduct][3] to always be aligned with the ideas of the project.
 
 [2]: https://github.com/Otoru/Genesis/blob/master/CONTRIBUTING.md
