@@ -18,6 +18,11 @@ In [3]: print(response)
 {'Content-Type': 'command/reply', 'Reply-Text': '6943047'}
 ```
 
+### Comments
+
+- For some cases where the ESL brings values without an associated key, we take the liberty of creating custom keys to simplify the work. Examples: `X-API-Reply-Text` and `X-Event-Content-Text`.
+- If a key purposely repeats in an event (Example: `Content-Length` in **BACKGROUND_JOB** event), we store both values in a list, in the order they are received.
+
 ## What is FreeSwitch?
 
 FreeSWITCH is a free and open-source application server for real-time communication, WebRTC, telecommunications, video and Voice over Internet Protocol (VoIP). Multiplatform, it runs on Linux, Windows, macOS and FreeBSD. It is used to build PBX systems, IVR services, videoconferencing with chat and screen sharing, wholesale least-cost routing, Session Border Controller (SBC) and embedded communication appliances. It has full support for encryption, ZRTP, DTLS, SIPS. It can act as a gateway between PSTN, SIP, WebRTC, and many other communication protocols. Its core library, libfreeswitch, can be embedded into other projects. It is licensed under the Mozilla Public License (MPL), a free software license.
