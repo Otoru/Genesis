@@ -18,6 +18,7 @@ class BaseProtocol:
 
     Contains methods common to inbound and outbound connectors.
     """
+
     @staticmethod
     async def send(writer: StreamWriter, lines: List[str]) -> Awaitable[None]:
         """Method used to send commands to or freeswitch."""

@@ -99,7 +99,7 @@ class Client(BaseProtocol):
 
             while self.is_connected:
                 try:
-                    content = await self.reader.read(1)
+                    content = await self.reader.readline()
                     buffer += content.decode("utf-8")
 
                 except:
@@ -133,8 +133,6 @@ class Client(BaseProtocol):
                     await self.commands.put(event)
 
                 elif event["Content-Type"] == "api/response":
-                    data = await self.events.get()
-                    event["Reply-Text"] = data[""]
                     await self.commands.put(event)
 
                 elif event["Content-Type"] == "text/disconnect-notice":
