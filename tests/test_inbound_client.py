@@ -39,7 +39,7 @@ async def test_send_api_command():
             response = await client.send("api console loglevel")
             message = "The answer is not what we expected"
             expected = "+OK console log level set to DEBUG"
-            assert response["Reply-Text"] == expected, message
+            assert response["X-API-Reply-Text"] == expected, message
 
 
 @pytest.mark.asyncio
@@ -56,4 +56,4 @@ FreeSWITCH (Version 1.10.3-release git e52b1a8 2020-09-09 12:16:24Z 64bit) is re
 1000 session(s) max
 min idle cpu 0.00/99.00
 Current Stack Size/Max 240K/8192K"""
-            assert response["Reply-Text"] == expected, message
+            assert response["X-API-Reply-Text"] == expected, message

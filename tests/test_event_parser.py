@@ -1,7 +1,5 @@
 import pytest
 
-from textwrap import dedent
-
 from genesis.parser import parse
 
 from environment import EVENTS
@@ -73,3 +71,28 @@ def test_parse_multiline_field_on_event():
     )
 
     assert got == expected, "Parsing a field with many lines was not as it should."
+
+
+def test_double_field_in_event():
+    background_job = EVENTS["BACKGROUND_JOB"]
+    got = parse(background_job)
+    expected = {
+        "Content-Length": ["625", "41"],
+        "Content-Type": "text/event-plain",
+        "X-Event-Content-Text": "+OK 7f4de4bc-17d7-11dd-b7a0-db4edd065621",
+        "Job-UUID": "7f4db78a-17d7-11dd-b7a0-db4edd065621",
+        "Job-Command": "originate",
+        "Job-Command-Arg": "sofia/default/1005 '&park'",
+        "Event-Name": "BACKGROUND_JOB",
+        "Core-UUID": "42bdf272-16e6-11dd-b7a0-db4edd065621",
+        "FreeSWITCH-Hostname": "ser",
+        "FreeSWITCH-IPv4": "192.168.1.104",
+        "FreeSWITCH-IPv6": "127.0.0.1",
+        "Event-Date-Local": "2008-05-02 07:37:03",
+        "Event-Date-GMT": "Thu, 01 May 2008 23:37:03 GMT",
+        "Event-Date-timestamp": "1209685023894968",
+        "Event-Calling-File": "mod_event_socket.c",
+        "Event-Calling-Function": "api_exec",
+        "Event-Calling-Line-Number": "609",
+    }
+    assert got == expected, "Event parsing did not happen as expected"

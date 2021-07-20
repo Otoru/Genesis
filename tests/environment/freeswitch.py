@@ -111,9 +111,13 @@ class Freeswitch:
         """Response an API statement received via ESL."""
         length = len(content)
         await self.send(
-            writer, ["Content-Type: api/response", f"Content-Length: {length}"]
+            writer,
+            [
+                "Content-Type: api/response",
+                f"Content-Length: {length}",
+                *content.strip().splitlines(),
+            ],
         )
-        await self.send(writer, [content.strip()])
 
     async def disconnect(self, writer: StreamWriter) -> Awaitable[None]:
         """Appropriately closes an ESL connection."""
