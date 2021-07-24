@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from asyncio import (
     open_connection,
-    CancelledError,
     StreamReader,
     StreamWriter,
     TimeoutError,
@@ -17,7 +16,7 @@ from asyncio import (
     Queue,
     Event,
 )
-from typing import Awaitable, Optional, List, Dict, NoReturn
+from typing import Awaitable, Optional, List, Dict, NoReturn, Union
 import logging
 
 from genesis.exceptions import (
@@ -51,7 +50,7 @@ class Client(BaseProtocol):
         self.reader: Optional[StreamReader] = None
         self.writer: Optional[StreamWriter] = None
         self.processor: Optional[Awaitable] = None
-        self.crusher: Awaitable = None
+        self.crusher: Optional[Awaitable] = None
         self.is_connected = False
         self.password = password
         self.commands = Queue()
@@ -125,18 +124,26 @@ class Client(BaseProtocol):
             event = await self.events.get()
             logging.debug(f"Event received: {event}")
 
-            if "Content-Type" in event:
-                if event["Content-Type"] == "auth/request":
-                    self.trigger.set()
+            if "Content-Type" in event and event["Content-Type"] == "auth/request":
+                self.trigger.set()
 
-                elif event["Content-Type"] == "command/reply":
-                    await self.commands.put(event)
+            elif "Content-Type" in event and event["Content-Type"] == "command/reply":
+                await self.commands.put(event)
 
-                elif event["Content-Type"] == "api/response":
-                    await self.commands.put(event)
+            elif "Content-Type" in event and event["Content-Type"] == "api/response":
+                await self.commands.put(event)
 
-                elif event["Content-Type"] == "text/disconnect-notice":
-                    await self.disconnect()
+            elif "Content-Type" in event and (
+                event["Content-Type"] == "text/disconnect-notice"
+                or event["Content-Type"] == "text/rude-rejection"
+            ):
+                await self.disconnect()
+
+            else:
+                await self.work(event)
+
+    async def work(self, event: Dict[str, Union[str, List[str]]]):
+        ...
 
     async def connect(self) -> Awaitable[None]:
         """Initiates an authenticated connection to a freeswitch server."""
