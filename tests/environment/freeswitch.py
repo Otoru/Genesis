@@ -46,8 +46,15 @@ class Freeswitch:
         Password used to authenticate a new connection.
     """
 
-    def __init__(self, host: str, port: int, password: str) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        password: str,
+        events: Optional[List[str]] = None,
+    ) -> None:
         self.processor: Optional[Awaitable] = None
+        self.queue = events if events else list()
         self.server: Optional[Server] = None
         self.password = password
         self.commands = COMMANDS
@@ -93,6 +100,11 @@ class Freeswitch:
 
         writer.write("\n".encode("utf-8"))
         await writer.drain()
+
+    async def shoot(self, writer: StreamWriter) -> None:
+        if self.queue:
+            for event in self.queue:
+                await self.send(writer, event.splitlines())
 
     async def event(self, writer: StreamWriter, event: str) -> Awaitable[None]:
         content = self.events.get(event)
@@ -145,6 +157,7 @@ class Freeswitch:
 
             if self.password == received_password:
                 await self.command(writer, "+OK accepted")
+                await self.shoot(writer)
 
             else:
                 await self.command(writer, "-ERR invalid")
