@@ -47,6 +47,7 @@ class Client(BaseProtocol):
     """
 
     def __init__(self, host: str, port: int, password: str, timeout: int = 5) -> None:
+        self.handlers: Dict[str, List[Awaitable[None]]] = {}
         self.reader: Optional[StreamReader] = None
         self.writer: Optional[StreamWriter] = None
         self.processor: Optional[Awaitable] = None
@@ -143,7 +144,20 @@ class Client(BaseProtocol):
                 await self.work(event)
 
     async def work(self, event: Dict[str, Union[str, List[str]]]):
-        ...
+        """Processes an event according to the registered handlers."""
+        if name := event.get("Event-name", None):
+            if name == "CUSTOM":
+                name = event.get("Event-Subclass")
+
+            handlers = self.handlers.get(name, list())
+
+            if handlers:
+                for hander in handlers:
+                    await hander(event)
+
+            elif "*" in self.handlers:
+                for handler in self.handlers["*"]:
+                    await handler(event)
 
     async def connect(self) -> Awaitable[None]:
         """Initiates an authenticated connection to a freeswitch server."""
