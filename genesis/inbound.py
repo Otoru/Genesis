@@ -17,6 +17,7 @@ from asyncio import (
     Event,
 )
 from typing import Awaitable, Optional, List, Dict, NoReturn, Union
+from inspect import isawaitable
 import logging
 
 from genesis.exceptions import (
@@ -145,19 +146,23 @@ class Client(BaseProtocol):
 
     async def work(self, event: Dict[str, Union[str, List[str]]]):
         """Processes an event according to the registered handlers."""
-        if name := event.get("Event-name", None):
+        name = event.get("Event-name", None)
+
+        if name:
             if name == "CUSTOM":
                 name = event.get("Event-Subclass")
 
-            handlers = self.handlers.get(name, list())
+            specific = self.handlers.get(name, list())
+            generic = self.handlers.get("*", list())
+            handlers = specific + generic
 
             if handlers:
-                for hander in handlers:
-                    await hander(event)
+                for handler in handlers:
+                    if isawaitable(handler):
+                        await handler(event)
 
-            elif "*" in self.handlers:
-                for handler in self.handlers["*"]:
-                    await handler(event)
+                    else:
+                        raise TypeError("Invalid handler")
 
     async def connect(self) -> Awaitable[None]:
         """Initiates an authenticated connection to a freeswitch server."""

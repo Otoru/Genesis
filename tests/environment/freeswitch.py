@@ -21,7 +21,7 @@ from asyncio import (
     start_server,
     sleep,
 )
-from typing import List, Awaitable, Callable, Optional
+from typing import List, Awaitable, Callable, Optional, Union
 from asyncio.base_events import Server
 from functools import partial
 from copy import copy
@@ -93,10 +93,16 @@ class Freeswitch:
         await self.stop()
 
     @staticmethod
-    async def send(writer: StreamWriter, lines: List[str]) -> Awaitable[None]:
+    async def send(
+        writer: StreamWriter, lines: Union[List[str], str]
+    ) -> Awaitable[None]:
         """Given a line-separated message, we send the ESL client."""
-        for line in lines:
-            writer.write((line + "\n").encode("utf-8"))
+        if isinstance(lines, str):
+            writer.write((lines + "\n").encode("utf-8"))
+
+        else:
+            for line in lines:
+                writer.write((line + "\n").encode("utf-8"))
 
         writer.write("\n".encode("utf-8"))
         await writer.drain()
