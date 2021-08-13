@@ -16,7 +16,7 @@ from asyncio import (
     Queue,
     Event,
 )
-from typing import Awaitable, Optional, List, Dict, NoReturn, Union
+from typing import Awaitable, Optional, List, Dict, NoReturn
 from inspect import isawaitable
 import logging
 
@@ -48,17 +48,13 @@ class Client(BaseProtocol):
     """
 
     def __init__(self, host: str, port: int, password: str, timeout: int = 5) -> None:
-        self.handlers: Dict[str, List[Awaitable[None]]] = {}
-        self.reader: Optional[StreamReader] = None
-        self.writer: Optional[StreamWriter] = None
-        self.processor: Optional[Awaitable] = None
-        self.crusher: Optional[Awaitable] = None
-        self.is_connected = False
+        super().__init__()
+        self.producer: Optional[Awaitable] = None
+        self.consumer: Optional[Awaitable] = None
         self.password = password
         self.commands = Queue()
         self.trigger = Event()
         self.timeout = timeout
-        self.events = Queue()
         self.host = host
         self.port = port
 
@@ -92,35 +88,10 @@ class Client(BaseProtocol):
         if response["Reply-Text"] != "+OK accepted":
             raise AuthenticationError("Invalid password")
 
-    async def handler(self) -> Awaitable[NoReturn]:
-        """Defines intelligence to treat received events."""
-        while self.is_connected:
-            request = None
-            buffer = ""
-
-            while self.is_connected:
-                try:
-                    content = await self.reader.readline()
-                    buffer += content.decode("utf-8")
-
-                except:
-                    self.is_connected = False
-                    break
-
-                if buffer[-2:] == "\n\n" or buffer[-4:] == "\r\n\r\n":
-                    request = buffer
-                    break
-
-            if not request or not self.is_connected:
-                break
-
-            event = parse(request)
-            await self.events.put(event)
-
-    async def setup(self) -> Awaitable[NoReturn]:
-        """Arm all event processors."""
+    async def consume(self) -> Awaitable[NoReturn]:
+        """Arm all event producers."""
         self.is_connected = True
-        self.processor = create_task(self.handler())
+        self.producer = create_task(self.handler())
 
         while self.is_connected:
             event = await self.events.get()
@@ -142,27 +113,7 @@ class Client(BaseProtocol):
                 await self.disconnect()
 
             else:
-                await self.work(event)
-
-    async def work(self, event: Dict[str, Union[str, List[str]]]):
-        """Processes an event according to the registered handlers."""
-        name = event.get("Event-name", None)
-
-        if name:
-            if name == "CUSTOM":
-                name = event.get("Event-Subclass")
-
-            specific = self.handlers.get(name, list())
-            generic = self.handlers.get("*", list())
-            handlers = specific + generic
-
-            if handlers:
-                for handler in handlers:
-                    if isawaitable(handler):
-                        await handler(event)
-
-                    else:
-                        raise TypeError("Invalid handler")
+                await super().consume(event)
 
     async def connect(self) -> Awaitable[None]:
         """Initiates an authenticated connection to a freeswitch server."""
@@ -172,7 +123,7 @@ class Client(BaseProtocol):
         except TimeoutError:
             raise ConnectionTimeoutError()
 
-        self.crusher = create_task(self.setup())
+        self.consumer = create_task(self.consume())
         await self.authenticate()
 
     async def disconnect(self) -> Awaitable[None]:
@@ -182,8 +133,8 @@ class Client(BaseProtocol):
 
         self.is_connected = False
 
-        if self.processor:
-            self.processor.cancel()
+        if self.producer:
+            self.producer.cancel()
 
-        if self.crusher:
-            self.crusher.cancel()
+        if self.consumer:
+            self.consumer.cancel()
