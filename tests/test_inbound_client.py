@@ -5,7 +5,7 @@ from textwrap import dedent
 from genesis.exceptions import AuthenticationError
 from genesis import Client
 
-from environment import Freeswitch
+from environment import Freeswitch, Callback, EVENTS
 
 
 @pytest.mark.asyncio
@@ -57,3 +57,39 @@ FreeSWITCH (Version 1.10.3-release git e52b1a8 2020-09-09 12:16:24Z 64bit) is re
 min idle cpu 0.00/99.00
 Current Stack Size/Max 240K/8192K"""
             assert response["X-API-Reply-Text"] == expected, message
+
+
+@pytest.mark.asyncio
+async def test_event_handler_on_client():
+    handler = Callback()
+
+    assert handler.control == False, "Control started with wrong value"
+
+    events = [EVENTS["HEARTBEAT"]]
+
+    async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
+        async with Client("0.0.0.0", 8021, "ClueCon") as client:
+            client.on("HEARTBEAT", handler)
+
+            while handler.control == False:
+                await asyncio.sleep(0.001)
+
+    assert handler.control, "Event processing did not activate handler"
+
+
+@pytest.mark.asyncio
+async def test_wildcard_handler_on_client():
+    handler = Callback()
+
+    assert handler.control == False, "Control started with wrong value"
+
+    events = [EVENTS["HEARTBEAT"]]
+
+    async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
+        async with Client("0.0.0.0", 8021, "ClueCon") as client:
+            client.on("*", handler)
+
+            while handler.control == False:
+                await asyncio.sleep(0.001)
+
+    assert handler.control, "Event processing did not activate handler"

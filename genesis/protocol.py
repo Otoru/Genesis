@@ -7,6 +7,7 @@ Here we will group what is common to the ESL client for inbound and outbound con
 from typing import List, Awaitable, Dict, NoReturn, Optional, Union
 from asyncio import StreamWriter, StreamReader, Queue
 from inspect import isawaitable
+import logging
 
 from genesis.parser import parse
 
@@ -30,7 +31,7 @@ class BaseProtocol:
         self, event: Dict[str, Union[str, List[str]]]
     ) -> Awaitable[NoReturn]:
         """Arm all event processors."""
-        identifier = event.get("Event-name", None)
+        identifier = event.get("Event-Name", None)
 
         if identifier == "CUSTOM":
             name = event.get("Event-Subclass", None)
@@ -48,6 +49,7 @@ class BaseProtocol:
                         await handler(event)
 
                     else:
+                        logging.error("Invalid handler")
                         raise TypeError("Invalid handler")
 
     def on(self, key: str, handler: Awaitable[None]) -> None:
