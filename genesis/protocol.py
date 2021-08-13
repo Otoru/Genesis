@@ -4,11 +4,10 @@ Genesis Protocol
 
 Here we will group what is common to the ESL client for inbound and outbound connections.
 """
-from typing import List, Awaitable, Dict, Callable, NoReturn, Optional, Union
+from typing import List, Awaitable, Dict, NoReturn, Optional, Union
 from asyncio import StreamWriter, StreamReader, Queue
 from inspect import isawaitable
 
-from genesis.exceptions import UnconnectedError
 from genesis.parser import parse
 
 

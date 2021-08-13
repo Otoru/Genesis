@@ -8,8 +8,6 @@ from __future__ import annotations
 
 from asyncio import (
     open_connection,
-    StreamReader,
-    StreamWriter,
     TimeoutError,
     create_task,
     wait_for,
@@ -17,7 +15,6 @@ from asyncio import (
     Event,
 )
 from typing import Awaitable, Optional, List, Dict, NoReturn
-from inspect import isawaitable
 import logging
 
 from genesis.exceptions import (
