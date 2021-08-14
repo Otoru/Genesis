@@ -32,6 +32,11 @@ def parse(payload: str) -> Dict[str, str]:
             key = "X-Event-Content-Text"
             value = personalization
 
+        elif "Content-Type" in result and result["Content-Type"] == "log/data":
+            personalization += "\n" + line
+            key = "X-Log-Text"
+            value = personalization
+
         else:
             key = buffer
             value += "\n" + line

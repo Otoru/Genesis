@@ -15,15 +15,15 @@ Remembering that we only simulate the communication via ESL and not the processi
 from __future__ import annotations
 
 from asyncio import (
-    CancelledError,
     ensure_future,
     StreamReader,
     StreamWriter,
     start_server,
     sleep,
 )
-from typing import List, Awaitable, Callable, Optional
+from typing import List, Awaitable, Callable, Optional, Union
 from asyncio.base_events import Server
+from functools import partial
 from copy import copy
 import socket
 
@@ -46,8 +46,15 @@ class Freeswitch:
         Password used to authenticate a new connection.
     """
 
-    def __init__(self, host: str, port: int, password: str) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        password: str,
+        events: Optional[List[str]] = None,
+    ) -> None:
         self.processor: Optional[Awaitable] = None
+        self.queue = events if events else list()
         self.server: Optional[Server] = None
         self.password = password
         self.commands = COMMANDS
@@ -69,8 +76,9 @@ class Freeswitch:
             await sleep(0.00001)
 
     async def start(self) -> Awaitable[None]:
+        handler = partial(self.handler, self)
         self.server = await start_server(
-            self.factory(), self.host, self.port, family=socket.AF_INET
+            handler, self.host, self.port, family=socket.AF_INET
         )
         self.processor = ensure_future(self.server.serve_forever())
         self.is_running = True
@@ -85,13 +93,24 @@ class Freeswitch:
         await self.stop()
 
     @staticmethod
-    async def send(writer: StreamWriter, lines: List[str]) -> Awaitable[None]:
+    async def send(
+        writer: StreamWriter, lines: Union[List[str], str]
+    ) -> Awaitable[None]:
         """Given a line-separated message, we send the ESL client."""
-        for line in lines:
-            writer.write((line + "\n").encode("utf-8"))
+        if isinstance(lines, str):
+            writer.write((lines + "\n").encode("utf-8"))
+
+        else:
+            for line in lines:
+                writer.write((line + "\n").encode("utf-8"))
 
         writer.write("\n".encode("utf-8"))
         await writer.drain()
+
+    async def shoot(self, writer: StreamWriter) -> None:
+        if self.queue:
+            for event in self.queue:
+                await self.send(writer, event.splitlines())
 
     async def event(self, writer: StreamWriter, event: str) -> Awaitable[None]:
         content = self.events.get(event)
@@ -144,6 +163,7 @@ class Freeswitch:
 
             if self.password == received_password:
                 await self.command(writer, "+OK accepted")
+                await self.shoot(writer)
 
             else:
                 await self.command(writer, "-ERR invalid")
@@ -170,39 +190,36 @@ class Freeswitch:
         else:
             await self.command(writer, "-ERR command not found")
 
-    def factory(self) -> Callable[None, Callable[StreamReader, StreamWriter]]:
-        """Returns a handler to handle new ESL-based connections."""
+    @staticmethod
+    async def handler(
+        server: Freeswitch, reader: StreamReader, writer: StreamWriter
+    ) -> Awaitable[None]:
+        """Handle new ESL-based connections."""
+        await server.send(writer, ["Content-Type: auth/request"])
 
-        async def reading(
-            reader: StreamReader, writer: StreamWriter
-        ) -> Awaitable[None]:
-            await self.send(writer, ["Content-Type: auth/request"])
+        while server.is_running:
+            request = None
+            buffer = ""
 
-            while self.is_running:
-                request = None
-                buffer = ""
+            while server.is_running and not writer.is_closing():
+                try:
+                    content = await reader.read(1)
 
-                while self.is_running and not writer.is_closing():
-                    try:
-                        content = await reader.read(1)
-
-                    except:
-                        self.is_running = False
-                        await self.stop()
-                        break
-
-                    buffer += content.decode("utf-8")
-
-                    if buffer[-2:] == "\n\n" or buffer[-4:] == "\r\n\r\n":
-                        request = buffer
-                        break
-
-                request = buffer.strip()
-
-                if not request or not self.is_running:
+                except:
+                    server.is_running = False
+                    await server.stop()
                     break
 
-                else:
-                    await self.process(writer, request)
+                buffer += content.decode("utf-8")
 
-        return reading
+                if buffer[-2:] == "\n\n" or buffer[-4:] == "\r\n\r\n":
+                    request = buffer
+                    break
+
+            request = buffer.strip()
+
+            if not request or not server.is_running:
+                break
+
+            else:
+                await server.process(writer, request)
