@@ -109,8 +109,7 @@ class Client(BaseProtocol):
             ):
                 await self.disconnect()
 
-            else:
-                await super().consume(event)
+            await super().consume(event)
 
     async def connect(self) -> Awaitable[None]:
         """Initiates an authenticated connection to a freeswitch server."""

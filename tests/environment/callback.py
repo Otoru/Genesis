@@ -8,11 +8,13 @@ class Callback:
 
     def __init__(self):
         self.event: Dict[str, Union[str, List[str]]] = {}
-        self.control = False
+        self.is_called = False
+        self.count = 0
 
     async def __await__(self, *args, **kwargs):
         return self
 
     def __call__(self, event: Dict[str, Union[str, List[str]]], *args, **kwargs):
         self.event = event
-        self.control = True
+        self.is_called = not self.is_called
+        self.count += self.count
