@@ -1,3 +1,9 @@
+"""
+Callback Module
+---------------
+
+Abstraction used to represent generic callbacks.
+"""
 from typing import Dict, Union, List
 
 

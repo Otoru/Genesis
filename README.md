@@ -21,28 +21,28 @@ In [3]: print(response)
 
 ## Event handler
 
-With just one line of code we can make the function be called whenever we receive a certain event from the freeswitch.
+With just one line of code we can make the awaitable be called whenever we receive a certain event from the freeswitch.
 
 ### Example
 
 ```python
-In [1]: from genesis import Client
+In [1]: from genesis import Consumer
 
-In [2]: worker = Client("127.0.0.1", 8021, "ClueCon")
+In [2]: app = Consumer("127.0.0.1", 8021, "ClueCon")
 
-In [3]: async def handler(event):
+In [3]:  @app.handle("HEARTBEAT")
+   ...:  async def handler(event):
    ...:     await asyncio.sleep(0.001)
    ...:     print(event)
 
-In [4]: worker.on("HEARTBEAT", handler)
-
-In [5]: await worker.connect()
+In [4]: await app.run()
 ```
 
 ### Comments
 
 - For some cases where the ESL brings values without an associated key, we take the liberty of creating custom keys to simplify the work. Examples: `X-API-Reply-Text` and `X-Event-Content-Text`.
 - If a key purposely repeats in an event (Example: `Content-Length` in **BACKGROUND_JOB** event), we store both values in a list, in the order they are received.
+- For practical reasons, every event handler should be awaitable.
 
 ## What is FreeSwitch?
 
