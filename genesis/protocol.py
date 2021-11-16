@@ -6,7 +6,7 @@ Here we will group what is common to the ESL client for inbound and outbound con
 """
 from typing import List, Awaitable, Dict, NoReturn, Optional, Union
 from asyncio import StreamWriter, StreamReader, Queue
-from inspect import isawaitable
+from inspect import isawaitable, iscoroutinefunction
 import logging
 
 from genesis.parser import parse
@@ -45,7 +45,7 @@ class BaseProtocol:
 
             if handlers:
                 for handler in handlers:
-                    if isawaitable(handler):
+                    if isawaitable(handler) or iscoroutinefunction(handler):
                         await handler(event)
 
                     else:
