@@ -90,3 +90,21 @@ class BaseProtocol:
 
             writer.write("\n".encode("utf-8"))
             await writer.drain()
+
+    async def send_event(
+        self, event: str, headers: Dict[str, Union[str, List[str]]], body: Optional[str]
+    ) -> Awaitable[None]:
+        lines = []
+        lines.append(f"sendevent {event}")
+
+        for key, value in headers.items():
+            if isinstance(value, str):
+                lines.append(f"{key}: {value}")
+            else:
+                for item in value:
+                    lines.append(f"{key}: {item}")
+
+        if body:
+            lines.append(body)
+
+        self.send(self.writer, lines)
