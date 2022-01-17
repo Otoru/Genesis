@@ -4,7 +4,6 @@ image:
 vscode:
   extensions:
     - ms-python.python
-    - ms-azuretools.vscode-docker
 
 tasks:
   - before: pip install --upgrade pip
