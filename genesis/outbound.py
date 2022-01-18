@@ -21,6 +21,15 @@ class Session(BaseProtocol):
     def __init__(self) -> None:
         self.context = dict()
 
+    async def answer(self) -> Awaitable[None]:
+        ...
+
+    async def hangup(self) -> Awaitable[None]:
+        ...
+    
+    async def playback(self, path: str, block: bool = True) -> Awaitable[None]:
+        ...
+
 
 class Oubound:
     """
