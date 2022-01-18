@@ -19,11 +19,7 @@ In [3]: print(response)
 {'Content-Type': 'command/reply', 'Reply-Text': '6943047'}
 ```
 
-## Event handler
-
-With just one line of code we can make the awaitable be called whenever we receive a certain event from the freeswitch.
-
-### Example
+## Incoming Event handler
 
 ```python
 In [1]: from genesis import Consumer
