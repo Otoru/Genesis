@@ -10,7 +10,7 @@ import functools
 import logging
 import re
 
-from .client import Client
+from .inbound import Inbound
 
 
 def filtrate(key: str, value: str = None, regex: bool = False):
@@ -66,7 +66,7 @@ class Consumer:
     """
 
     def __init__(self, host: str, port: int, password: str, timeout: int = 5) -> None:
-        self.protocol: Client = Client(host, port, password, timeout)
+        self.protocol: Inbound = Inbound(host, port, password, timeout)
 
     def handle(self, event: str) -> Callable:
         """Decorator that allows the registration of new handlers.

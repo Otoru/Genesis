@@ -10,9 +10,9 @@ Client implementation of FreeSWITCH Event Socket protocol with asyncio.
 ## Inbound Socket Mode
 
 ```python
-In [1]: from genesis import Client
+In [1]: from genesis import Inbound
 
-In [2]: async with Client("127.0.0.1", 8021, "ClueCon") as client:
+In [2]: async with Inbound("127.0.0.1", 8021, "ClueCon") as client:
             response = await client.send("uptime")
 
 In [3]: print(response)
@@ -36,6 +36,28 @@ In [3]:  @app.handle("HEARTBEAT")
    ...:     print(event)
 
 In [4]: await app.run()
+```
+
+## Outbound Socket Mode
+
+```python
+
+In [1]: from genesis import Outbound
+
+In [2]: from asyncio import sleep
+
+In [3]: async def handler(session):
+            """Function that represents the intelligence of the actual application."""
+            await session.answer()                       # Answer the call
+            await sleep(0.5)                             # Await 500ms
+            await session.playback('ivr/ivr-welcome')    # Plays a sound file
+            await sesion.break()
+            await session.hangup()
+
+
+In [4]: app = Outbound("127.0.0.1", 5000, handler, size=5, events=True, linger=True)
+
+In [5]: await app.listen()
 ```
 
 ### Comments

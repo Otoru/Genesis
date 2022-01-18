@@ -23,7 +23,6 @@ class BaseProtocol:
     def __init__(self) -> None:
         self.handlers: Dict[str, List[Awaitable[None]]] = {}
         self.reader: Optional[StreamReader] = None
-        self.writer: Optional[StreamWriter] = None
         self.is_connected = False
         self.events = Queue()
 
@@ -55,6 +54,15 @@ class BaseProtocol:
     def on(self, key: str, handler: Awaitable[None]) -> None:
         """Associate a handler with an event key."""
         self.handlers.setdefault(key, list()).append(handler)
+
+    def remove(self, key: str, handler: Awaitable[None]) -> None:
+        """Removes the HANDLER from the list of handlers for the given event KEY name."""
+        try:
+            self.handlers.setdefault(key, list()).remove(handler)
+        except ValueError:
+            message = "'{0!s}' is not a valid handler of '{1!s}'".format(handler, key)
+            logging.error(message)
+            raise ValueError(message)
 
     async def handler(self) -> Awaitable[NoReturn]:
         """Defines intelligence to treat received events."""
@@ -90,21 +98,3 @@ class BaseProtocol:
 
             writer.write("\n".encode("utf-8"))
             await writer.drain()
-
-    async def send_event(
-        self, event: str, headers: Dict[str, Union[str, List[str]]], body: Optional[str]
-    ) -> Awaitable[None]:
-        lines = []
-        lines.append(f"sendevent {event}")
-
-        for key, value in headers.items():
-            if isinstance(value, str):
-                lines.append(f"{key}: {value}")
-            else:
-                for item in value:
-                    lines.append(f"{key}: {item}")
-
-        if body:
-            lines.append(body)
-
-        self.send(self.writer, lines)

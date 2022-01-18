@@ -3,7 +3,7 @@ import asyncio
 from textwrap import dedent
 
 from genesis.exceptions import AuthenticationError
-from genesis import Client
+from genesis import Inbound
 
 from environment import Freeswitch, Callback, EVENTS
 
@@ -11,14 +11,14 @@ from environment import Freeswitch, Callback, EVENTS
 @pytest.mark.asyncio
 async def test_connect_without_freeswitch():
     with pytest.raises(ConnectionRefusedError):
-        async with Client("0.0.0.0", 8021, "ClueCon"):
+        async with Inbound("0.0.0.0", 8021, "ClueCon"):
             await asyncio.sleep(1)
 
 
 @pytest.mark.asyncio
 async def test_connect_with_freesswitch():
     async with Freeswitch("0.0.0.0", 8021, "ClueCon"):
-        async with Client("0.0.0.0", 8021, "ClueCon") as client:
+        async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             response = await client.send("uptime")
             message = "The answer is not what we expected"
             assert response["Reply-Text"] == "6943047", message
@@ -28,14 +28,14 @@ async def test_connect_with_freesswitch():
 async def test_connect_without_freeswitch_and_wrong_password():
     with pytest.raises(AuthenticationError):
         async with Freeswitch("0.0.0.0", 8021, "ClueCon"):
-            async with Client("0.0.0.0", 8021, "WrongPassword"):
+            async with Inbound("0.0.0.0", 8021, "WrongPassword"):
                 await asyncio.sleep(1)
 
 
 @pytest.mark.asyncio
 async def test_send_api_command():
     async with Freeswitch("0.0.0.0", 8021, "ClueCon"):
-        async with Client("0.0.0.0", 8021, "ClueCon") as client:
+        async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             response = await client.send("api console loglevel")
             message = "The answer is not what we expected"
             expected = "+OK console log level set to DEBUG"
@@ -45,7 +45,7 @@ async def test_send_api_command():
 @pytest.mark.asyncio
 async def test_send_api_command_with_large_reponse():
     async with Freeswitch("0.0.0.0", 8021, "ClueCon"):
-        async with Client("0.0.0.0", 8021, "ClueCon") as client:
+        async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             response = await client.send("api status")
             message = "The answer is not what we expected"
             expected = """UP 0 years, 80 days, 8 hours, 25 minutes, 5 seconds, 869 milliseconds, 87 microseconds
@@ -60,7 +60,7 @@ Current Stack Size/Max 240K/8192K"""
 
 
 @pytest.mark.asyncio
-async def test_event_handler_on_client():
+async def test_event_handler_on_inbound_client():
     handler = Callback()
 
     assert not handler.is_called, "Control started with wrong value"
@@ -68,7 +68,7 @@ async def test_event_handler_on_client():
     events = [EVENTS["HEARTBEAT"]]
 
     async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
-        async with Client("0.0.0.0", 8021, "ClueCon") as client:
+        async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             client.on("HEARTBEAT", handler)
             await asyncio.sleep(0.001)
 
@@ -76,7 +76,7 @@ async def test_event_handler_on_client():
 
 
 @pytest.mark.asyncio
-async def test_wildcard_handler_on_client():
+async def test_wildcard_handler_on_inbound_client():
     handler = Callback()
 
     assert not handler.is_called, "Control started with wrong value"
@@ -84,7 +84,7 @@ async def test_wildcard_handler_on_client():
     events = [EVENTS["HEARTBEAT"]]
 
     async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
-        async with Client("0.0.0.0", 8021, "ClueCon") as client:
+        async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             client.on("*", handler)
             await asyncio.sleep(0.001)
 
@@ -100,7 +100,7 @@ async def test_event_handler_not_is_called_with_wrong_event():
     events = [EVENTS["HEARTBEAT"]]
 
     async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
-        async with Client("0.0.0.0", 8021, "ClueCon") as client:
+        async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             client.on("MESSAGE", handler)
             await asyncio.sleep(0.001)
 
@@ -121,7 +121,7 @@ async def test_event_handler_is_called_with_all_events():
     ]
 
     async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
-        async with Client("0.0.0.0", 8021, "ClueCon") as client:
+        async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             client.on("MESSAGE", handler)
             await asyncio.sleep(0.001)
 

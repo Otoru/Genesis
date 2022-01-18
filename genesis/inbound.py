@@ -26,9 +26,9 @@ from genesis.protocol import BaseProtocol
 from genesis.parser import parse
 
 
-class Client(BaseProtocol):
+class Inbound(BaseProtocol):
     """
-    Client class
+    Inbound class
     -------------
 
     Given a valid set of information, establish a connection to a freeswitch server.
@@ -55,7 +55,7 @@ class Client(BaseProtocol):
         self.host = host
         self.port = port
 
-    async def __aenter__(self) -> Awaitable[Client]:
+    async def __aenter__(self) -> Awaitable[Inbound]:
         """Interface used to implement a context manager."""
         await self.connect()
         return self
