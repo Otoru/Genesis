@@ -88,11 +88,9 @@ class Inbound(BaseProtocol):
     async def consume(self) -> Awaitable[NoReturn]:
         """Arm all event producers."""
         self.is_connected = True
-        self.producer = create_task(self.handler())
+        self.worker = create_task(self.handler())
 
         while self.is_connected:
-            event = await self.events.get()
-            logging.debug(f"Event received: {event}")
 
             if "Content-Type" in event and event["Content-Type"] == "auth/request":
                 self.trigger.set()
@@ -124,10 +122,7 @@ class Inbound(BaseProtocol):
 
     async def disconnect(self) -> Awaitable[None]:
         """Terminates connection to a freeswitch server."""
-        if self.writer and not self.writer.is_closing():
-            self.writer.close()
-
-        self.is_connected = False
+        super().disconnect()
 
         if self.producer:
             self.producer.cancel()

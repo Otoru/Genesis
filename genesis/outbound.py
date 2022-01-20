@@ -24,11 +24,21 @@ class Session(BaseProtocol):
     """
 
     def __init__(self, reader: StreamReader, writer: StreamWriter) -> None:
+        super().__init__()
         self.context = dict()
         self.reader = reader
         self.writer = writer
         self.is_connected = False
         self.commands = Queue()
+
+    async def __aenter__(self) -> Awaitable[Inbound]:
+        """Interface used to implement a context manager."""
+        self.consumer = create_task(self.consume())
+        return self
+
+    async def __aexit__(self, *args, **kwargs) -> Awaitable[None]:
+        """Interface used to implement a context manager."""
+        await self.disconnect()
 
     async def send(self, command: str) -> Awaitable[Dict[str, str]]:
         """Method used to send commands to or freeswitch."""
@@ -41,6 +51,34 @@ class Session(BaseProtocol):
         await super().send(self.writer, content)
         response = await self.commands.get()
         return response
+
+    async def consume(self) -> Awaitable[NoReturn]:
+        self.is_connected = True
+        self.worker = create_task(self.handler())
+
+        while self.is_connected:
+            event = await self.events.get()
+
+            if "Content-Type" in event:
+                if event["Content-Type"] == "command/reply":
+                    await self.commands.put(event)
+
+                elif event["Content-Type"] == "api/response":
+                    await self.commands.put(event)
+
+                elif (
+                    event["Content-Type"] == "text/disconnect-notice"
+                    or event["Content-Type"] == "text/rude-rejection"
+                ):
+                    await self.disconnect()
+
+            await super().consume(event)
+
+    async def disconnect(self) -> Awaitable[None]:
+        super().disconnect()
+
+        if self.consumer:
+            self.consumer.cancel()
 
     async def answer(self) -> Awaitable[None]:
         ...
@@ -108,13 +146,13 @@ class Outbound:
     async def handler(
         server: Outbound, reader: StreamReader, writer: StreamWriter
     ) -> Awaitable[None]:
-        session = Session(reader, writer)
-        session.context = await session.send("connect")
+        async with Session(reader, writer) as session:
+            session.context = await session.send("connect")
 
-        if server.myevents:
-            reply = await session.send("myevents")
+            if server.myevents:
+                reply = await session.send("myevents")
 
-        if server.linger:
-            reply = await session.send("linger")
+            if server.linger:
+                reply = await session.send("linger")
 
-        await server.app(session)
+            await server.app(session)

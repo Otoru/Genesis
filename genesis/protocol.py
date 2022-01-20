@@ -5,14 +5,14 @@ Genesis Protocol
 Here we will group what is common to the ESL client for inbound and outbound connections.
 """
 from typing import List, Awaitable, Dict, NoReturn, Optional, Union
-from asyncio import StreamWriter, StreamReader, Queue
+from asyncio import StreamWriter, StreamReader, Queue, create_task
 from inspect import isawaitable, iscoroutinefunction
+from abc import ABC
 import logging
 
 from genesis.parser import parse
 
-
-class BaseProtocol:
+class BaseProtocol(ABC):
     """
     BaseProtocol Class
     ------------------
@@ -23,6 +23,7 @@ class BaseProtocol:
     def __init__(self) -> None:
         self.handlers: Dict[str, List[Awaitable[None]]] = {}
         self.reader: Optional[StreamReader] = None
+        self.writer: Optional[StreamWriter] = None
         self.is_connected = False
         self.events = Queue()
 
@@ -98,3 +99,9 @@ class BaseProtocol:
 
             writer.write("\n".encode("utf-8"))
             await writer.drain()
+
+    async def disconnect(self) -> Awaitable[None]:
+        if self.writer and not self.writer.is_closing():
+            self.writer.close()
+
+        self.is_connected = False
