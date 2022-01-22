@@ -25,7 +25,7 @@ setup(
     author="Vitor Hugo de Oliveira Vargas",
     author_email="contato@vitoru.dev",
     classifiers=[
-        "Development Status :: 1 - Planning",
+        "Development Status :: 3 - Alpha",
         "License :: OSI Approved :: MIT License",
         "Intended Audience :: Developers",
         "Intended Audience :: Information Technology",
