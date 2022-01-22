@@ -6,16 +6,18 @@ ESL implementation used for outgoing connections on freeswitch.
 """
 from __future__ import annotations
 
-from asyncio import StreamReader, StreamWriter, Queue, start_server
-from typing import Awaitable, NoReturn, Dict
+from asyncio import StreamReader, StreamWriter, Queue, start_server, Event
+from typing import Awaitable, NoReturn, Dict, Union, List
 from functools import partial
+from pprint import pformat
+import logging
 import socket
 
-from genesis.exceptions import UnconnectedError
-from genesis.protocol import BaseProtocol
+from genesis.exceptions import UnconnectedError, SessionGoneAway
+from genesis.protocol import Protocol
 
 
-class Session(BaseProtocol):
+class Session(Protocol):
     """
     Session class
     -------------
@@ -31,63 +33,72 @@ class Session(BaseProtocol):
         self.is_connected = False
         self.commands = Queue()
 
+        on_hangup = partial(self._on_hangup, self)
+        self.on("CHANNEL_HANGUP", on_hangup)
+
+    @staticmethod
+    async def _on_hangup(session: Session, event: Dict) -> None:
+        session.stop()
+
     async def __aenter__(self) -> Awaitable[Inbound]:
         """Interface used to implement a context manager."""
-        self.consumer = create_task(self.consume())
+        await self.start()
         return self
 
     async def __aexit__(self, *args, **kwargs) -> Awaitable[None]:
         """Interface used to implement a context manager."""
-        await self.disconnect()
+        await self.stop()
 
-    async def send(self, command: str) -> Awaitable[Dict[str, str]]:
-        """Method used to send commands to or freeswitch."""
+    async def sendmsg(
+        self, command: str, application: str, data: Optional[str] = None
+    ) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+        cmd = f"sendmsg\ncall-command: {command}\nexecute-app-name: {application}"
 
-        if not self.is_connected:
-            raise UnconnectedError()
+        if data:
+            cmd += f"\nexecute-app-arg: {data}"
 
-        content = command.splitlines()
+        logging.debug(f"Send command to freeswitch: '{cmd}'.")
+        return self.send(cmd)
 
-        await super().send(self.writer, content)
-        response = await self.commands.get()
-        return response
+    async def answer(self) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+        return self.sendmsg("execute", "answer")
 
-    async def consume(self) -> Awaitable[NoReturn]:
-        self.is_connected = True
-        self.worker = create_task(self.handler())
+    async def park(self) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+        return self.sendmsg("execute", "park")
 
-        while self.is_connected:
-            event = await self.events.get()
+    async def hangup(
+        self, cause: str = "NORMAL_CLEARING"
+    ) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+        return self.sendmsg("execute", "hangup", cause)
 
-            if "Content-Type" in event:
-                if event["Content-Type"] == "command/reply":
-                    await self.commands.put(event)
+    async def playback(
+        self, path: str, block: bool = True
+    ) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+        if not block:
+            return self.sendmsg("execute", "playback", path)
+        else:
+            logging.debug("Send playback command to freeswitch with block behavior.")
+            playback_command_is_complete = Event()
 
-                elif event["Content-Type"] == "api/response":
-                    await self.commands.put(event)
+            async def event_handler(event):
+                formated_event = pformat(event)
+                logging.debug(
+                    f"Recived channel execute complete event: {formated_event}"
+                )
 
-                elif (
-                    event["Content-Type"] == "text/disconnect-notice"
-                    or event["Content-Type"] == "text/rude-rejection"
-                ):
-                    await self.disconnect()
+                if "variable_current_application" in event:
+                    if event["variable_current_application"] == "playback":
+                        playback_command_is_complete.set()
 
-            await super().consume(event)
+            logging.debug("Register event handler to playback complete event")
+            self.on("CHANNEL_EXECUTE_COMPLETE", event_handler)
 
-    async def disconnect(self) -> Awaitable[None]:
-        super().disconnect()
+            response = await self.sendmsg("execute", "playback", path)
 
-        if self.consumer:
-            self.consumer.cancel()
+            logging.debug("Await playback complete event...")
+            await playback_command_is_complete.wait()
 
-    async def answer(self) -> Awaitable[None]:
-        ...
-
-    async def hangup(self) -> Awaitable[None]:
-        ...
-
-    async def playback(self, path: str, block: bool = True) -> Awaitable[None]:
-        ...
+            return response
 
 
 class Outbound:
@@ -104,8 +115,6 @@ class Outbound:
         Network port the server should listen on.
     - handler: required
         Function that will take a session as an argument and will actually process the call.
-    - size: optional
-        Maximum number of simultaneous sessions the server will support.
     - events: optional
         If true, ask freeswitch to send us all events associated with the session.
     - linger: optional
@@ -117,14 +126,12 @@ class Outbound:
         host: str,
         port: int,
         handler: Awaitable,
-        size: int = 100,
         events: bool = True,
         linger: bool = True,
     ) -> None:
         self.host = host
         self.port = port
         self.app = handler
-        self.size = size
         self.myevents = events
         self.linger = linger
         self.server = None
@@ -135,10 +142,12 @@ class Outbound:
             handler, self.host, self.port, family=socket.AF_INET
         )
         async with self.server:
+            logging.debug("Start application server.")
             await self.server.serve_forever()
 
     async def stop(self) -> Awaitable[None]:
         if self.server:
+            logging.debug("Shutdown application server.")
             self.server.close()
             await self.server.wait_closed()
 
@@ -147,12 +156,16 @@ class Outbound:
         server: Outbound, reader: StreamReader, writer: StreamWriter
     ) -> Awaitable[None]:
         async with Session(reader, writer) as session:
+            logging.debug("Send command to start handle a call")
             session.context = await session.send("connect")
 
             if server.myevents:
+                logging.debug("Send command to recive all call events")
                 reply = await session.send("myevents")
 
             if server.linger:
+                logging.debug("Send linger command to freeswitch")
                 reply = await session.send("linger")
 
+            logging.debug("Start server session handler")
             await server.app(session)

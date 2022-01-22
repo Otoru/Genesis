@@ -22,11 +22,11 @@ from genesis.exceptions import (
     AuthenticationError,
     UnconnectedError,
 )
-from genesis.protocol import BaseProtocol
+from genesis.protocol import Protocol
 from genesis.parser import parse
 
 
-class Inbound(BaseProtocol):
+class Inbound(Protocol):
     """
     Inbound class
     -------------
@@ -46,86 +46,38 @@ class Inbound(BaseProtocol):
 
     def __init__(self, host: str, port: int, password: str, timeout: int = 5) -> None:
         super().__init__()
-        self.producer: Optional[Awaitable] = None
-        self.consumer: Optional[Awaitable] = None
         self.password = password
-        self.commands = Queue()
-        self.trigger = Event()
         self.timeout = timeout
         self.host = host
         self.port = port
 
     async def __aenter__(self) -> Awaitable[Inbound]:
         """Interface used to implement a context manager."""
-        await self.connect()
+        await self.start()
         return self
 
     async def __aexit__(self, *args, **kwargs) -> Awaitable[None]:
         """Interface used to implement a context manager."""
-        await self.disconnect()
-
-    async def send(self, command: str) -> Awaitable[Dict[str, str]]:
-        """Method used to send commands to or freeswitch."""
-
-        if not self.is_connected:
-            raise UnconnectedError()
-
-        content = command.splitlines()
-        logging.debug(f"Send command: {content}")
-
-        await super().send(self.writer, content)
-        response = await self.commands.get()
-        return response
+        await self.stop()
 
     async def authenticate(self) -> Awaitable[None]:
         """Authenticates to the freeswitch server. Raises an exception on failure."""
-        await self.trigger.wait()
+        await self.authentication_event.wait()
+        logging.debug("Send command to authenticate inbound ESL connection.")
         response = await self.send(f"auth {self.password}")
 
         if response["Reply-Text"] != "+OK accepted":
+            logging.debug("Freeswitch said the passed password is incorrect.")
             raise AuthenticationError("Invalid password")
 
-    async def consume(self) -> Awaitable[NoReturn]:
-        """Arm all event producers."""
-        self.is_connected = True
-        self.worker = create_task(self.handler())
-
-        while self.is_connected:
-
-            if "Content-Type" in event and event["Content-Type"] == "auth/request":
-                self.trigger.set()
-
-            elif "Content-Type" in event and event["Content-Type"] == "command/reply":
-                await self.commands.put(event)
-
-            elif "Content-Type" in event and event["Content-Type"] == "api/response":
-                await self.commands.put(event)
-
-            elif "Content-Type" in event and (
-                event["Content-Type"] == "text/disconnect-notice"
-                or event["Content-Type"] == "text/rude-rejection"
-            ):
-                await self.disconnect()
-
-            await super().consume(event)
-
-    async def connect(self) -> Awaitable[None]:
+    async def start(self) -> Awaitable[None]:
         """Initiates an authenticated connection to a freeswitch server."""
         try:
             promise = open_connection(self.host, self.port)
             self.reader, self.writer = await wait_for(promise, self.timeout)
         except TimeoutError:
+            logging.debug("A timeout occurred when trying to connect to the freeswitch.")
             raise ConnectionTimeoutError()
 
-        self.consumer = create_task(self.consume())
+        await super().start()
         await self.authenticate()
-
-    async def disconnect(self) -> Awaitable[None]:
-        """Terminates connection to a freeswitch server."""
-        super().disconnect()
-
-        if self.producer:
-            self.producer.cancel()
-
-        if self.consumer:
-            self.consumer.cancel()

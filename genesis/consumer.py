@@ -102,8 +102,10 @@ class Consumer:
                 )
 
                 if event.isupper():
+                    logging.debug(f"Send command to filtrate events with name: '{name}'.")
                     await self.protocol.send(f"filter Event-Name {event}")
                 else:
+                    logging.debug(f"Send command to filtrate events with subclass: '{name}'.")
                     await self.protocol.send(f"filter Event-Subclass {event}")
 
             while self.protocol.is_connected:
