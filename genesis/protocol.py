@@ -29,6 +29,7 @@ class Protocol(ABC):
         self.handlers: Dict[str, List[Awaitable[None]]] = {}
 
     async def start(self) -> Awaitable[None]:
+        """Initiates an connection to a freeswitch."""
         self.is_connected = True
 
         logging.debug("Create tasks to work with ESL events.")
@@ -36,6 +37,7 @@ class Protocol(ABC):
         self.consumer = create_task(self.consume())
 
     async def stop(self) -> Awaitable[None]:
+        """Terminates connection to a freeswitch."""
         if self.writer and not self.writer.is_closing():
             logging.debug("Closer stream writter.")
             self.writer.close()
@@ -51,6 +53,7 @@ class Protocol(ABC):
             self.consumer.cancel()
 
     async def handler(self) -> Awaitable[NoReturn]:
+        """Defines intelligence to treat received events."""
         while self.is_connected:
             request = None
             buffer = ""
@@ -75,6 +78,7 @@ class Protocol(ABC):
             await self.events.put(event)
 
     async def consume(self) -> Awaitable[NoReturn]:
+        """Arm all event processors."""
         while self.is_connected:
             event = await self.events.get()
             formated_event = pformat(event)
@@ -134,6 +138,7 @@ class Protocol(ABC):
             self.handlers.setdefault(key, list()).remove(handler)
 
     async def send(self, cmd: str) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+        """Method used to send commands to or freeswitch."""
         if not self.is_connected:
             raise UnconnectedError()
 

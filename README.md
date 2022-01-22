@@ -51,7 +51,7 @@ In [3]: async def handler(session):
 
 In [4]: app = Outbound("127.0.0.1", 5000, handler)
 
-In [5]: await app.listen()
+In [5]: await app.start()
 ```
 
 ### Comments

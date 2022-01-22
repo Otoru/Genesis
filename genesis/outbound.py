@@ -23,6 +23,12 @@ class Session(Protocol):
     -------------
 
     Abstracts a session established between the application and the freeswitch.
+
+    Attributes:
+    - reader: required
+        StreamReader used to read incoming information.
+    - writer: required
+        StreamWriter used to send information to freeswitch.
     """
 
     def __init__(self, reader: StreamReader, writer: StreamWriter) -> None:
@@ -38,6 +44,7 @@ class Session(Protocol):
 
     @staticmethod
     async def _on_hangup(session: Session, event: Dict) -> None:
+        """Method executed when receiving a hangup in the session."""
         session.stop()
 
     async def __aenter__(self) -> Awaitable[Inbound]:
@@ -52,6 +59,7 @@ class Session(Protocol):
     async def sendmsg(
         self, command: str, application: str, data: Optional[str] = None
     ) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+        """Used to send commands from dialplan to session."""
         cmd = f"sendmsg\ncall-command: {command}\nexecute-app-name: {application}"
 
         if data:
@@ -61,21 +69,25 @@ class Session(Protocol):
         return self.send(cmd)
 
     async def answer(self) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+        """Answer the call associated with the session."""
         return self.sendmsg("execute", "answer")
 
     async def park(self) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+        """Move session-associated call to park."""
         return self.sendmsg("execute", "park")
 
     async def hangup(
         self, cause: str = "NORMAL_CLEARING"
     ) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+        """Hang up the call associated with the session."""
         return self.sendmsg("execute", "hangup", cause)
 
     async def playback(
         self, path: str, block: bool = True
     ) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+        """Requests the freeswitch to play an audio."""
         if not block:
-            return self.sendmsg("execute", "playback", path)
+            return await self.sendmsg("execute", "playback", path)
         else:
             logging.debug("Send playback command to freeswitch with block behavior.")
             playback_command_is_complete = Event()
@@ -137,6 +149,7 @@ class Outbound:
         self.server = None
 
     async def start(self) -> Awaitable[NoReturn]:
+        """Start the application server."""
         handler = partial(self.handler, self)
         self.server = await start_server(
             handler, self.host, self.port, family=socket.AF_INET
@@ -146,6 +159,7 @@ class Outbound:
             await self.server.serve_forever()
 
     async def stop(self) -> Awaitable[None]:
+        """Terminate the application server."""
         if self.server:
             logging.debug("Shutdown application server.")
             self.server.close()
@@ -155,6 +169,7 @@ class Outbound:
     async def handler(
         server: Outbound, reader: StreamReader, writer: StreamWriter
     ) -> Awaitable[None]:
+        """Method used to process new connections."""
         async with Session(reader, writer) as session:
             logging.debug("Send command to start handle a call")
             session.context = await session.send("connect")
