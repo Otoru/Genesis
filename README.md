@@ -43,13 +43,13 @@ In [1]: from genesis import Outbound
 In [2]: from asyncio import sleep
 
 In [3]: async def handler(session):
-            await session.answer()                       # Answer the call
-            await sleep(0.5)                             # Await 500ms
-            await session.playback('ivr/ivr-welcome')    # Plays a sound file
-            await session.hangup()                       # Hangup the call
+            await session.answer()
+            await sleep(0.5)
+            await session.playback('ivr/ivr-welcome')
+            await session.hangup()
 
 
-In [4]: app = Outbound("127.0.0.1", 5000, handler, size=5, events=True, linger=True)
+In [4]: app = Outbound("127.0.0.1", 5000, handler)
 
 In [5]: await app.listen()
 ```
