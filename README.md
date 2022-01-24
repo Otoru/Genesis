@@ -43,18 +43,15 @@ In [4]: await app.run()
 
 In [1]: from genesis import Outbound
 
-In [2]: from asyncio import sleep
-
-In [3]: async def handler(session):
+In [2]: async def handler(session):
             await session.answer()
-            await sleep(0.5)
             await session.playback('ivr/ivr-welcome')
             await session.hangup()
 
 
-In [4]: app = Outbound("127.0.0.1", 5000, handler)
+In [3]: app = Outbound("127.0.0.1", 5000, handler)
 
-In [5]: await app.start()
+In [4]: await app.start()
 ```
 
 ### Comments
