@@ -2,7 +2,7 @@ import pytest
 import asyncio
 from textwrap import dedent
 
-from genesis.exceptions import AuthenticationError
+from genesis.exceptions import AuthenticationError, ConnectionTimeoutError
 from genesis import Inbound
 
 from environment import Freeswitch, Callback, EVENTS
@@ -17,6 +17,14 @@ async def test_connect_without_freeswitch():
 
 @pytest.mark.asyncio
 async def test_connect_with_freesswitch():
+    with pytest.raises(ConnectionTimeoutError):
+        async with Freeswitch("0.0.0.0", 8021, "ClueCon"):
+            async with Inbound("0.0.0.0", 8021, "ClueCon", 0) as client:
+                await asyncio.sleep(1)
+
+
+@pytest.mark.asyncio
+async def test_inbound_client_timeout():
     async with Freeswitch("0.0.0.0", 8021, "ClueCon"):
         async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             response = await client.send("uptime")
@@ -70,6 +78,22 @@ async def test_event_handler_on_inbound_client():
     async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
         async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             client.on("HEARTBEAT", handler)
+            await asyncio.sleep(0.001)
+
+    assert handler.is_called, "Event processing did not activate handler"
+
+
+@pytest.mark.asyncio
+async def test_custom_event_handler_on_inbound_client():
+    handler = Callback()
+
+    assert not handler.is_called, "Control started with wrong value"
+
+    events = [EVENTS["CUSTOM"]]
+
+    async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
+        async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
+            client.on("example::heartbeat", handler)
             await asyncio.sleep(0.001)
 
     assert handler.is_called, "Event processing did not activate handler"

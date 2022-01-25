@@ -141,7 +141,11 @@ class Freeswitch:
     async def disconnect(self, writer: StreamWriter) -> Awaitable[None]:
         """Appropriately closes an ESL connection."""
         await self.send(
-            writer, ["Content-Type: text/disconnect-notice", "Content-Length: 67"]
+            writer,
+            [
+                "Content-Type: text/disconnect-notice",
+                "Content-Length: 67",
+            ],
         )
         await self.send(
             writer,

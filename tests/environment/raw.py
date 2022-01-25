@@ -294,6 +294,60 @@ Content-Length: 41
 
 +OK 7f4de4bc-17d7-11dd-b7a0-db4edd065621"""
 
+LOG = """Content-Type: log/data
+Content-Length: 126
+Log-Level: 7
+Text-Channel: 3
+Log-File: switch_core_state_machine.c
+Log-Func: switch_core_session_destroy_state
+Log-Line: 710
+User-Data: 4c882cc4-cd02-11e6-8b82-395b501876f9
+
+2016-12-28 10:34:08.398763 [DEBUG] switch_core_state_machine.c:710 (sofia/internal/7071@devitor) State DESTROY going to sleep"""
+
+RELOADXML_WITH_3_HEADERS = """Event-Name: RELOADXML
+Core-UUID: 6c6def18-9562-de11-a8e0-001fc6ab49e2
+FreeSWITCH-Hostname: localhost.localdomain
+FreeSWITCH-IPv4: 10.0.1.250
+FreeSWITCH-IPv6: %3A%3A1
+Event-Date-Local: 2009-06-26%2017%3A06%3A33
+Event-Date-GMT: Fri,%2026%20Jun%202009%2021%3A06%3A33%20GMT
+Event-Date-Timestamp: 1246050393884782
+Event-Calling-File: switch_xml.c
+Event-Calling-Function: switch_xml_open_root
+Event-Calling-Line-Number: 1917
+Content-Length: 41
+Content-Length: 42
+Content-Length: 43"""
+
+CUSTOM = """Event-Name: CUSTOM
+Event-Subclass: example::heartbeat
+Core-UUID: cb2d5146-9a99-11e4-9291-092b1a87b375
+FreeSWITCH-Hostname: development
+FreeSWITCH-Switchname: freeswitch
+FreeSWITCH-IPv4: 172.16.7.47
+FreeSWITCH-IPv6: %3A%3A1
+Event-Date-Local: 2015-01-19%2012%3A06%3A19
+Event-Date-GMT: Mon,%2019%20Jan%202015%2015%3A06%3A19%20GMT
+Event-Date-Timestamp: 1421679979428652
+Event-Calling-File: switch_core.c
+Event-Calling-Function: send_heartbeat
+Event-Calling-Line-Number: 70
+Event-Sequence: 23910
+Event-Info: System%20Ready
+Up-Time: 0%20years,%201%20day,%2016%20hours,%2053%20minutes,%2014%20seconds,%20552%20milliseconds,%2035%20microseconds
+FreeSWITCH-Version: 1.5.15b%2Bgit~20141226T052811Z~0a66db6f12~64bit
+Uptime-msec: 147194552
+Session-Count: 0
+Max-Sessions: 1000
+Session-Per-Sec: 30
+Session-Per-Sec-Max: 2
+Session-Per-Sec-FiveMin: 0
+Session-Since-Startup: 34
+Session-Peak-Max: 4
+Session-Peak-FiveMin: 0
+Idle-CPU: 98.700000"""
+
 COMMANDS = {
     "uptime": UPTIME,
     "version": VERSION,
@@ -303,6 +357,8 @@ COMMANDS = {
 }
 
 EVENTS = {
+    "LOG": LOG,
+    "CUSTOM": CUSTOM,
     "MESSAGE": MESSAGE,
     "SHUTDOWN": SHUTDOWN,
     "HEARTBEAT": HEARTBEAT,
@@ -311,4 +367,5 @@ EVENTS = {
     "MODULE_UNLOAD": MODULE_UNLOAD,
     "CHANNEL_CREATE": CHANNEL_CREATE,
     "BACKGROUND_JOB": BACKGROUND_JOB,
+    "RELOADXML_WITH_3_HEADERS": RELOADXML_WITH_3_HEADERS,
 }
