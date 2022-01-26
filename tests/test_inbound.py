@@ -2,10 +2,21 @@ import pytest
 import asyncio
 from textwrap import dedent
 
-from genesis.exceptions import AuthenticationError, ConnectionTimeoutError
+from genesis.exceptions import (
+    AuthenticationError,
+    ConnectionTimeoutError,
+    UnconnectedError,
+)
 from genesis import Inbound
 
 from environment import Freeswitch, Callback, EVENTS
+
+
+@pytest.mark.asyncio
+async def test_send_command_without_connection():
+    with pytest.raises(UnconnectedError):
+        client = Inbound("0.0.0.0", 8021, "ClueCon")
+        await client.send("uptime")
 
 
 @pytest.mark.asyncio
@@ -56,14 +67,16 @@ async def test_send_api_command_with_large_reponse():
         async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             response = await client.send("api status")
             message = "The answer is not what we expected"
-            expected = """UP 0 years, 80 days, 8 hours, 25 minutes, 5 seconds, 869 milliseconds, 87 microseconds
-FreeSWITCH (Version 1.10.3-release git e52b1a8 2020-09-09 12:16:24Z 64bit) is ready
-7653 session(s) since startup
-0 session(s) - peak 2, last 5min 0
-0 session(s) per Sec out of max 30, peak 14, last 5min 0
-1000 session(s) max
-min idle cpu 0.00/99.00
-Current Stack Size/Max 240K/8192K"""
+            expected = (
+                "UP 0 years, 80 days, 8 hours, 25 minutes, 5 seconds, 869 milliseconds, 87 microseconds\n"
+                "FreeSWITCH (Version 1.10.3-release git e52b1a8 2020-09-09 12:16:24Z 64bit) is ready\n"
+                "7653 session(s) since startup\n"
+                "0 session(s) - peak 2, last 5min 0\n"
+                "0 session(s) per Sec out of max 30, peak 14, last 5min 0\n"
+                "1000 session(s) max\n"
+                "min idle cpu 0.00/99.00\n"
+                "Current Stack Size/Max 240K/8192K"
+            )
             assert response["X-API-Reply-Text"] == expected, message
 
 
@@ -129,6 +142,20 @@ async def test_event_handler_not_is_called_with_wrong_event():
             await asyncio.sleep(0.001)
 
     assert not handler.is_called, "Event processing did not activate handler"
+
+
+@pytest.mark.asyncio
+async def test_to_remove_event_handler():
+    handler = Callback()
+
+    client = Inbound("0.0.0.0", 8021, "ClueCon")
+    client.on("MESSAGE", handler)
+
+    assert handler in client.handlers["MESSAGE"], "The handler has not been registered"
+
+    client.remove("MESSAGE", handler)
+
+    assert handler not in client.handlers["MESSAGE"], "The handler has not been removed"
 
 
 @pytest.mark.asyncio
