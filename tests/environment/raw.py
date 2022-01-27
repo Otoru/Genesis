@@ -354,6 +354,9 @@ COMMANDS = {
     "api status": STATUS,
     "api console loglevel": CONSOSE,
     "api console colorize": COLORIZE,
+    "events plain ALL": "+OK event listener enabled plain",
+    "filter Event-Name HEARTBEAT": "+OK filter added. [Event-Name]=[HEARTBEAT]",
+    "filter Event-Subclass sofia::register": "+OK filter added. [filter]=[Event-Subclass sofia::register]",
 }
 
 EVENTS = {

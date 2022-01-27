@@ -34,7 +34,7 @@ In [3]:  @app.handle("HEARTBEAT")
    ...:     await asyncio.sleep(0.001)
    ...:     print(event)
 
-In [4]: await app.run()
+In [4]: await app.start()
 ```
 
 ## Outbound Socket Mode

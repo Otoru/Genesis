@@ -30,17 +30,18 @@ def filtrate(key: str, value: str = None, regex: bool = False):
         @functools.wraps(function)
         async def wrapper(message):
             if isinstance(message, dict):
+                print(function)
                 if key in message:
                     content = message[key]
 
                     if value is None:
-                        return await function(message)
+                        return function(message)
 
                     if not regex and content == value:
-                        return await function(message)
+                        return function(message)
 
                     if regex and re.match(value, content):
-                        return await function(message)
+                        return function(message)
 
         return wrapper
 
@@ -88,10 +89,10 @@ class Consumer:
 
         return decorator
 
-    async def run(self) -> Awaitable[NoReturn]:
+    async def start(self) -> Awaitable[NoReturn]:
         """Method called to request the freeswitch to start sending us the appropriate events."""
         try:
-            await self.protocol.connect()
+            await self.protocol.start()
 
             logging.debug("Asking freeswitch to send us all events.")
             await self.protocol.send("events plain ALL")
@@ -102,15 +103,22 @@ class Consumer:
                 )
 
                 if event.isupper():
-                    logging.debug(f"Send command to filtrate events with name: '{name}'.")
+                    logging.debug(
+                        f"Send command to filtrate events with name: '{name}'."
+                    )
                     await self.protocol.send(f"filter Event-Name {event}")
                 else:
-                    logging.debug(f"Send command to filtrate events with subclass: '{name}'.")
+                    logging.debug(
+                        f"Send command to filtrate events with subclass: '{name}'."
+                    )
                     await self.protocol.send(f"filter Event-Subclass {event}")
 
             while self.protocol.is_connected:
                 await sleep(1)
 
         except:
-            await self.protocol.disconnect()
+            await self.protocol.stop()
             raise
+
+    async def stop(self) -> Awaitable[NoReturn]:
+        return await self.protocol.stop()

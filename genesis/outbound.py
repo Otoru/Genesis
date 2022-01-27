@@ -45,16 +45,10 @@ class Session(Protocol):
     @staticmethod
     async def _on_hangup(session: Session, event: Dict) -> None:
         """Method executed when receiving a hangup in the session."""
+        formated_event = pformat(event)
+        message = f"Recived hangup event: {formated_event}"
+        logging.debug(message)
         session.stop()
-
-    async def __aenter__(self) -> Awaitable[Inbound]:
-        """Interface used to implement a context manager."""
-        await self.start()
-        return self
-
-    async def __aexit__(self, *args, **kwargs) -> Awaitable[None]:
-        """Interface used to implement a context manager."""
-        await self.stop()
 
     async def sendmsg(
         self, command: str, application: str, data: Optional[str] = None
