@@ -356,7 +356,7 @@ COMMANDS = {
     "api console colorize": COLORIZE,
     "events plain ALL": "+OK event listener enabled plain",
     "filter Event-Name HEARTBEAT": "+OK filter added. [Event-Name]=[HEARTBEAT]",
-    "filter Event-Subclass sofia::register": "+OK filter added. [filter]=[Event-Subclass sofia::register]",
+    "filter Event-Subclass example::heartbeat": "+OK filter added. [Event-Subclass]=[example::heartbeat]",
 }
 
 EVENTS = {

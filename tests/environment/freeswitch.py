@@ -25,6 +25,7 @@ from typing import List, Awaitable, Callable, Optional, Union
 from asyncio.base_events import Server
 from functools import partial
 from copy import copy
+import logging
 import socket
 
 from environment import COMMANDS, EVENTS
@@ -59,6 +60,7 @@ class Freeswitch:
         self.password = password
         self.commands = COMMANDS
         self.is_running = False
+        self.recived = list()
         self.events = EVENTS
         self.host = host
         self.port = port
@@ -86,7 +88,7 @@ class Freeswitch:
     async def __aenter__(self) -> Awaitable[Server]:
         """Interface used to implement a context manager."""
         await self.start()
-        return await self.server.__aenter__()
+        return self
 
     async def __aexit__(self, *args, **kwargs) -> Awaitable[None]:
         """Interface used to implement a context manager."""
@@ -110,6 +112,7 @@ class Freeswitch:
     async def shoot(self, writer: StreamWriter) -> None:
         if self.queue:
             for event in self.queue:
+                logging.debug(f"Send event: {event}")
                 await self.send(writer, event.splitlines())
 
     async def event(self, writer: StreamWriter, event: str) -> Awaitable[None]:
@@ -161,13 +164,13 @@ class Freeswitch:
     async def process(self, writer: StreamWriter, request: str) -> Awaitable[None]:
         """Given an ESL event, we process it."""
         payload = copy(request)
+        self.recived.append(payload)
 
         if payload.startswith("auth"):
             received_password = payload.split().pop().strip()
 
             if self.password == received_password:
                 await self.command(writer, "+OK accepted")
-                await self.shoot(writer)
 
             else:
                 await self.command(writer, "-ERR invalid")
@@ -186,6 +189,9 @@ class Freeswitch:
 
             else:
                 await self.command(writer, response)
+
+            if payload == "events plain ALL":
+                await self.shoot(writer)
 
         elif payload.startswith("api"):
             command = payload.replace("api", "").split().pop().strip()

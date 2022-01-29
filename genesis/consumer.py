@@ -5,7 +5,7 @@ Consumer Module
 Simple abstraction used to put some syntactic sugar into freeswitch event consumption.
 """
 from typing import Optional, Awaitable, NoReturn, Callable
-from asyncio import sleep
+from asyncio import sleep, Task, create_task, sleep
 import functools
 import logging
 import re
@@ -30,7 +30,6 @@ def filtrate(key: str, value: str = None, regex: bool = False):
         @functools.wraps(function)
         async def wrapper(message):
             if isinstance(message, dict):
-                print(function)
                 if key in message:
                     content = message[key]
 
@@ -92,32 +91,31 @@ class Consumer:
     async def start(self) -> Awaitable[NoReturn]:
         """Method called to request the freeswitch to start sending us the appropriate events."""
         try:
-            await self.protocol.start()
+            async with self.protocol as protocol:
+                logging.debug("Asking freeswitch to send us all events.")
+                await protocol.send("events plain ALL")
 
-            logging.debug("Asking freeswitch to send us all events.")
-            await self.protocol.send("events plain ALL")
-
-            for event in self.protocol.handlers.keys():
-                logging.debug(
-                    f"Requesting freeswitch to filter events of type '{event}'."
-                )
-
-                if event.isupper():
+                for event in protocol.handlers.keys():
                     logging.debug(
-                        f"Send command to filtrate events with name: '{name}'."
+                        f"Requesting freeswitch to filter events of type '{event}'."
                     )
-                    await self.protocol.send(f"filter Event-Name {event}")
-                else:
-                    logging.debug(
-                        f"Send command to filtrate events with subclass: '{name}'."
-                    )
-                    await self.protocol.send(f"filter Event-Subclass {event}")
 
-            while self.protocol.is_connected:
-                await sleep(1)
+                    if event.isupper():
+                        logging.debug(
+                            f"Send command to filtrate events with name: '{event}'."
+                        )
+                        await protocol.send(f"filter Event-Name {event}")
+                    else:
+                        logging.debug(
+                            f"Send command to filtrate events with subclass: '{event}'."
+                        )
+                        await protocol.send(f"filter Event-Subclass {event}")
+
+                while self.protocol.is_connected:
+                    await sleep(1)
 
         except:
-            await self.protocol.stop()
+            await self.stop()
             raise
 
     async def stop(self) -> Awaitable[NoReturn]:

@@ -44,7 +44,7 @@ async def test_inbound_client_timeout():
 
 
 @pytest.mark.asyncio
-async def test_connect_without_freeswitch_and_wrong_password():
+async def test_connect_with_freeswitch_and_wrong_password():
     with pytest.raises(AuthenticationError):
         async with Freeswitch("0.0.0.0", 8021, "ClueCon"):
             async with Inbound("0.0.0.0", 8021, "WrongPassword"):
@@ -91,7 +91,8 @@ async def test_event_handler_on_inbound_client():
     async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
         async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             client.on("HEARTBEAT", handler)
-            await asyncio.sleep(0.001)
+            await client.send("events plain ALL")
+            await handler.sync.wait()
 
     assert handler.is_called, "Event processing did not activate handler"
 
@@ -107,7 +108,8 @@ async def test_custom_event_handler_on_inbound_client():
     async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
         async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             client.on("example::heartbeat", handler)
-            await asyncio.sleep(0.001)
+            await client.send("events plain ALL")
+            await handler.sync.wait()
 
     assert handler.is_called, "Event processing did not activate handler"
 
@@ -123,7 +125,8 @@ async def test_wildcard_handler_on_inbound_client():
     async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
         async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             client.on("*", handler)
-            await asyncio.sleep(0.001)
+            await client.send("events plain ALL")
+            await handler.sync.wait()
 
     assert handler.is_called, "Event processing did not activate handler"
 

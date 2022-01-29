@@ -7,7 +7,6 @@ Here we will group what is common to the ESL client for inbound and outbound con
 from asyncio import StreamWriter, StreamReader, Queue, create_task, Task, Event
 from typing import List, Awaitable, Dict, NoReturn, Optional, Union
 from inspect import isawaitable, iscoroutinefunction
-from pprint import pformat
 from abc import ABC
 import logging
 
@@ -81,8 +80,7 @@ class Protocol(ABC):
         """Arm all event processors."""
         while self.is_connected:
             event = await self.events.get()
-            formated_event = pformat(event)
-            logging.debug(f"Recived an event: '{formated_event}'.")
+            logging.debug(f"Recived an event: '{event}'.")
 
             if "Content-Type" in event and event["Content-Type"] == "auth/request":
                 self.authentication_event.set()
@@ -114,11 +112,12 @@ class Protocol(ABC):
                 name = identifier
 
             if name:
-                logging.debug(f"Get all handler for '{name}'.")
+                logging.debug(f"Get all handlers for '{name}'.")
                 specific = self.handlers.get(name, list())
                 generic = self.handlers.get("*", list())
                 handlers = specific + generic
 
+                print(handlers)
                 if handlers:
                     for handler in handlers:
                         if isawaitable(handler) or iscoroutinefunction(handler):
@@ -130,6 +129,7 @@ class Protocol(ABC):
 
     def on(self, key: str, handler: Awaitable[None]) -> None:
         """Associate a handler with an event key."""
+        logging.debug(f"Register handler to '{key}' event.")
         self.handlers.setdefault(key, list()).append(handler)
 
     def remove(self, key: str, handler: Awaitable[None]) -> None:

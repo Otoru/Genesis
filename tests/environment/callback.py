@@ -6,6 +6,7 @@ Abstraction used to represent generic callbacks.
 """
 from typing import Dict, Union, List
 from asyncio import Event
+import logging
 
 
 class Callback:
@@ -23,6 +24,7 @@ class Callback:
         return self
 
     def __call__(self, event: Dict[str, Union[str, List[str]]], *args, **kwargs):
+        logging.debug(f"Callback recive and event: {event}")
         self.event = event
         self.is_called = not self.is_called
         self.count += self.count

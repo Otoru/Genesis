@@ -76,7 +76,9 @@ class Inbound(Protocol):
             promise = open_connection(self.host, self.port)
             self.reader, self.writer = await wait_for(promise, self.timeout)
         except TimeoutError:
-            logging.debug("A timeout occurred when trying to connect to the freeswitch.")
+            logging.debug(
+                "A timeout occurred when trying to connect to the freeswitch."
+            )
             raise ConnectionTimeoutError()
 
         await super().start()

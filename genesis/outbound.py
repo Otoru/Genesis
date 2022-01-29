@@ -9,7 +9,6 @@ from __future__ import annotations
 from asyncio import StreamReader, StreamWriter, Queue, start_server, Event
 from typing import Awaitable, NoReturn, Dict, Union, List
 from functools import partial
-from pprint import pformat
 import logging
 import socket
 
@@ -45,9 +44,7 @@ class Session(Protocol):
     @staticmethod
     async def _on_hangup(session: Session, event: Dict) -> None:
         """Method executed when receiving a hangup in the session."""
-        formated_event = pformat(event)
-        message = f"Recived hangup event: {formated_event}"
-        logging.debug(message)
+        logging.debug(f"Recived hangup event: {event}")
         session.stop()
 
     async def sendmsg(
@@ -87,10 +84,7 @@ class Session(Protocol):
             playback_command_is_complete = Event()
 
             async def event_handler(event):
-                formated_event = pformat(event)
-                logging.debug(
-                    f"Recived channel execute complete event: {formated_event}"
-                )
+                logging.debug(f"Recived channel execute complete event: {event}")
 
                 if "variable_current_application" in event:
                     if event["variable_current_application"] == "playback":
