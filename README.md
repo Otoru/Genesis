@@ -44,9 +44,9 @@ In [4]: await app.start()
 In [1]: from genesis import Outbound
 
 In [2]: async def handler(session):
-            await session.answer()
-            await session.playback('ivr/ivr-welcome')
-            await session.hangup()
+   ...:     await session.answer()
+   ...:     await session.playback('ivr/ivr-welcome')
+   ...:     await session.hangup()
 
 
 In [3]: app = Outbound("127.0.0.1", 5000, handler)
