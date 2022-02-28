@@ -12,12 +12,13 @@ import logging
 
 from genesis.exceptions import UnconnectedError, ConnectionError
 from genesis.parser import parse
+from genesis import types
 
 
 class Protocol(ABC):
     def __init__(self):
-        self.cmd = Queue()
         self.events = Queue()
+        self.commands = Queue()
         self.is_connected = False
         self.is_lingering = False
         self.authentication_event = Event()
@@ -86,10 +87,10 @@ class Protocol(ABC):
                 self.authentication_event.set()
 
             elif "Content-Type" in event and event["Content-Type"] == "command/reply":
-                await self.cmd.put(event)
+                await self.commands.put(event)
 
             elif "Content-Type" in event and event["Content-Type"] == "api/response":
-                await self.cmd.put(event)
+                await self.commands.put(event)
 
             elif "Content-Type" in event and event["Content-Type"] in [
                 "text/rude-rejection",
@@ -137,7 +138,7 @@ class Protocol(ABC):
         if key in self.handlers and handler in self.handlers[key]:
             self.handlers.setdefault(key, list()).remove(handler)
 
-    async def send(self, cmd: str) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+    async def send(self, cmd: str) -> Awaitable[types.Event]:
         """Method used to send commands to or freeswitch."""
         if not self.is_connected:
             raise UnconnectedError()
@@ -154,5 +155,5 @@ class Protocol(ABC):
         self.writer.write("\n".encode("utf-8"))
         await self.writer.drain()
 
-        response = await self.cmd.get()
+        response = await self.commands.get()
         return response

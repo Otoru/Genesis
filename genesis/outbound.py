@@ -14,6 +14,7 @@ import socket
 
 from genesis.exceptions import UnconnectedError, SessionGoneAway
 from genesis.protocol import Protocol
+from genesis import types
 
 
 class Session(Protocol):
@@ -35,21 +36,29 @@ class Session(Protocol):
         self.context = dict()
         self.reader = reader
         self.writer = writer
-        self.is_connected = False
         self.commands = Queue()
 
         on_hangup = partial(self._on_hangup, self)
         self.on("CHANNEL_HANGUP", on_hangup)
 
+    async def __aenter__(self) -> Awaitable[Inbound]:
+        """Interface used to implement a context manager."""
+        await self.start()
+        return self
+
+    async def __aexit__(self, *args, **kwargs) -> Awaitable[None]:
+        """Interface used to implement a context manager."""
+        await self.stop()
+
     @staticmethod
-    async def _on_hangup(session: Session, event: Dict) -> None:
+    async def _on_hangup(session: Session, event: types.Event) -> Awaitable[None]:
         """Method executed when receiving a hangup in the session."""
         logging.debug(f"Recived hangup event: {event}")
         session.stop()
 
     async def sendmsg(
         self, command: str, application: str, data: Optional[str] = None
-    ) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+    ) -> Awaitable[types.Event]:
         """Used to send commands from dialplan to session."""
         cmd = f"sendmsg\ncall-command: {command}\nexecute-app-name: {application}"
 
@@ -59,26 +68,22 @@ class Session(Protocol):
         logging.debug(f"Send command to freeswitch: '{cmd}'.")
         return self.send(cmd)
 
-    async def answer(self) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+    async def answer(self) -> Awaitable[types.Event]:
         """Answer the call associated with the session."""
         return self.sendmsg("execute", "answer")
 
-    async def park(self) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+    async def park(self) -> Awaitable[types.Event]:
         """Move session-associated call to park."""
         return self.sendmsg("execute", "park")
 
-    async def hangup(
-        self, cause: str = "NORMAL_CLEARING"
-    ) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+    async def hangup(self, cause: str = "NORMAL_CLEARING") -> Awaitable[types.Event]:
         """Hang up the call associated with the session."""
         return self.sendmsg("execute", "hangup", cause)
 
-    async def playback(
-        self, path: str, block: bool = True
-    ) -> Awaitable[Dict[str, Union[str, List[str]]]]:
+    async def playback(self, path: str, block=True) -> Awaitable[types.Event]:
         """Requests the freeswitch to play an audio."""
         if not block:
-            return await self.sendmsg("execute", "playback", path)
+            return self.sendmsg("execute", "playback", path)
         else:
             logging.debug("Send playback command to freeswitch with block behavior.")
             playback_command_is_complete = Event()
@@ -99,6 +104,37 @@ class Session(Protocol):
             await playback_command_is_complete.wait()
 
             return response
+
+    async def say(
+        self,
+        text: str,
+        module_name="en",
+        lang: Optional[str] = None,
+        say_type: str = "NUMBER",
+        say_method: str = "pronounced",
+        gender: str = "FEMININE",
+        block=True,
+        timeout=30,
+    ) -> Awaitable[types.Event]:
+        ...
+
+    async def play_and_get_digits(
+        self,
+        terminators,
+        file,
+        tries=1,
+        timeout=30,
+        block=True,
+        min_digits=0,
+        max_digits=128,
+        response_timeout=30,
+        regexp: Optional[str] = None,
+        var_name: Optional[str] = None,
+        invalid_file: Optional[str] = None,
+        digit_timeout: Optional[int] = None,
+        transfer_on_failure: Optional[str] = None,
+    ) -> Awaitable[types.Event]:
+        ...
 
 
 class Outbound:
@@ -169,6 +205,7 @@ class Outbound:
             if server.linger:
                 logging.debug("Send linger command to freeswitch")
                 reply = await session.send("linger")
+                session.is_lingering = True
 
             logging.debug("Start server session handler")
             await server.app(session)

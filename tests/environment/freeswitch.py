@@ -55,13 +55,13 @@ class Freeswitch:
         events: Optional[List[str]] = None,
     ) -> None:
         self.processor: Optional[Awaitable] = None
-        self.queue = events if events else list()
+        self.events = events if events else list()
         self.server: Optional[Server] = None
         self.password = password
         self.commands = COMMANDS
+        self.templates = EVENTS
         self.is_running = False
         self.recived = list()
-        self.events = EVENTS
         self.host = host
         self.port = port
 
@@ -110,13 +110,13 @@ class Freeswitch:
         await writer.drain()
 
     async def shoot(self, writer: StreamWriter) -> None:
-        if self.queue:
-            for event in self.queue:
+        if self.events:
+            for event in self.events:
                 logging.debug(f"Send event: {event}")
                 await self.send(writer, event.splitlines())
 
     async def event(self, writer: StreamWriter, event: str) -> Awaitable[None]:
-        content = self.events.get(event)
+        content = self.templates.get(event)
         length = len(content)
         await self.send(
             writer, ["Content-Type: text/event-plain", f"Content-Length: {length}"]

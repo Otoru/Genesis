@@ -119,13 +119,12 @@ async def test_consumer_handle_freeswitch_events():
 @pytest.mark.asyncio
 async def test_consumer_handle_freeswitch_custom_events():
     """Ensures that the handler is called upon receiving an event."""
-    events = [EVENTS["CUSTOM"], EVENTS["HEARTBEAT"]]
-
     handler = Callback()
     assert not handler.is_called, "Control started with wrong value"
 
-    async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
+    async with Freeswitch("0.0.0.0", 8021, "ClueCon") as server:
         app = Consumer("127.0.0.1", 8021, "ClueCon")
+        server.events.extend([EVENTS["CUSTOM"], EVENTS["HEARTBEAT"]])
 
         app.handle("example::heartbeat")(handler)
 

@@ -6,6 +6,7 @@ from genesis.exceptions import (
     AuthenticationError,
     ConnectionTimeoutError,
     UnconnectedError,
+    ConnectionError,
 )
 from genesis import Inbound
 
@@ -86,11 +87,11 @@ async def test_event_handler_on_inbound_client():
 
     assert not handler.is_called, "Control started with wrong value"
 
-    events = [EVENTS["HEARTBEAT"]]
-
-    async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
+    async with Freeswitch("0.0.0.0", 8021, "ClueCon") as server:
         async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             client.on("HEARTBEAT", handler)
+            server.events.append(EVENTS["HEARTBEAT"])
+
             await client.send("events plain ALL")
             await handler.sync.wait()
 
@@ -103,11 +104,11 @@ async def test_custom_event_handler_on_inbound_client():
 
     assert not handler.is_called, "Control started with wrong value"
 
-    events = [EVENTS["CUSTOM"]]
-
-    async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
+    async with Freeswitch("0.0.0.0", 8021, "ClueCon") as server:
         async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             client.on("example::heartbeat", handler)
+            server.events.append(EVENTS["CUSTOM"])
+
             await client.send("events plain ALL")
             await handler.sync.wait()
 
@@ -120,11 +121,11 @@ async def test_wildcard_handler_on_inbound_client():
 
     assert not handler.is_called, "Control started with wrong value"
 
-    events = [EVENTS["HEARTBEAT"]]
-
-    async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
+    async with Freeswitch("0.0.0.0", 8021, "ClueCon") as server:
         async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             client.on("*", handler)
+            server.events.append(EVENTS["HEARTBEAT"])
+
             await client.send("events plain ALL")
             await handler.sync.wait()
 
@@ -137,11 +138,11 @@ async def test_event_handler_not_is_called_with_wrong_event():
 
     assert not handler.is_called, "Control started with wrong value"
 
-    events = [EVENTS["HEARTBEAT"]]
-
-    async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
+    async with Freeswitch("0.0.0.0", 8021, "ClueCon") as server:
         async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             client.on("MESSAGE", handler)
+            server.events.append(EVENTS["HEARTBEAT"])
+
             await asyncio.sleep(0.001)
 
     assert not handler.is_called, "Event processing did not activate handler"
@@ -164,19 +165,23 @@ async def test_to_remove_event_handler():
 @pytest.mark.asyncio
 async def test_event_handler_is_called_with_all_events():
     handler = Callback()
+    NUMBER_OF_SENDED_EVENTS = 4
 
     assert not handler.is_called, "Control started with wrong value"
 
-    events = [
-        EVENTS["MESSAGE"],
-        EVENTS["MESSAGE"],
-        EVENTS["MESSAGE"],
-        EVENTS["MESSAGE"],
-    ]
-
-    async with Freeswitch("0.0.0.0", 8021, "ClueCon", events):
+    async with Freeswitch("0.0.0.0", 8021, "ClueCon") as server:
         async with Inbound("0.0.0.0", 8021, "ClueCon") as client:
             client.on("MESSAGE", handler)
+            server.events.extend(
+                [
+                    EVENTS["MESSAGE"],
+                    EVENTS["MESSAGE"],
+                    EVENTS["MESSAGE"],
+                    EVENTS["MESSAGE"],
+                ]
+            )
             await asyncio.sleep(0.001)
 
-    assert not handler.count == len(events), "Event processing did not activate handler"
+    assert (
+        not handler.count == NUMBER_OF_SENDED_EVENTS
+    ), "Event processing did not activate handler"
