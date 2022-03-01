@@ -38,9 +38,6 @@ class Session(Protocol):
         self.writer = writer
         self.commands = Queue()
 
-        on_hangup = partial(self._on_hangup, self)
-        self.on("CHANNEL_HANGUP", on_hangup)
-
     async def __aenter__(self) -> Awaitable[Inbound]:
         """Interface used to implement a context manager."""
         await self.start()
@@ -50,11 +47,21 @@ class Session(Protocol):
         """Interface used to implement a context manager."""
         await self.stop()
 
-    @staticmethod
-    async def _on_hangup(session: Session, event: types.Event) -> Awaitable[None]:
-        """Method executed when receiving a hangup in the session."""
-        logging.debug(f"Recived hangup event: {event}")
-        session.stop()
+    async def _awaitable_complete_command(self, application: str) -> Event:
+        """Used to build an event associated with the completion of a command."""
+        semaphore = Event()
+
+        async def handler(event: types.Event):
+            logging.debug(f"Recived channel execute complete event: {event}")
+
+            if "variable_current_application" in event:
+                if event["variable_current_application"] == application:
+                    semaphore.set()
+
+        logging.debug(f"Register event handler to {application} complete event")
+        self.on("CHANNEL_EXECUTE_COMPLETE", handler)
+
+        return semaphore
 
     async def sendmsg(
         self, command: str, application: str, data: Optional[str] = None
@@ -84,39 +91,44 @@ class Session(Protocol):
         """Requests the freeswitch to play an audio."""
         if not block:
             return self.sendmsg("execute", "playback", path)
-        else:
-            logging.debug("Send playback command to freeswitch with block behavior.")
-            playback_command_is_complete = Event()
 
-            async def event_handler(event):
-                logging.debug(f"Recived channel execute complete event: {event}")
+        logging.debug("Send playback command to freeswitch with block behavior.")
+        playback_command_is_complete = self._awaitable_complete_command("playback")
+        response = await self.sendmsg("execute", "playback", path)
 
-                if "variable_current_application" in event:
-                    if event["variable_current_application"] == "playback":
-                        playback_command_is_complete.set()
+        logging.debug("Await playback complete event...")
+        await playback_command_is_complete.wait()
 
-            logging.debug("Register event handler to playback complete event")
-            self.on("CHANNEL_EXECUTE_COMPLETE", event_handler)
-
-            response = await self.sendmsg("execute", "playback", path)
-
-            logging.debug("Await playback complete event...")
-            await playback_command_is_complete.wait()
-
-            return response
+        return response
 
     async def say(
         self,
         text: str,
-        module_name="en",
+        module="en",
         lang: Optional[str] = None,
-        say_type: str = "NUMBER",
-        say_method: str = "pronounced",
+        kind: str = "NUMBER",
+        method: str = "pronounced",
         gender: str = "FEMININE",
         block=True,
         timeout=30,
     ) -> Awaitable[types.Event]:
-        ...
+        """The say application will use the pre-recorded sound files to read or say things."""
+        if lang:
+            module += f":{lang}"
+
+        arguments = f"{module} {kind} {method} {gender} {text}"
+
+        if not block:
+            return self.sendmsg("execute", "say", arguments)
+
+        logging.debug("Send say command to freeswitch with block behavior.")
+        say_command_is_complete = self._awaitable_complete_command("say")
+        response = await self.sendmsg("execute", "say", arguments)
+
+        logging.debug("Await say complete event...")
+        await say_command_is_complete.wait()
+
+        return response
 
     async def play_and_get_digits(
         self,
