@@ -118,7 +118,6 @@ class Protocol(ABC):
                 generic = self.handlers.get("*", list())
                 handlers = specific + generic
 
-                print(handlers)
                 if handlers:
                     for handler in handlers:
                         if isawaitable(handler) or iscoroutinefunction(handler):
@@ -135,6 +134,7 @@ class Protocol(ABC):
 
     def remove(self, key: str, handler: Awaitable[None]) -> None:
         """Removes the HANDLER from the list of handlers for the given event KEY name."""
+        logging.debug(f"Remove handler to '{key}' event.")
         if key in self.handlers and handler in self.handlers[key]:
             self.handlers.setdefault(key, list()).remove(handler)
 

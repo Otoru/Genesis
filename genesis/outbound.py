@@ -36,7 +36,7 @@ class Session(Protocol):
         self.context = dict()
         self.reader = reader
         self.writer = writer
-        self.commands = Queue()
+        self.fifo = Queue()
 
     async def __aenter__(self) -> Awaitable[Inbound]:
         """Interface used to implement a context manager."""
@@ -51,26 +51,30 @@ class Session(Protocol):
         """Used to build an event associated with the completion of a command."""
         semaphore = Event()
 
-        async def handler(event: types.Event):
+        async def handler(session: Session, event: types.Event):
             logging.debug(f"Recived channel execute complete event: {event}")
 
             if "variable_current_application" in event:
                 if event["variable_current_application"] == application:
+                    await session.fifo.put(event)
                     semaphore.set()
 
         logging.debug(f"Register event handler to {application} complete event")
-        self.on("CHANNEL_EXECUTE_COMPLETE", handler)
+        self.on("CHANNEL_EXECUTE_COMPLETE", partial(handler, self))
 
         return semaphore
 
     async def sendmsg(
-        self, command: str, application: str, data: Optional[str] = None
+        self, command: str, application: str, data: Optional[str] = None, lock=False
     ) -> Awaitable[types.Event]:
         """Used to send commands from dialplan to session."""
         cmd = f"sendmsg\ncall-command: {command}\nexecute-app-name: {application}"
 
         if data:
             cmd += f"\nexecute-app-arg: {data}"
+
+        if lock:
+            cmd += f"\nevent-lock: true"
 
         logging.debug(f"Send command to freeswitch: '{cmd}'.")
         return self.send(cmd)
@@ -93,11 +97,11 @@ class Session(Protocol):
             return self.sendmsg("execute", "playback", path)
 
         logging.debug("Send playback command to freeswitch with block behavior.")
-        playback_command_is_complete = self._awaitable_complete_command("playback")
+        command_is_complete = self._awaitable_complete_command("playback")
         response = await self.sendmsg("execute", "playback", path)
 
         logging.debug("Await playback complete event...")
-        await playback_command_is_complete.wait()
+        await command_is_complete.wait()
 
         return response
 
@@ -117,28 +121,33 @@ class Session(Protocol):
             module += f":{lang}"
 
         arguments = f"{module} {kind} {method} {gender} {text}"
+        logging.debug(f"Arguments used in say command: {arguments}")
 
         if not block:
             return self.sendmsg("execute", "say", arguments)
 
         logging.debug("Send say command to freeswitch with block behavior.")
-        say_command_is_complete = self._awaitable_complete_command("say")
+        command_is_complete = self._awaitable_complete_command("say")
         response = await self.sendmsg("execute", "say", arguments)
+        logging.debug(f"Response of say command: {response}")
 
         logging.debug("Await say complete event...")
-        await say_command_is_complete.wait()
+        await command_is_complete.wait()
 
-        return response
+        event = await self.fifo.get()
+        logging.debug(f"Execute complete event recived: {event}")
+
+        return event
 
     async def play_and_get_digits(
         self,
+        tries,
+        timeout,
         terminators,
         file,
-        tries=1,
-        timeout=30,
+        minimal=0,
+        maximum=128,
         block=True,
-        min_digits=0,
-        max_digits=128,
         response_timeout=30,
         regexp: Optional[str] = None,
         var_name: Optional[str] = None,
@@ -146,7 +155,41 @@ class Session(Protocol):
         digit_timeout: Optional[int] = None,
         transfer_on_failure: Optional[str] = None,
     ) -> Awaitable[types.Event]:
-        ...
+        formatter = lambda value: "" if value is None else value
+        ordered_arguments = [
+            minimal,
+            maximum,
+            tries,
+            timeout,
+            terminators,
+            file,
+            invalid_file,
+            var_name,
+            regexp,
+            digit_timeout,
+            transfer_on_failure,
+        ]
+        formated_ordered_arguments = map(formatter, ordered_arguments)
+        arguments = " ".join(formated_ordered_arguments)
+        logging.debug(f"Arguments used in play_and_get_digits command: {arguments}")
+
+        if not block:
+            return self.sendmsg("execute", "play_and_get_digits", arguments)
+
+        logging.debug(
+            "Send play_and_get_digits command to freeswitch with block behavior."
+        )
+        command_is_complete = self._awaitable_complete_command("play_and_get_digits")
+        response = await self.sendmsg("execute", "play_and_get_digits", arguments)
+        logging.debug(f"Response of play_and_get_digits command: {response}")
+
+        logging.debug("Await play_and_get_digits complete event...")
+        await command_is_complete.wait()
+
+        event = await self.fifo.get()
+        logging.debug(f"Execute complete event recived: {event}")
+
+        return event
 
 
 class Outbound:
