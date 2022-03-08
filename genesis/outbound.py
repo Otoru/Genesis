@@ -81,20 +81,20 @@ class Session(Protocol):
 
     async def answer(self) -> Awaitable[types.Event]:
         """Answer the call associated with the session."""
-        return self.sendmsg("execute", "answer")
+        return await self.sendmsg("execute", "answer")
 
     async def park(self) -> Awaitable[types.Event]:
         """Move session-associated call to park."""
-        return self.sendmsg("execute", "park")
+        return await self.sendmsg("execute", "park")
 
     async def hangup(self, cause: str = "NORMAL_CLEARING") -> Awaitable[types.Event]:
         """Hang up the call associated with the session."""
-        return self.sendmsg("execute", "hangup", cause)
+        return await self.sendmsg("execute", "hangup", cause)
 
     async def playback(self, path: str, block=True) -> Awaitable[types.Event]:
         """Requests the freeswitch to play an audio."""
         if not block:
-            return self.sendmsg("execute", "playback", path)
+            return await self.sendmsg("execute", "playback", path)
 
         logging.debug("Send playback command to freeswitch with block behavior.")
         command_is_complete = self._awaitable_complete_command("playback")
@@ -124,7 +124,7 @@ class Session(Protocol):
         logging.debug(f"Arguments used in say command: {arguments}")
 
         if not block:
-            return self.sendmsg("execute", "say", arguments)
+            return await self.sendmsg("execute", "say", arguments)
 
         logging.debug("Send say command to freeswitch with block behavior.")
         command_is_complete = self._awaitable_complete_command("say")
@@ -174,7 +174,7 @@ class Session(Protocol):
         logging.debug(f"Arguments used in play_and_get_digits command: {arguments}")
 
         if not block:
-            return self.sendmsg("execute", "play_and_get_digits", arguments)
+            return await self.sendmsg("execute", "play_and_get_digits", arguments)
 
         logging.debug(
             "Send play_and_get_digits command to freeswitch with block behavior."
