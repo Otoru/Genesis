@@ -5,37 +5,20 @@ from genesis.parser import parse
 from environment import EVENTS
 
 
-def test_parse_heartbeat_event():
-    heartbeat = EVENTS["HEARTBEAT"]
-    got = parse(heartbeat)
+def test_parse_log_event():
+    log = EVENTS["LOG"]
+    got = parse(log)
 
     expected = {
-        "Event-Name": "HEARTBEAT",
-        "Core-UUID": "cb2d5146-9a99-11e4-9291-092b1a87b375",
-        "FreeSWITCH-Hostname": "development",
-        "FreeSWITCH-Switchname": "freeswitch",
-        "FreeSWITCH-IPv4": "172.16.7.47",
-        "FreeSWITCH-IPv6": "::1",
-        "Event-Date-Local": "2015-01-19 12:06:19",
-        "Event-Date-GMT": "Mon, 19 Jan 2015 15:06:19 GMT",
-        "Event-Date-Timestamp": "1421679979428652",
-        "Event-Calling-File": "switch_core.c",
-        "Event-Calling-Function": "send_heartbeat",
-        "Event-Calling-Line-Number": "70",
-        "Event-Sequence": "23910",
-        "Event-Info": "System Ready",
-        "Up-Time": "0 years, 1 day, 16 hours, 53 minutes, 14 seconds, 552 milliseconds, 35 microseconds",
-        "FreeSWITCH-Version": "1.5.15b+git~20141226T052811Z~0a66db6f12~64bit",
-        "Uptime-msec": "147194552",
-        "Session-Count": "0",
-        "Max-Sessions": "1000",
-        "Session-Per-Sec": "30",
-        "Session-Per-Sec-Max": "2",
-        "Session-Per-Sec-FiveMin": "0",
-        "Session-Since-Startup": "34",
-        "Session-Peak-Max": "4",
-        "Session-Peak-FiveMin": "0",
-        "Idle-CPU": "98.700000",
+        "Content-Type": "log/data",
+        "Content-Length": "126",
+        "Log-Level": "7",
+        "Text-Channel": "3",
+        "Log-File": "switch_core_state_machine.c",
+        "Log-Func": "switch_core_session_destroy_state",
+        "Log-Line": "710",
+        "User-Data": "4c882cc4-cd02-11e6-8b82-395b501876f9",
+        "X-Log-Text": "2016-12-28 10:34:08.398763 [DEBUG] switch_core_state_machine.c:710 (sofia/internal/7071@devitor) State DESTROY going to sleep",
     }
 
     assert got == expected, "Event parsing did not happen as expected"
@@ -94,5 +77,25 @@ def test_double_field_in_event():
         "Event-Calling-File": "mod_event_socket.c",
         "Event-Calling-Function": "api_exec",
         "Event-Calling-Line-Number": "609",
+    }
+    assert got == expected, "Event parsing did not happen as expected"
+
+
+def test_parse_triple_field_in_event():
+    reloadxml_with_3_headers = EVENTS["RELOADXML_WITH_3_HEADERS"]
+    got = parse(reloadxml_with_3_headers)
+    expected = {
+        "Event-Name": "RELOADXML",
+        "Core-UUID": "6c6def18-9562-de11-a8e0-001fc6ab49e2",
+        "FreeSWITCH-Hostname": "localhost.localdomain",
+        "FreeSWITCH-IPv4": "10.0.1.250",
+        "FreeSWITCH-IPv6": "::1",
+        "Event-Date-Local": "2009-06-26 17:06:33",
+        "Event-Date-GMT": "Fri, 26 Jun 2009 21:06:33 GMT",
+        "Event-Date-Timestamp": "1246050393884782",
+        "Event-Calling-File": "switch_xml.c",
+        "Event-Calling-Function": "switch_xml_open_root",
+        "Event-Calling-Line-Number": "1917",
+        "Content-Length": ["41", "42", "43"],
     }
     assert got == expected, "Event parsing did not happen as expected"

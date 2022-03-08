@@ -15,7 +15,7 @@ with open(path.join(here, "requirements/development.txt"), encoding="utf-8") as 
 
 setup(
     name="genesis",
-    version="0.2.1",
+    version="0.3.0",
     description="Client implementation of FreeSWITCH Event Socket protocol with asyncio",
     include_package_data=True,
     license="MIT",
@@ -25,7 +25,7 @@ setup(
     author="Vitor Hugo de Oliveira Vargas",
     author_email="contato@vitoru.dev",
     classifiers=[
-        "Development Status :: 1 - Planning",
+        "Development Status :: 3 - Alpha",
         "License :: OSI Approved :: MIT License",
         "Intended Audience :: Developers",
         "Intended Audience :: Information Technology",

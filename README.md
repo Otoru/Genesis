@@ -1,29 +1,28 @@
 # What is Genesis?
 
+Client implementation of FreeSWITCH Event Socket protocol with asyncio.
+
 [![Gitpod badge](https://img.shields.io/badge/Gitpod-ready%20to%20code-908a85?logo=gitpod)](https://gitpod.io/#https://github.com/Otoru/Genesis)
 [![Tests badge](https://github.com/Otoru/Genesis/actions/workflows/tests.yml/badge.svg)](https://github.com/Otoru/Genesis/actions/workflows/tests.yml)
 [![Build badge](https://github.com/Otoru/Genesis/actions/workflows/pypi.yml/badge.svg)](https://github.com/Otoru/Genesis/actions/workflows/pypi.yml)
 [![License badge](https://img.shields.io/github/license/otoru/Genesis.svg)](https://github.com/Otoru/Genesis/blob/master/LICENSE.md)
-
-Client implementation of FreeSWITCH Event Socket protocol with asyncio.
+[![Pypi Version badge](https://img.shields.io/pypi/v/Genesis)](https://pypi.org/project/genesis/)
+[![Pypi python version badge](https://img.shields.io/pypi/pyversions/Genesis)](https://pypi.org/project/genesis/)
+[![Pypi wheel badge](https://img.shields.io/pypi/wheel/Genesis)](https://pypi.org/project/genesis/)
 
 ## Inbound Socket Mode
 
 ```python
-In [1]: from genesis import Client
+In [1]: from genesis import Inbound
 
-In [2]: async with Client("127.0.0.1", 8021, "ClueCon") as client:
+In [2]: async with Inbound("127.0.0.1", 8021, "ClueCon") as client:
             response = await client.send("uptime")
 
 In [3]: print(response)
 {'Content-Type': 'command/reply', 'Reply-Text': '6943047'}
 ```
 
-## Event handler
-
-With just one line of code we can make the awaitable be called whenever we receive a certain event from the freeswitch.
-
-### Example
+## Incoming Event handler
 
 ```python
 In [1]: from genesis import Consumer
@@ -35,7 +34,24 @@ In [3]:  @app.handle("HEARTBEAT")
    ...:     await asyncio.sleep(0.001)
    ...:     print(event)
 
-In [4]: await app.run()
+In [4]: await app.start()
+```
+
+## Outbound Socket Mode
+
+```python
+
+In [1]: from genesis import Outbound
+
+In [2]: async def handler(session):
+   ...:     await session.answer()
+   ...:     await session.playback('ivr/ivr-welcome')
+   ...:     await session.hangup()
+
+
+In [3]: app = Outbound("127.0.0.1", 5000, handler)
+
+In [4]: await app.start()
 ```
 
 ### Comments

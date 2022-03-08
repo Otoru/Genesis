@@ -25,6 +25,7 @@ from typing import List, Awaitable, Callable, Optional, Union
 from asyncio.base_events import Server
 from functools import partial
 from copy import copy
+import logging
 import socket
 
 from environment import COMMANDS, EVENTS
@@ -54,12 +55,13 @@ class Freeswitch:
         events: Optional[List[str]] = None,
     ) -> None:
         self.processor: Optional[Awaitable] = None
-        self.queue = events if events else list()
+        self.events = events if events else list()
         self.server: Optional[Server] = None
         self.password = password
         self.commands = COMMANDS
+        self.templates = EVENTS
         self.is_running = False
-        self.events = EVENTS
+        self.recived = list()
         self.host = host
         self.port = port
 
@@ -86,7 +88,7 @@ class Freeswitch:
     async def __aenter__(self) -> Awaitable[Server]:
         """Interface used to implement a context manager."""
         await self.start()
-        return await self.server.__aenter__()
+        return self
 
     async def __aexit__(self, *args, **kwargs) -> Awaitable[None]:
         """Interface used to implement a context manager."""
@@ -108,12 +110,13 @@ class Freeswitch:
         await writer.drain()
 
     async def shoot(self, writer: StreamWriter) -> None:
-        if self.queue:
-            for event in self.queue:
+        if self.events:
+            for event in self.events:
+                logging.debug(f"Send event: {event}")
                 await self.send(writer, event.splitlines())
 
     async def event(self, writer: StreamWriter, event: str) -> Awaitable[None]:
-        content = self.events.get(event)
+        content = self.templates.get(event)
         length = len(content)
         await self.send(
             writer, ["Content-Type: text/event-plain", f"Content-Length: {length}"]
@@ -141,7 +144,11 @@ class Freeswitch:
     async def disconnect(self, writer: StreamWriter) -> Awaitable[None]:
         """Appropriately closes an ESL connection."""
         await self.send(
-            writer, ["Content-Type: text/disconnect-notice", "Content-Length: 67"]
+            writer,
+            [
+                "Content-Type: text/disconnect-notice",
+                "Content-Length: 67",
+            ],
         )
         await self.send(
             writer,
@@ -157,13 +164,13 @@ class Freeswitch:
     async def process(self, writer: StreamWriter, request: str) -> Awaitable[None]:
         """Given an ESL event, we process it."""
         payload = copy(request)
+        self.recived.append(payload)
 
         if payload.startswith("auth"):
             received_password = payload.split().pop().strip()
 
             if self.password == received_password:
                 await self.command(writer, "+OK accepted")
-                await self.shoot(writer)
 
             else:
                 await self.command(writer, "-ERR invalid")
@@ -182,6 +189,9 @@ class Freeswitch:
 
             else:
                 await self.command(writer, response)
+
+            if payload == "events plain ALL":
+                await self.shoot(writer)
 
         elif payload.startswith("api"):
             command = payload.replace("api", "").split().pop().strip()

@@ -5,6 +5,10 @@ Callback Module
 Abstraction used to represent generic callbacks.
 """
 from typing import Dict, Union, List
+from asyncio import Event
+import logging
+
+from genesis import types
 
 
 class Callback:
@@ -13,14 +17,17 @@ class Callback:
     """
 
     def __init__(self):
-        self.event: Dict[str, Union[str, List[str]]] = {}
+        self.event: types.Event = {}
         self.is_called = False
+        self.sync = Event()
         self.count = 0
 
     async def __await__(self, *args, **kwargs):
         return self
 
-    def __call__(self, event: Dict[str, Union[str, List[str]]], *args, **kwargs):
+    def __call__(self, event: types.Event, *args, **kwargs):
+        logging.debug(f"Callback recive and event: {event}")
         self.event = event
         self.is_called = not self.is_called
         self.count += self.count
+        self.sync.set()

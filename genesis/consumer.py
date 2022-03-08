@@ -5,12 +5,12 @@ Consumer Module
 Simple abstraction used to put some syntactic sugar into freeswitch event consumption.
 """
 from typing import Optional, Awaitable, NoReturn, Callable
-from asyncio import sleep
+from asyncio import sleep, Task, create_task, sleep
 import functools
 import logging
 import re
 
-from .client import Client
+from .inbound import Inbound
 
 
 def filtrate(key: str, value: str = None, regex: bool = False):
@@ -34,13 +34,13 @@ def filtrate(key: str, value: str = None, regex: bool = False):
                     content = message[key]
 
                     if value is None:
-                        return await function(message)
+                        return function(message)
 
                     if not regex and content == value:
-                        return await function(message)
+                        return function(message)
 
                     if regex and re.match(value, content):
-                        return await function(message)
+                        return function(message)
 
         return wrapper
 
@@ -66,7 +66,7 @@ class Consumer:
     """
 
     def __init__(self, host: str, port: int, password: str, timeout: int = 5) -> None:
-        self.protocol: Client = Client(host, port, password, timeout)
+        self.protocol: Inbound = Inbound(host, port, password, timeout)
 
     def handle(self, event: str) -> Callable:
         """Decorator that allows the registration of new handlers.
@@ -88,27 +88,35 @@ class Consumer:
 
         return decorator
 
-    async def run(self) -> Awaitable[NoReturn]:
+    async def start(self) -> Awaitable[NoReturn]:
         """Method called to request the freeswitch to start sending us the appropriate events."""
         try:
-            await self.protocol.connect()
+            async with self.protocol as protocol:
+                logging.debug("Asking freeswitch to send us all events.")
+                await protocol.send("events plain ALL")
 
-            logging.debug("Asking freeswitch to send us all events.")
-            await self.protocol.send("events plain ALL")
+                for event in protocol.handlers.keys():
+                    logging.debug(
+                        f"Requesting freeswitch to filter events of type '{event}'."
+                    )
 
-            for event in self.protocol.handlers.keys():
-                logging.debug(
-                    f"Requesting freeswitch to filter events of type '{event}'."
-                )
+                    if event.isupper():
+                        logging.debug(
+                            f"Send command to filtrate events with name: '{event}'."
+                        )
+                        await protocol.send(f"filter Event-Name {event}")
+                    else:
+                        logging.debug(
+                            f"Send command to filtrate events with subclass: '{event}'."
+                        )
+                        await protocol.send(f"filter Event-Subclass {event}")
 
-                if event.isupper():
-                    await self.protocol.send(f"filter Event-Name {event}")
-                else:
-                    await self.protocol.send(f"filter Event-Subclass {event}")
-
-            while self.protocol.is_connected:
-                await sleep(1)
+                while self.protocol.is_connected:
+                    await sleep(1)
 
         except:
-            await self.protocol.disconnect()
+            await self.stop()
             raise
+
+    async def stop(self) -> Awaitable[NoReturn]:
+        return await self.protocol.stop()
