@@ -18,7 +18,7 @@ def test_parse_log_event():
         "Log-Func": "switch_core_session_destroy_state",
         "Log-Line": "710",
         "User-Data": "4c882cc4-cd02-11e6-8b82-395b501876f9",
-        "X-Log-Text": "2016-12-28 10:34:08.398763 [DEBUG] switch_core_state_machine.c:710 (sofia/internal/7071@devitor) State DESTROY going to sleep",
+        "X-Event-Content": "2016-12-28 10:34:08.398763 [DEBUG] switch_core_state_machine.c:710 (sofia/internal/7071@devitor) State DESTROY going to sleep",
     }
 
     assert got == expected, "Event parsing did not happen as expected"
@@ -62,7 +62,7 @@ def test_double_field_in_event():
     expected = {
         "Content-Length": ["625", "41"],
         "Content-Type": "text/event-plain",
-        "X-Event-Content-Text": "+OK 7f4de4bc-17d7-11dd-b7a0-db4edd065621",
+        "X-Event-Content": "+OK 7f4de4bc-17d7-11dd-b7a0-db4edd065621",
         "Job-UUID": "7f4db78a-17d7-11dd-b7a0-db4edd065621",
         "Job-Command": "originate",
         "Job-Command-Arg": "sofia/default/1005 '&park'",

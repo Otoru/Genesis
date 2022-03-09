@@ -59,7 +59,7 @@ async def test_send_api_command():
             response = await client.send("api console loglevel")
             message = "The answer is not what we expected"
             expected = "+OK console log level set to DEBUG"
-            assert response["X-API-Reply-Text"] == expected, message
+            assert response["X-Event-Content"] == expected, message
 
 
 @pytest.mark.asyncio
@@ -78,7 +78,7 @@ async def test_send_api_command_with_large_reponse():
                 "min idle cpu 0.00/99.00\n"
                 "Current Stack Size/Max 240K/8192K"
             )
-            assert response["X-API-Reply-Text"] == expected, message
+            assert response["X-Event-Content"] == expected, message
 
 
 @pytest.mark.asyncio

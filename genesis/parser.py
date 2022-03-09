@@ -10,8 +10,7 @@ from typing import Dict
 
 def parse(payload: str) -> Dict[str, str]:
     """Given the payload of an event, it returns a dictionary with its information."""
-    unquoted_payload = unquote(payload, encoding="UTF-8")
-    lines = unquoted_payload.strip().splitlines()
+    lines = payload.strip().splitlines()
     personalization = ""
     result = {}
     buffer = ""
@@ -24,25 +23,25 @@ def parse(payload: str) -> Dict[str, str]:
 
         elif "Content-Type" in result and result["Content-Type"] == "api/response":
             personalization += "\n" + line
-            key = "X-API-Reply-Text"
+            key = "X-Event-Content"
             value = personalization
 
         elif "Content-Type" in result and result["Content-Type"] == "text/event-plain":
             personalization += "\n" + line
-            key = "X-Event-Content-Text"
+            key = "X-Event-Content"
             value = personalization
 
         elif "Content-Type" in result and result["Content-Type"] == "log/data":
             personalization += "\n" + line
-            key = "X-Log-Text"
+            key = "X-Event-Content"
             value = personalization
 
         else:
             key = buffer
             value += "\n" + line
 
-        key = key.strip()
-        value = value.strip()
+        key = unquote(key.strip(), encoding="UTF-8")
+        value = unquote(value.strip(), encoding="UTF-8")
 
         if ": " in line and key in result:
             backup = result[key]
