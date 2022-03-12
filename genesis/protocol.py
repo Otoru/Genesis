@@ -54,6 +54,8 @@ class Protocol(ABC):
 
     async def handler(self) -> Awaitable[NoReturn]:
         """Defines intelligence to treat received events."""
+        cover = Queue(maxsize=1)
+
         while self.is_connected:
             request = None
             buffer = ""
@@ -75,6 +77,16 @@ class Protocol(ABC):
                 break
 
             event = parse(request)
+
+            if "Content-Type" in event and event["Content-Type"] == "api/response":
+                await cover.put(event)
+                continue
+
+            if "" in event.keys():
+                headers = await cover.get()
+                result = {**headers, "X-Event-Content": event[""]}
+                event = result
+
             await self.events.put(event)
 
     async def consume(self) -> Awaitable[NoReturn]:

@@ -348,6 +348,36 @@ Session-Peak-Max: 4
 Session-Peak-FiveMin: 0
 Idle-CPU: 98.700000"""
 
+DETECTED_SPEECH = """Speech-Type: detected-speech
+Event-Name: DETECTED_SPEECH
+Core-UUID: aac0f73e-b822-e54c-a02a-06a839ca3e5a
+FreeSWITCH-Hostname: AMONROY
+FreeSWITCH-IPv4: 192.168.1.220
+FreeSWITCH-IPv6: ::1
+Event-Date-Local: 2009-01-26 16:07:24
+Event-Date-GMT: Mon, 26 Jan 2009 22:07:24 GMT
+Event-Date-Timestamp: 1233007644906250
+Event-Calling-File: switch_ivr_async.c
+Event-Calling-Function: speech_thread
+Event-Calling-Line-Number: 1758
+Content-Length: 435
+
+<result grammar="<request1@form-level.store>#nombres">
+    <interpretation grammar="<request1@form-level.store>#nombres" confidence="0.494643">
+        <instance confidence="0.494643">
+            arturo monroy
+        </instance>
+        <input mode="speech" confidence="0.494643">
+            <input confidence="0.313102">
+                arturo
+            </input>
+            <input confidence="0.618854">
+                monroy
+            </input>
+        </input>
+    </interpretation>
+</result>"""
+
 COMMANDS = {
     "uptime": UPTIME,
     "version": VERSION,
@@ -370,5 +400,6 @@ EVENTS = {
     "MODULE_UNLOAD": MODULE_UNLOAD,
     "CHANNEL_CREATE": CHANNEL_CREATE,
     "BACKGROUND_JOB": BACKGROUND_JOB,
+    "DETECTED_SPEECH": DETECTED_SPEECH,
     "RELOADXML_WITH_3_HEADERS": RELOADXML_WITH_3_HEADERS,
 }

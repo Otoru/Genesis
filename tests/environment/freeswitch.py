@@ -137,6 +137,7 @@ class Freeswitch:
             [
                 "Content-Type: api/response",
                 f"Content-Length: {length}",
+                "",
                 *content.strip().splitlines(),
             ],
         )

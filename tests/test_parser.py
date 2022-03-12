@@ -99,3 +99,41 @@ def test_parse_triple_field_in_event():
         "Content-Length": ["41", "42", "43"],
     }
     assert got == expected, "Event parsing did not happen as expected"
+
+
+def test_event_with_large_body():
+    detected_speech = EVENTS["DETECTED_SPEECH"]
+    got = parse(detected_speech)
+    expected = {
+        "Core-UUID": "aac0f73e-b822-e54c-a02a-06a839ca3e5a",
+        "Event-Calling-File": "switch_ivr_async.c",
+        "Event-Calling-Function": "speech_thread",
+        "Event-Calling-Line-Number": "1758",
+        "Event-Date-GMT": "Mon, 26 Jan 2009 22:07:24 GMT",
+        "Event-Date-Local": "2009-01-26 16:07:24",
+        "Event-Date-Timestamp": "1233007644906250",
+        "Event-Name": "DETECTED_SPEECH",
+        "FreeSWITCH-Hostname": "AMONROY",
+        "FreeSWITCH-IPv4": "192.168.1.220",
+        "FreeSWITCH-IPv6": "::1",
+        "Speech-Type": "detected-speech",
+        "Content-Length": "435",
+        "X-Event-Content": (
+            '<result grammar="<request1@form-level.store>#nombres">\n'
+            '    <interpretation grammar="<request1@form-level.store>#nombres" confidence="0.494643">\n'
+            '        <instance confidence="0.494643">\n'
+            "            arturo monroy\n"
+            "        </instance>\n"
+            '        <input mode="speech" confidence="0.494643">\n'
+            '            <input confidence="0.313102">\n'
+            "                arturo\n"
+            "            </input>\n"
+            '            <input confidence="0.618854">\n'
+            "                monroy\n"
+            "            </input>\n"
+            "        </input>\n"
+            "    </interpretation>\n"
+            "</result>"
+        ),
+    }
+    assert got == expected, "Event parsing did not happen as expected"
