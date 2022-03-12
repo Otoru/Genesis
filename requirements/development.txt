@@ -1,7 +1,0 @@
-tox
-black
-pytest
-pylint
-ipython
-pytest-cov
-pytest-asyncio

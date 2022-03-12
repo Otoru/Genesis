@@ -12,6 +12,10 @@ Client implementation of FreeSWITCH Event Socket protocol with asyncio.
 
 ## Inbound Socket Mode
 
+Inbound socket is used for your application connect to the FreeSWITCH server to invoke commands and control FreeSWITCH.
+
+### Application source code
+
 ```python
 In [1]: from genesis import Inbound
 
@@ -23,6 +27,10 @@ In [3]: print(response)
 ```
 
 ## Incoming Event handler
+
+Event handlers is an abstraction to simplify process to work with events.
+
+### Example code
 
 ```python
 In [1]: from genesis import Consumer
@@ -39,6 +47,8 @@ In [4]: await app.start()
 
 ## Outbound Socket Mode
 
+Output socket mode means you create an application and then FreeSWITCH connects to it. You add an application to dialplan and genesis helps you process the call dynamically.
+
 ### XML dialplan example
 
 ```xml
@@ -49,7 +59,7 @@ In [4]: await app.start()
 </extension>
 ```
 
-### Python application code
+### Application code
 
 ```python
 
