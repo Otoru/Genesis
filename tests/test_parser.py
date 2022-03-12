@@ -18,7 +18,7 @@ def test_parse_log_event():
         "Log-Func": "switch_core_session_destroy_state",
         "Log-Line": "710",
         "User-Data": "4c882cc4-cd02-11e6-8b82-395b501876f9",
-        "X-Log-Text": "2016-12-28 10:34:08.398763 [DEBUG] switch_core_state_machine.c:710 (sofia/internal/7071@devitor) State DESTROY going to sleep",
+        "X-Event-Content": "2016-12-28 10:34:08.398763 [DEBUG] switch_core_state_machine.c:710 (sofia/internal/7071@devitor) State DESTROY going to sleep",
     }
 
     assert got == expected, "Event parsing did not happen as expected"
@@ -62,7 +62,7 @@ def test_double_field_in_event():
     expected = {
         "Content-Length": ["625", "41"],
         "Content-Type": "text/event-plain",
-        "X-Event-Content-Text": "+OK 7f4de4bc-17d7-11dd-b7a0-db4edd065621",
+        "X-Event-Content": "+OK 7f4de4bc-17d7-11dd-b7a0-db4edd065621",
         "Job-UUID": "7f4db78a-17d7-11dd-b7a0-db4edd065621",
         "Job-Command": "originate",
         "Job-Command-Arg": "sofia/default/1005 '&park'",
@@ -97,5 +97,43 @@ def test_parse_triple_field_in_event():
         "Event-Calling-Function": "switch_xml_open_root",
         "Event-Calling-Line-Number": "1917",
         "Content-Length": ["41", "42", "43"],
+    }
+    assert got == expected, "Event parsing did not happen as expected"
+
+
+def test_event_with_large_body():
+    detected_speech = EVENTS["DETECTED_SPEECH"]
+    got = parse(detected_speech)
+    expected = {
+        "Core-UUID": "aac0f73e-b822-e54c-a02a-06a839ca3e5a",
+        "Event-Calling-File": "switch_ivr_async.c",
+        "Event-Calling-Function": "speech_thread",
+        "Event-Calling-Line-Number": "1758",
+        "Event-Date-GMT": "Mon, 26 Jan 2009 22:07:24 GMT",
+        "Event-Date-Local": "2009-01-26 16:07:24",
+        "Event-Date-Timestamp": "1233007644906250",
+        "Event-Name": "DETECTED_SPEECH",
+        "FreeSWITCH-Hostname": "AMONROY",
+        "FreeSWITCH-IPv4": "192.168.1.220",
+        "FreeSWITCH-IPv6": "::1",
+        "Speech-Type": "detected-speech",
+        "Content-Length": "435",
+        "X-Event-Content": (
+            '<result grammar="<request1@form-level.store>#nombres">\n'
+            '    <interpretation grammar="<request1@form-level.store>#nombres" confidence="0.494643">\n'
+            '        <instance confidence="0.494643">\n'
+            "            arturo monroy\n"
+            "        </instance>\n"
+            '        <input mode="speech" confidence="0.494643">\n'
+            '            <input confidence="0.313102">\n'
+            "                arturo\n"
+            "            </input>\n"
+            '            <input confidence="0.618854">\n'
+            "                monroy\n"
+            "            </input>\n"
+            "        </input>\n"
+            "    </interpretation>\n"
+            "</result>"
+        ),
     }
     assert got == expected, "Event parsing did not happen as expected"

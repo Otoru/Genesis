@@ -39,6 +39,18 @@ In [4]: await app.start()
 
 ## Outbound Socket Mode
 
+### XML dialplan example
+
+```xml
+<extension name="out socket">
+   <condition>
+      <action application="socket" data="127.0.0.1:5000 async full"/>
+   </condition>
+</extension>
+```
+
+### Python application code
+
 ```python
 
 In [1]: from genesis import Outbound
@@ -56,7 +68,7 @@ In [4]: await app.start()
 
 ### Comments
 
-- For some cases where the ESL brings values without an associated key, we take the liberty of creating custom keys to simplify the work. Examples: `X-API-Reply-Text` and `X-Event-Content-Text`.
+- For simplify event object strtucuture, we decide work with dicts to store event headers. For events with body, your content is stored in some object, with `X-Event-Content` key.
 - If a key purposely repeats in an event (Example: `Content-Length` in **BACKGROUND_JOB** event), we store both values in a list, in the order they are received.
 - For practical reasons, every event handler should be awaitable.
 
