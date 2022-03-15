@@ -1,0 +1,38 @@
+[tool.poetry]
+name = "genesis"
+version = "0.3.2"
+description = "Implementation of FreeSWITCH Event Socket protocol with asyncio"
+authors = ["Vitor <contato@vitoru.dev>"]
+license = "MIT"
+repository = "https://github.com/Otoru/Genesis"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Telecommunications Industry",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Topic :: Communications :: Telephony",
+    "Topic :: Software Development",
+]
+exclude = ["tests"]
+
+[tool.poetry.dependencies]
+python = ">=3.7,<4.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.1.0"
+black = "^22.1.0"
+pytest-asyncio = "^0.18.2"
+pytest-cov = "^3.0.0"
+tox = "^3.24.5"
+mock = "^4.0.3"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/Otoru/Genesis/issues"
