@@ -232,7 +232,8 @@ class Outbound:
             handler, self.host, self.port, family=socket.AF_INET
         )
         async with self.server:
-            logging.debug("Start application server.")
+            address = f"{self.host}:{self.port}"
+            logging.debug(f"Start application server and listen on '{address}'.")
             await self.server.serve_forever()
 
     async def stop(self) -> Awaitable[None]:

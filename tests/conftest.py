@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from asyncio import (
+    open_connection,
     ensure_future,
     StreamReader,
     StreamWriter,
     start_server,
+    Future,
     sleep,
 )
 from typing import Awaitable, Callable, Optional, Dict, Union, List
 from asyncio.base_events import Server
+from abc import ABC, abstractmethod
 from contextlib import closing
 from functools import partial
 from textwrap import dedent
@@ -427,7 +430,64 @@ def get_random_password(length: int) -> str:
     return result
 
 
-class Freeswitch:
+class ESLMixin(ABC):
+    is_running: bool
+
+    @staticmethod
+    async def send(
+        writer: StreamWriter, lines: Union[List[str], str]
+    ) -> Awaitable[None]:
+        if isinstance(lines, str):
+            writer.write((lines + "\n").encode("utf-8"))
+
+        else:
+            for line in lines:
+                writer.write((line + "\n").encode("utf-8"))
+
+        writer.write("\n".encode("utf-8"))
+        await writer.drain()
+
+    @abstractmethod
+    async def process(self, writer: StreamWriter, request: str) -> Awaitable[None]:
+        raise NotImplementedError()
+
+    @staticmethod
+    async def handler(
+        server: ESLMixin, reader: StreamReader, writer: StreamWriter, dial: bool
+    ) -> Awaitable[None]:
+
+        if not dial:
+            await server.send(writer, ["Content-Type: auth/request"])
+
+        while server.is_running:
+            request = None
+            buffer = ""
+
+            while server.is_running and not writer.is_closing():
+                try:
+                    content = await reader.read(1)
+
+                except:
+                    server.is_running = False
+                    await server.stop()
+                    break
+
+                buffer += content.decode("utf-8")
+
+                if buffer[-2:] == "\n\n" or buffer[-4:] == "\r\n\r\n":
+                    request = buffer
+                    break
+
+            request = buffer.strip()
+
+            if not request or not server.is_running:
+                break
+
+            else:
+                await server.process(writer, request)
+
+
+class Freeswitch(ESLMixin):
     def __init__(self, host: str, port: int, password: str) -> None:
         self.host = host
         self.port = port
@@ -451,7 +511,7 @@ class Freeswitch:
                 await self.send(writer, event.splitlines())
 
     async def start(self) -> Awaitable[None]:
-        handler = partial(self.handler, self)
+        handler = partial(self.handler, self, dial=False)
         self.server = await start_server(
             handler, self.host, self.port, family=socket.AF_INET
         )
@@ -493,21 +553,6 @@ class Freeswitch:
                 *content.strip().splitlines(),
             ],
         )
-
-    @staticmethod
-    async def send(
-        writer: StreamWriter, lines: Union[List[str], str]
-    ) -> Awaitable[None]:
-        """Given a line-separated message, we send the ESL client."""
-        if isinstance(lines, str):
-            writer.write((lines + "\n").encode("utf-8"))
-
-        else:
-            for line in lines:
-                writer.write((line + "\n").encode("utf-8"))
-
-        writer.write("\n".encode("utf-8"))
-        await writer.drain()
 
     async def disconnect(self, writer: StreamWriter) -> Awaitable[None]:
         """Appropriately closes an ESL connection."""
@@ -568,41 +613,6 @@ class Freeswitch:
             else:
                 await self.command(writer, "-ERR command not found")
 
-    @staticmethod
-    async def handler(
-        server: Freeswitch, reader: StreamReader, writer: StreamWriter, dial=False
-    ) -> Awaitable[None]:
-
-        if not dial:
-            await server.send(writer, ["Content-Type: auth/request"])
-
-        while server.is_running:
-            request = None
-            buffer = ""
-
-            while server.is_running and not writer.is_closing():
-                try:
-                    content = await reader.read(1)
-
-                except:
-                    server.is_running = False
-                    await server.stop()
-                    break
-
-                buffer += content.decode("utf-8")
-
-                if buffer[-2:] == "\n\n" or buffer[-4:] == "\r\n\r\n":
-                    request = buffer
-                    break
-
-            request = buffer.strip()
-
-            if not request or not server.is_running:
-                break
-
-            else:
-                await server.process(writer, request)
-
 
 @pytest.fixture
 async def host() -> Callable[[], str]:
@@ -625,14 +635,46 @@ async def freeswitch(host, port, password) -> Freeswitch:
     return server
 
 
-class Dialplan:
-    ...
+class Dialplan(ESLMixin):
+    def __init__(self) -> None:
+        self.commands = dict()
+        self.is_running = False
+        self.worker: Optional[Future] = None
+        self.reader: Optional[StreamReader] = None
+        self.writer: Optional[StreamWriter] = None
 
-    async def connect(self, host, port) -> Awaitable[None]:
-        ...
+    def oncommand(self, command: str, response: str) -> None:
+        self.commands[command] = response
+
+    async def process(self, writer: StreamWriter, request: str) -> Awaitable[None]:
+        payload = copy(request)
+
+        if payload in self.commands:
+            response = self.commands.get(payload)
+            await self.send(writer, response.splitlines())
+
+    async def start(self, host, port) -> Awaitable[None]:
+        self.is_running = True
+        handler = partial(self.handler, self, dial=True)
+        self.writer, self.reader = await open_connection(host, port)
+        self.worker = ensure_future(handler(self.reader, self.writer))
+
+    async def stop(self) -> Awaitable[None]:
+        self.is_running = False
+
+        if self.worker:
+            self.worker.cancel()
+
+        if not self.writer.is_closing():
+            self.writer.close()
+            await self.writer.wait_closed()
+
+        await sleep(0.00001)
 
 
 @pytest.fixture
-async def dialplan() -> Dialplan:
+async def dialplan(connect) -> Dialplan:
     instance = Dialplan()
+    instance.oncommand("connect", connect)
+
     return instance
