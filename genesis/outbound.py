@@ -14,7 +14,7 @@ import socket
 
 from genesis.protocol import Protocol
 from genesis.inbound import Inbound
-from genesis import types
+from genesis.parser import ESLEvent
 
 
 class Session(Protocol):
@@ -51,7 +51,7 @@ class Session(Protocol):
         """Used to build an event associated with the completion of a command."""
         semaphore = Event()
 
-        async def handler(session: Session, event: types.Event):
+        async def handler(session: Session, event: ESLEvent):
             logging.debug(f"Recived channel execute complete event: {event}")
 
             if "variable_current_application" in event:
@@ -66,7 +66,7 @@ class Session(Protocol):
 
     async def sendmsg(
         self, command: str, application: str, data: Optional[str] = None, lock=False
-    ) -> Awaitable[types.Event]:
+    ) -> Awaitable[ESLEvent]:
         """Used to send commands from dialplan to session."""
         cmd = f"sendmsg\ncall-command: {command}\nexecute-app-name: {application}"
 
@@ -79,19 +79,19 @@ class Session(Protocol):
         logging.debug(f"Send command to freeswitch: '{cmd}'.")
         return self.send(cmd)
 
-    async def answer(self) -> Awaitable[types.Event]:
+    async def answer(self) -> Awaitable[ESLEvent]:
         """Answer the call associated with the session."""
         return await self.sendmsg("execute", "answer")
 
-    async def park(self) -> Awaitable[types.Event]:
+    async def park(self) -> Awaitable[ESLEvent]:
         """Move session-associated call to park."""
         return await self.sendmsg("execute", "park")
 
-    async def hangup(self, cause: str = "NORMAL_CLEARING") -> Awaitable[types.Event]:
+    async def hangup(self, cause: str = "NORMAL_CLEARING") -> Awaitable[ESLEvent]:
         """Hang up the call associated with the session."""
         return await self.sendmsg("execute", "hangup", cause)
 
-    async def playback(self, path: str, block=True) -> Awaitable[types.Event]:
+    async def playback(self, path: str, block=True) -> Awaitable[ESLEvent]:
         """Requests the freeswitch to play an audio."""
         if not block:
             return await self.sendmsg("execute", "playback", path)
@@ -114,8 +114,7 @@ class Session(Protocol):
         method: str = "pronounced",
         gender: str = "FEMININE",
         block=True,
-        timeout=30,
-    ) -> Awaitable[types.Event]:
+    ) -> Awaitable[ESLEvent]:
         """The say application will use the pre-recorded sound files to read or say things."""
         if lang:
             module += f":{lang}"
@@ -153,7 +152,7 @@ class Session(Protocol):
         invalid_file: Optional[str] = None,
         digit_timeout: Optional[int] = None,
         transfer_on_failure: Optional[str] = None,
-    ) -> Awaitable[types.Event]:
+    ) -> Awaitable[ESLEvent]:
         formatter = lambda value: "" if value is None else value
         ordered_arguments = [
             minimal,

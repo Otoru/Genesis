@@ -66,47 +66,45 @@ def test_parse_channel_create_event_with_multiline_field(channel):
     assert got == expected, "Event parsing did not happen as expected"
 
 
-def test_parse_background_job_with_repeated_headers(background_job, custom):
-    headers = background_job.split("\n\n")[0]
-    two_repeated_headers = parse_headers(headers)
-    three_repeated_headers = parse_headers(custom)
-    got = {
-        "two repeated headers": two_repeated_headers,
-        "three repeated headers": three_repeated_headers,
-    }
+def test_parse_background_job(background_job):
+    got = parse_headers(background_job.split("\n\n").pop(0))
     expected = {
-        "two repeated headers": {
-            "Content-Length": ["625", "41"],
-            "Content-Type": "text/event-plain",
-            "Core-UUID": "42bdf272-16e6-11dd-b7a0-db4edd065621",
-            "Event-Calling-File": "mod_event_socket.c",
-            "Event-Calling-Function": "api_exec",
-            "Event-Calling-Line-Number": "609",
-            "Event-Date-GMT": "Thu, 01 May 2008 23:37:03 GMT",
-            "Event-Date-Local": "2008-05-02 07:37:03",
-            "Event-Date-timestamp": "1209685023894968",
-            "Event-Name": "BACKGROUND_JOB",
-            "FreeSWITCH-Hostname": "ser",
-            "FreeSWITCH-IPv4": "192.168.1.104",
-            "FreeSWITCH-IPv6": "127.0.0.1",
-            "Job-Command": "originate",
-            "Job-Command-Arg": "sofia/default/1005 '&park'",
-            "Job-UUID": "7f4db78a-17d7-11dd-b7a0-db4edd065621",
-        },
-        "three repeated headers": {
-            "Content-Length": ["41", "42", "43"],
-            "Core-UUID": "6c6def18-9562-de11-a8e0-001fc6ab49e2",
-            "Event-Calling-File": "switch_xml.c",
-            "Event-Calling-Function": "switch_xml_open_root",
-            "Event-Calling-Line-Number": "1917",
-            "Event-Date-GMT": "Fri, 26 Jun 2009 21:06:33 GMT",
-            "Event-Date-Local": "2009-06-26 17:06:33",
-            "Event-Date-Timestamp": "1246050393884782",
-            "Event-Name": "RELOADXML",
-            "FreeSWITCH-Hostname": "localhost.localdomain",
-            "FreeSWITCH-IPv4": "10.0.1.250",
-            "FreeSWITCH-IPv6": "::1",
-        },
+        "Content-Length": ["625", "41"],
+        "Content-Type": "text/event-plain",
+        "Core-UUID": "42bdf272-16e6-11dd-b7a0-db4edd065621",
+        "Event-Calling-File": "mod_event_socket.c",
+        "Event-Calling-Function": "api_exec",
+        "Event-Calling-Line-Number": "609",
+        "Event-Date-GMT": "Thu, 01 May 2008 23:37:03 GMT",
+        "Event-Date-Local": "2008-05-02 07:37:03",
+        "Event-Date-timestamp": "1209685023894968",
+        "Event-Name": "BACKGROUND_JOB",
+        "FreeSWITCH-Hostname": "ser",
+        "FreeSWITCH-IPv4": "192.168.1.104",
+        "FreeSWITCH-IPv6": "127.0.0.1",
+        "Job-Command": "originate",
+        "Job-Command-Arg": "sofia/default/1005 '&park'",
+        "Job-UUID": "7f4db78a-17d7-11dd-b7a0-db4edd065621",
+    }
+
+    assert got == expected, "Event parsing did not happen as expected"
+
+
+def test_parse_event_with_3_repeated_headers(custom):
+    got = parse_headers(custom)
+    expected = {
+        "Content-Length": ["41", "42", "43"],
+        "Core-UUID": "6c6def18-9562-de11-a8e0-001fc6ab49e2",
+        "Event-Calling-File": "switch_xml.c",
+        "Event-Calling-Function": "switch_xml_open_root",
+        "Event-Calling-Line-Number": "1917",
+        "Event-Date-GMT": "Fri, 26 Jun 2009 21:06:33 GMT",
+        "Event-Date-Local": "2009-06-26 17:06:33",
+        "Event-Date-Timestamp": "1246050393884782",
+        "Event-Name": "RELOADXML",
+        "FreeSWITCH-Hostname": "localhost.localdomain",
+        "FreeSWITCH-IPv4": "10.0.1.250",
+        "FreeSWITCH-IPv6": "::1",
     }
 
     assert got == expected, "Event parsing did not happen as expected"

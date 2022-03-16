@@ -17,28 +17,24 @@ from genesis.exceptions import (
 from genesis import Inbound
 
 
-@pytest.mark.asyncio
 async def test_send_command_without_connection():
     with pytest.raises(UnconnectedError):
         client = Inbound("0.0.0.0", 8021, "ClueCon")
         await client.send("uptime")
 
 
-@pytest.mark.asyncio
 async def test_connect_without_freeswitch():
     with pytest.raises(ConnectionRefusedError):
         async with Inbound("0.0.0.0", 8021, "ClueCon"):
             await asyncio.sleep(1)
 
 
-@pytest.mark.asyncio
 async def test_connect_timeout_with_freesswitch(freeswitch):
     with pytest.raises(ConnectionTimeoutError):
         async with Inbound(*freeswitch.address, 0):
             await asyncio.sleep(1)
 
 
-@pytest.mark.asyncio
 async def test_inbound_client_with_invalid_password(freeswitch):
     async with freeswitch:
         with pytest.raises(AuthenticationError):
@@ -46,7 +42,6 @@ async def test_inbound_client_with_invalid_password(freeswitch):
                 await asyncio.sleep(1)
 
 
-@pytest.mark.asyncio
 async def test_inbound_client_send_command(freeswitch):
     async with freeswitch as server:
         server.oncommand("uptime", "6943047")
@@ -56,7 +51,6 @@ async def test_inbound_client_send_command(freeswitch):
             assert response["Reply-Text"] == "6943047", message
 
 
-@pytest.mark.asyncio
 async def test_send_api_command_with_large_reponse(freeswitch):
     status = dedent(
         """\
@@ -77,7 +71,6 @@ async def test_send_api_command_with_large_reponse(freeswitch):
             assert response.body == status, message
 
 
-@pytest.mark.asyncio
 async def test_event_handler_on_inbound_client(freeswitch, heartbeat):
     async with freeswitch as server:
         server.events.append(heartbeat)
@@ -96,7 +89,6 @@ async def test_event_handler_on_inbound_client(freeswitch, heartbeat):
     assert handler.called, "Event processing did not activate handler"
 
 
-@pytest.mark.asyncio
 async def test_custom_event_handler_on_inbound_client(freeswitch, register):
     async with freeswitch as server:
         server.events.append(register)
@@ -115,7 +107,6 @@ async def test_custom_event_handler_on_inbound_client(freeswitch, register):
     assert handler.called, "Event processing did not activate handler"
 
 
-@pytest.mark.asyncio
 async def test_to_remove_event_handler():
     handler = AsyncMock()
 
@@ -129,7 +120,6 @@ async def test_to_remove_event_handler():
     assert handler not in client.handlers["MESSAGE"], "The handler has not been removed"
 
 
-@pytest.mark.asyncio
 async def test_inbound_client_send_command(freeswitch):
     async with freeswitch:
         async with Inbound(*freeswitch.address) as client:

@@ -31,7 +31,6 @@ cases = [
 ]
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("content", cases)
 @pytest.mark.filterwarnings("ignore: coroutine")
 async def test_decorator_behavior(content):
@@ -55,7 +54,6 @@ async def test_decorator_behavior(content):
     assert handler.called == expected, "The handler has stored the expected value"
 
 
-@pytest.mark.asyncio
 async def test_decorator_not_change_behavior_of_funcion():
     app = Consumer("127.0.0.1", 8021, "ClueCon")
 
@@ -70,7 +68,6 @@ async def test_decorator_not_change_behavior_of_funcion():
     assert got == expected, "The result of the function is not as expected"
 
 
-@pytest.mark.asyncio
 async def test_consumer_with_heartbeat_event(freeswitch, heartbeat):
     async with freeswitch as server:
         server.events.append(heartbeat)
@@ -97,7 +94,6 @@ async def test_consumer_with_heartbeat_event(freeswitch, heartbeat):
     assert handler.called, "The handler has stored the expected value"
 
 
-@pytest.mark.asyncio
 async def test_consumer_with_register_custom_event(freeswitch, register):
     async with freeswitch as server:
         server.events.append(register)
