@@ -398,7 +398,6 @@ def connect() -> str:
         variable_max_forwards: 70
         variable_presence_id: 1001%4010.0.1.100
         variable_sip_h_P-Key-Flags: keys%3D%223%22
-        variable_switch_r_sdp: v%3D0%0D%0Ao%3Droot%201915884124%201915884124%20IN%20IP4%2010.0.1.241%0D%0As%3Dcall%0D%0Ac%3DIN%20IP4%2010.0.1.241%0D%0At%3D0%200%0D%0Am%3Daudio%2062258%20RTP/AVP%209%202%203%2018%204%20101%0D%0Aa%3Drtpmap%3A9%20g722/8000%0D%0Aa%3Drtpmap%3A2%20g726-32/8000%0D%0Aa%3Drtpmap%3A3%20gsm/8000%0D%0Aa%3Drtpmap%3A18%20g729/8000%0D%0Aa%3Drtpmap%3A4%20g723/8000%0D%0Aa%3Drtpmap%3A101%20telephone-event/8000%0D%0Aa%3Dfmtp%3A101%200-16%0D%0Aa%3Dptime%3A20%0D%0A
         variable_remote_media_ip: 10.0.1.241
         variable_remote_media_port: 62258
         variable_read_codec: G722
@@ -413,6 +412,28 @@ def connect() -> str:
         Content-Type: command/reply
         Socket-Mode: async
         Control: full"""
+    )
+    return event
+
+
+@pytest.fixture
+def myevents() -> str:
+    event = dedent(
+        """\
+        Content-Type: command/reply
+        Reply-Text: Reply myevents
+        """
+    )
+    return event
+
+
+@pytest.fixture
+def linger() -> str:
+    event = dedent(
+        """\
+        Content-Type: command/reply
+        Reply-Text: Reply linger
+        """
     )
     return event
 
@@ -432,6 +453,7 @@ def get_random_password(length: int) -> str:
 
 class ESLMixin(ABC):
     is_running: bool
+    commands: Dict[str, str]
 
     @staticmethod
     async def send(
@@ -446,6 +468,9 @@ class ESLMixin(ABC):
 
         writer.write("\n".encode("utf-8"))
         await writer.drain()
+
+    def oncommand(self, command: str, response: str) -> None:
+        self.commands[command] = response
 
     @abstractmethod
     async def process(self, writer: StreamWriter, request: str) -> Awaitable[None]:
@@ -502,9 +527,6 @@ class Freeswitch(ESLMixin):
     def address(self):
         return [self.host, self.port, self.password]
 
-    def oncommand(self, command: str, response: str) -> None:
-        self.commands[command] = response
-
     async def shoot(self, writer: StreamWriter) -> None:
         if self.events:
             for event in self.events:
@@ -536,13 +558,11 @@ class Freeswitch(ESLMixin):
         await self.stop()
 
     async def command(self, writer: StreamWriter, command: str) -> Awaitable[None]:
-        """Response an ESL command received."""
         await self.send(
             writer, ["Content-Type: command/reply", f"Reply-Text: {command}"]
         )
 
     async def api(self, writer: StreamWriter, content: str) -> Awaitable[None]:
-        """Response an API statement received via ESL."""
         length = len(content)
         await self.send(
             writer,
@@ -555,7 +575,6 @@ class Freeswitch(ESLMixin):
         )
 
     async def disconnect(self, writer: StreamWriter) -> Awaitable[None]:
-        """Appropriately closes an ESL connection."""
         await self.send(
             writer,
             [
@@ -643,9 +662,6 @@ class Dialplan(ESLMixin):
         self.reader: Optional[StreamReader] = None
         self.writer: Optional[StreamWriter] = None
 
-    def oncommand(self, command: str, response: str) -> None:
-        self.commands[command] = response
-
     async def process(self, writer: StreamWriter, request: str) -> Awaitable[None]:
         payload = copy(request)
 
@@ -656,7 +672,7 @@ class Dialplan(ESLMixin):
     async def start(self, host, port) -> Awaitable[None]:
         self.is_running = True
         handler = partial(self.handler, self, dial=True)
-        self.writer, self.reader = await open_connection(host, port)
+        self.reader, self.writer = await open_connection(host, port)
         self.worker = ensure_future(handler(self.reader, self.writer))
 
     async def stop(self) -> Awaitable[None]:
@@ -673,8 +689,10 @@ class Dialplan(ESLMixin):
 
 
 @pytest.fixture
-async def dialplan(connect) -> Dialplan:
+async def dialplan(connect, myevents, linger) -> Dialplan:
     instance = Dialplan()
+    instance.oncommand("linger", linger)
     instance.oncommand("connect", connect)
+    instance.oncommand("myevents", myevents)
 
     return instance

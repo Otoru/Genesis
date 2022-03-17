@@ -1,23 +1,24 @@
+from asyncio import ensure_future, sleep, Queue
 from typing import Awaitable
-from asyncio import Queue, create_task, sleep
-
-import pytest
 
 from genesis import Outbound, Session
 
 
-@pytest.mark.skip("on development")
-async def test_freeswitch_dial_to_outbound_application(host, port, dialplan):
+async def test_outbound_session_has_context(host, port, dialplan):
     buffer = Queue(maxsize=1)
 
     async def handler(session: Session) -> Awaitable[None]:
+        print(session.context)
         await buffer.put(session.context)
 
-    address = [host(), port()]
+    address = (host(), port())
     application = Outbound(*address, handler)
+    future = ensure_future(application.start())
 
-    server = create_task(application.start())
-    client = create_task(dialplan.start(*address))
+    while not application.server or not application.server.is_serving:
+        await sleep(0.0001)
+
+    await dialplan.start(*address)
 
     got = await buffer.get()
     expected = {
@@ -117,22 +118,6 @@ async def test_freeswitch_dial_to_outbound_application(host, port, dialplan):
         "variable_socket_host": "127.0.0.1",
         "variable_sofia_profile_domain_name": ["10.0.1.100", "10.0.1.100"],
         "variable_sofia_profile_name": "default",
-        "variable_switch_r_sdp": (
-            "v=0"
-            "o=root 1915884124 1915884124 IN IP4 10.0.1.241"
-            "s=call"
-            "c=IN IP4 10.0.1.241"
-            "t=0 0"
-            "m=audio 62258 RTP/AVP 9 2 3 18 4 101"
-            "a=rtpmap:9 g722/8000"
-            "a=rtpmap:2 g726-32/8000"
-            "a=rtpmap:3 gsm/8000"
-            "a=rtpmap:18 g729/8000"
-            "a=rtpmap:4 g723/8000"
-            "a=rtpmap:101 telephone-event/8000"
-            "a=fmtp:101 0-16"
-            "a=ptime:20"
-        ),
         "variable_user_context": "default",
         "variable_user_name": "1001",
         "variable_write_codec": "G722",
@@ -141,11 +126,7 @@ async def test_freeswitch_dial_to_outbound_application(host, port, dialplan):
 
     assert got == expected, "The call context is incorrect"
 
-    await application.stop()
     await dialplan.stop()
 
-    await client.cancel()
-    await server.cancel()
-
-    while not client.cancelled() or not server.cancelled():
-        sleep(0.001)
+    await application.stop()
+    future.cancel()

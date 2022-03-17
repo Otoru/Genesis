@@ -6,7 +6,7 @@ ESL implementation used for outgoing connections on freeswitch.
 """
 from __future__ import annotations
 
-from asyncio import StreamReader, StreamWriter, Queue, start_server, Event
+from asyncio import StreamReader, StreamWriter, Queue, start_server, Event, sleep
 from typing import Awaitable, NoReturn, Optional
 from functools import partial
 import logging
@@ -77,7 +77,7 @@ class Session(Protocol):
             cmd += f"\nevent-lock: true"
 
         logging.debug(f"Send command to freeswitch: '{cmd}'.")
-        return self.send(cmd)
+        return await self.send(cmd)
 
     async def answer(self) -> Awaitable[ESLEvent]:
         """Answer the call associated with the session."""
@@ -231,10 +231,9 @@ class Outbound:
         self.server = await start_server(
             handler, self.host, self.port, family=socket.AF_INET
         )
-        async with self.server:
-            address = f"{self.host}:{self.port}"
-            logging.debug(f"Start application server and listen on '{address}'.")
-            await self.server.serve_forever()
+        address = f"{self.host}:{self.port}"
+        logging.debug(f"Start application server and listen on '{address}'.")
+        await self.server.serve_forever()
 
     async def stop(self) -> Awaitable[None]:
         """Terminate the application server."""
