@@ -36,3 +36,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/Otoru/Genesis/issues"
+"Source Code" = "https://github.com/Otoru/Genesis"

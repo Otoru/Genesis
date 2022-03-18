@@ -8,4 +8,4 @@ vscode:
 tasks:
   - before: pip install --upgrade pip
     init: pip install poetry
-    command: poetry install
+    command: poetry install --no-interaction

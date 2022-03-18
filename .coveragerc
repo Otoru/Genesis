@@ -1,5 +1,9 @@
 [run]
+source =
+    genesis/
 omit = tests/*
 
 [report]
 show_missing = True
+exclude_lines =
+    break

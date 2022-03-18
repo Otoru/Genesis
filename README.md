@@ -81,7 +81,7 @@ In [4]: await app.start()
 
 - If event has body, we store your content on `event.body` property.
 - For practical reasons, every event handler should be awaitable.
-- If a key purposely repeats in an event (Example: `Content-Length` in **BACKGROUND_JOB** event), we store both values in a list.
+- If a key purposely repeats in an event we store both values in a list.
 
 ## What is FreeSwitch?
 
