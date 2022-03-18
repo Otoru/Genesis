@@ -417,22 +417,11 @@ def connect() -> str:
 
 
 @pytest.fixture
-def myevents() -> str:
+def generic() -> str:
     event = dedent(
         """\
         Content-Type: command/reply
-        Reply-Text: Reply myevents
-        """
-    )
-    return event
-
-
-@pytest.fixture
-def linger() -> str:
-    event = dedent(
-        """\
-        Content-Type: command/reply
-        Reply-Text: Reply linger
+        Reply-Text: Reply generic command
         """
     )
     return event
@@ -689,10 +678,10 @@ class Dialplan(ESLMixin):
 
 
 @pytest.fixture
-async def dialplan(connect, myevents, linger) -> Dialplan:
+async def dialplan(connect, generic) -> Dialplan:
     instance = Dialplan()
-    instance.oncommand("linger", linger)
+    instance.oncommand("linger", generic)
     instance.oncommand("connect", connect)
-    instance.oncommand("myevents", myevents)
+    instance.oncommand("myevents", generic)
 
     return instance

@@ -1,5 +1,12 @@
-from asyncio import ensure_future, sleep, Queue
+from asyncio import ensure_future, sleep, Queue, Event
 from typing import Awaitable
+
+try:
+    from unittest.mock import AsyncMock
+except ImportError:
+    from mock import AsyncMock
+
+import pytest
 
 from genesis import Outbound, Session
 
@@ -8,7 +15,6 @@ async def test_outbound_session_has_context(host, port, dialplan):
     buffer = Queue(maxsize=1)
 
     async def handler(session: Session) -> Awaitable[None]:
-        print(session.context)
         await buffer.put(session.context)
 
     address = (host(), port())
@@ -130,3 +136,96 @@ async def test_outbound_session_has_context(host, port, dialplan):
 
     await application.stop()
     future.cancel()
+
+
+async def test_outbound_session_send_answer_command(
+    host, port, dialplan, monkeypatch, generic
+):
+    spider = AsyncMock()
+    spider.return_value = generic
+
+    semaphore = Event()
+    monkeypatch.setattr(Session, "sendmsg", spider)
+
+    async def handler(session: Session) -> Awaitable[None]:
+        await session.answer()
+        semaphore.set()
+
+    address = (host(), port())
+    application = Outbound(*address, handler)
+    future = ensure_future(application.start())
+
+    while not application.server or not application.server.is_serving:
+        await sleep(0.0001)
+
+    await dialplan.start(*address)
+
+    await semaphore.wait()
+
+    await dialplan.stop()
+    await application.stop()
+    future.cancel()
+
+    spider.assert_called_with("execute", "answer")
+
+
+async def test_outbound_session_send_park_command(
+    host, port, dialplan, monkeypatch, generic
+):
+    spider = AsyncMock()
+    spider.return_value = generic
+
+    semaphore = Event()
+    monkeypatch.setattr(Session, "sendmsg", spider)
+
+    async def handler(session: Session) -> Awaitable[None]:
+        await session.park()
+        semaphore.set()
+
+    address = (host(), port())
+    application = Outbound(*address, handler)
+    future = ensure_future(application.start())
+
+    while not application.server or not application.server.is_serving:
+        await sleep(0.0001)
+
+    await dialplan.start(*address)
+
+    await semaphore.wait()
+
+    await dialplan.stop()
+    await application.stop()
+    future.cancel()
+
+    spider.assert_called_with("execute", "park")
+
+
+async def test_outbound_session_send_hangup_command(
+    host, port, dialplan, monkeypatch, generic
+):
+    spider = AsyncMock()
+    spider.return_value = generic
+
+    semaphore = Event()
+    monkeypatch.setattr(Session, "sendmsg", spider)
+
+    async def handler(session: Session) -> Awaitable[None]:
+        await session.hangup()
+        semaphore.set()
+
+    address = (host(), port())
+    application = Outbound(*address, handler)
+    future = ensure_future(application.start())
+
+    while not application.server or not application.server.is_serving:
+        await sleep(0.0001)
+
+    await dialplan.start(*address)
+
+    await semaphore.wait()
+
+    await dialplan.stop()
+    await application.stop()
+    future.cancel()
+
+    spider.assert_called_with("execute", "hangup", "NORMAL_CLEARING")
