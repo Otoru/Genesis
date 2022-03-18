@@ -1,33 +1,33 @@
 import asyncio
 
 try:
-    from unittest.mock import AsyncMock
+    from unittest.mock import AsyncMock, PropertyMock
 except ImportError:
-    from mock import AsyncMock
+    from mock import AsyncMock, PropertyMock
 
 import pytest
 
 from genesis import filtrate, Consumer
 
 cases = [
-    {"decorator": ["key"], "expected": True, "event": {"key": "value"}},  # 0
-    {"decorator": ["key"], "expected": False, "event": {"invalid_key": "value"}},  # 1
-    {"decorator": ["key", "value"], "expected": True, "event": {"key": "value"}},  # 2
+    {"decorator": ["key"], "expected": True, "event": {"key": "value"}},
+    {"decorator": ["key"], "expected": False, "event": {"invalid_key": "value"}},
+    {"decorator": ["key", "value"], "expected": True, "event": {"key": "value"}},
     {
         "decorator": ["key", "value"],
         "expected": False,
         "event": {"key": "another_value"},
-    },  # 3
+    },
     {
         "decorator": ["key", "^[a-z]{5}$", True],
         "expected": True,
         "event": {"key": "value"},
-    },  # 4
+    },
     {
         "decorator": ["key", "^[a-z]{3}$", True],
         "expected": False,
         "event": {"key": "value"},
-    },  # 5
+    },
 ]
 
 
@@ -118,3 +118,20 @@ async def test_consumer_with_register_custom_event(freeswitch, register):
         future.cancel()
 
     assert handler.called, "The handler has stored the expected value"
+
+
+async def test_consumer_wait_method(host, port, password, monkeypatch):
+    spider = AsyncMock()
+    monkeypatch.setattr(asyncio, "sleep", spider)
+
+    address = (host(), port(), password())
+    app = Consumer(*address)
+
+    app.protocol.is_connected = PropertyMock()
+    app.protocol.is_connected.side_effect = [True, True, False]
+    app.protocol.is_connected.__bool__ = lambda self: self()
+
+    await app.wait()
+
+    message = "The consumer stopped when the connection was closed."
+    assert spider.call_count == 2, message

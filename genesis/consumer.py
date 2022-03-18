@@ -4,9 +4,9 @@ Consumer Module
 Simple abstraction used to put some syntactic sugar into freeswitch event consumption.
 """
 from typing import Awaitable, NoReturn, Callable
-from asyncio import sleep
 import functools
 import logging
+import asyncio
 import re
 
 from .inbound import Inbound
@@ -84,6 +84,11 @@ class Consumer:
 
         return decorator
 
+    async def wait(self) -> Awaitable[NoReturn]:
+        while bool(self.protocol.is_connected):
+            logging.debug("Wait to recive new events...")
+            await asyncio.sleep(1)
+
     async def start(self) -> Awaitable[NoReturn]:
         """Method called to request the freeswitch to start sending us the appropriate events."""
         try:
@@ -107,8 +112,7 @@ class Consumer:
                         )
                         await protocol.send(f"filter Event-Subclass {event}")
 
-                while self.protocol.is_connected:
-                    await sleep(1)
+                await self.wait()
 
         except:
             await self.stop()
