@@ -5,6 +5,8 @@ description = "Implementation of FreeSWITCH Event Socket protocol with asyncio"
 authors = ["Vitor <contato@vitoru.dev>"]
 license = "MIT"
 repository = "https://github.com/Otoru/Genesis"
+readme = "README.md"
+homepage = "https://github.com/Otoru/Genesis#readme"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: MIT License",
