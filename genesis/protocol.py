@@ -109,13 +109,10 @@ class Protocol(ABC):
                 "text/rude-rejection",
                 "text/disconnect-notice",
             ]:
-                if (
+                if not (
                     "Content-Disposition" in event
                     and event["Content-Disposition"] == "linger"
                 ):
-                    logging.debug("Set linger condition")
-                    self.is_lingering = True
-                else:
                     await self.stop()
 
             identifier = event.get("Event-Name", None)

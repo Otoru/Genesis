@@ -658,6 +658,10 @@ class Dialplan(ESLMixin):
             response = self.commands.get(payload)
             await self.send(writer, response.splitlines())
 
+        elif payload in dir(self):
+            method = getattr(self, payload)
+            return await method()
+
     async def start(self, host, port) -> Awaitable[None]:
         self.is_running = True
         handler = partial(self.handler, self, dial=True)

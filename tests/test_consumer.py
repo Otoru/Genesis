@@ -119,8 +119,23 @@ async def test_consumer_with_register_custom_event(freeswitch, register):
 
     assert handler.called, "The handler has stored the expected value"
 
+async def test_consumer_wait_method_is_callend(freeswitch):
+    semaphore = asyncio.Event()
 
-async def test_consumer_wait_method(host, port, password, monkeypatch):
+    async with freeswitch as server:
+        spider = AsyncMock(side_effect=semaphore.set)
+        app = Consumer(*server.address)
+        app.wait = spider
+
+        future = asyncio.ensure_future(app.start())
+        await semaphore.wait()
+
+        assert spider.called, "the wait method was called successfully"
+
+        await app.stop()
+        future.cancel()
+
+async def test_consumer_wait_method_behavior(host, port, password, monkeypatch):
     spider = AsyncMock()
     monkeypatch.setattr(asyncio, "sleep", spider)
 
