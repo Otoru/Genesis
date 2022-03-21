@@ -46,6 +46,10 @@ In [4]:  @app.handle("HEARTBEAT")
 In [5]: await app.start()
 ```
 
+### Comments
+
+- For **CUSTOM** events, genesis use a `Event-Subclass` field to identify the respective handlers.
+
 ## Outbound Socket Mode
 
 Output socket mode means you create an application and then FreeSWITCH connects to it. You add an application to dialplan and genesis helps you process the call dynamically.
