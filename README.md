@@ -1,6 +1,6 @@
 # What is Genesis?
 
-Client implementation of FreeSWITCH Event Socket protocol with asyncio.
+Genesis is a python library designed to build applications (with asyncio) that work with freeswitch through ESL.
 
 [![Gitpod badge](https://img.shields.io/badge/Gitpod-ready%20to%20code-908a85?logo=gitpod)](https://gitpod.io/#https://github.com/Otoru/Genesis)
 [![Tests badge](https://github.com/Otoru/Genesis/actions/workflows/tests.yml/badge.svg)](https://github.com/Otoru/Genesis/actions/workflows/tests.yml)
@@ -9,83 +9,6 @@ Client implementation of FreeSWITCH Event Socket protocol with asyncio.
 [![Pypi Version badge](https://img.shields.io/pypi/v/Genesis)](https://pypi.org/project/genesis/)
 [![Pypi python version badge](https://img.shields.io/pypi/pyversions/Genesis)](https://pypi.org/project/genesis/)
 [![Pypi wheel badge](https://img.shields.io/pypi/wheel/Genesis)](https://pypi.org/project/genesis/)
-
-## Inbound Socket Mode
-
-Inbound socket is used for your application connect to the FreeSWITCH server to invoke commands and control FreeSWITCH.
-
-### Application source code
-
-```python
-In [1]: from genesis import Inbound
-
-In [2]: async with Inbound("127.0.0.1", 8021, "ClueCon") as client:
-            response = await client.send("uptime")
-
-In [3]: print(response)
-{'Content-Type': 'command/reply', 'Reply-Text': '6943047'}
-```
-
-## Incoming Event handler
-
-Event handlers is an abstraction to simplify process to work with events.
-
-### Example code
-
-```python
-In [1]: import asyncio
-   ...: from genesis import Consumer
-
-In [3]: app = Consumer("127.0.0.1", 8021, "ClueCon")
-
-In [4]:  @app.handle("HEARTBEAT")
-   ...:  async def handler(event):
-   ...:     await asyncio.sleep(0.001)
-   ...:     print(event)
-
-In [5]: await app.start()
-```
-
-### Comments
-
-- For **CUSTOM** events, genesis use a `Event-Subclass` field to identify the respective handlers.
-
-## Outbound Socket Mode
-
-Output socket mode means you create an application and then FreeSWITCH connects to it. You add an application to dialplan and genesis helps you process the call dynamically.
-
-### XML dialplan example
-
-```xml
-<extension name="out socket">
-   <condition>
-      <action application="socket" data="127.0.0.1:5000 async full"/>
-   </condition>
-</extension>
-```
-
-### Application code
-
-```python
-
-In [1]: from genesis import Outbound
-
-In [2]: async def handler(session):
-   ...:     await session.answer()
-   ...:     await session.playback('ivr/ivr-welcome')
-   ...:     await session.hangup()
-
-
-In [3]: app = Outbound("127.0.0.1", 5000, handler)
-
-In [4]: await app.start()
-```
-
-### Comments
-
-- If event has body, we store your content on `event.body` property.
-- For practical reasons, every event handler should be awaitable.
-- If a key purposely repeats in an event we store both values in a list.
 
 ## What is FreeSwitch?
 
@@ -100,6 +23,10 @@ ESL is a way to communicate with FreeSwitch. See more details [here](https://fre
 ## Why asyncio?
 
 Asynchronous programming is a type of parallel programming in which a unit of work is allowed to run separately from the primary application thread. When the work is complete, it notifies the main thread about completion or failure of the worker thread. There are numerous benefits to using it, such as improved application performance and enhanced responsiveness. We adopted this way of working, as integrating genesis with other applications is simpler, since you only need to deal with python's native asynchronous programming interface.
+
+## Docs
+
+The project documentation is in [here](https://github.com/Otoru/Genesis/wiki).
 
 ## How to contribute?
 
