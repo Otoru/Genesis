@@ -224,9 +224,9 @@ def channel() -> Dict[str, str]:
 def background_job() -> str:
     event = dedent(
         """\
-        Content-Length: 625
+        Content-Length: 542
         Content-Type: text/event-plain
-        
+
         Job-UUID: 7f4db78a-17d7-11dd-b7a0-db4edd065621
         Job-Command: originate
         Job-Command-Arg: sofia/default/1005%20'%26park'
@@ -241,10 +241,9 @@ def background_job() -> str:
         Event-Calling-File: mod_event_socket.c
         Event-Calling-Function: api_exec
         Event-Calling-Line-Number: 609
-        Content-Length: 41
+        Content-Length: 40
         
-        +OK 7f4de4bc-17d7-11dd-b7a0-db4edd065621
-        """
+        +OK 7f4de4bc-17d7-11dd-b7a0-db4edd065621"""
     )
     return event
 

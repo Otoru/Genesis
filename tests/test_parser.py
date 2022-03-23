@@ -69,7 +69,7 @@ def test_parse_channel_create_event_with_multiline_field(channel):
 def test_parse_background_job(background_job):
     got = parse_headers(background_job.split("\n\n").pop(1))
     expected = {
-        "Content-Length": "41",
+        "Content-Length": "40",
         "Core-UUID": "42bdf272-16e6-11dd-b7a0-db4edd065621",
         "Event-Calling-File": "mod_event_socket.c",
         "Event-Calling-Function": "api_exec",
