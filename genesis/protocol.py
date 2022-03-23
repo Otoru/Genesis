@@ -84,9 +84,28 @@ class Protocol(ABC):
             event = parse_headers(request)
 
             if "Content-Length" in event:
-                length = int(event["Content-Length"])
+                if isinstance(event["Content-Length"], list):
+                    length = int(event["Content-Length"].pop())
+                else:
+                    length = int(event["Content-Length"])
+                        
                 data = await self.reader.read(length)
-                event.body = data.decode("utf-8")
+                result = data.decode("utf-8")
+
+                if "Content-Type" in event:
+                    print(event)
+                    content = event["Content-Type"]
+                    
+                    if content in ["api/response", "text/rude-rejection", "log/data"]:
+                        event.body = result
+                    else:
+                        headers = parse_headers(result)
+
+                        if "Content-Length" in headers:
+                            data = await self.reader.read(length)
+                            event.body = data.decode("utf-8")
+                        
+                        event.update(headers)
 
             await self.events.put(event)
 

@@ -226,6 +226,7 @@ def background_job() -> str:
         """\
         Content-Length: 625
         Content-Type: text/event-plain
+        
         Job-UUID: 7f4db78a-17d7-11dd-b7a0-db4edd065621
         Job-Command: originate
         Job-Command-Arg: sofia/default/1005%20'%26park'
@@ -241,7 +242,7 @@ def background_job() -> str:
         Event-Calling-Function: api_exec
         Event-Calling-Line-Number: 609
         Content-Length: 41
-
+        
         +OK 7f4de4bc-17d7-11dd-b7a0-db4edd065621
         """
     )
