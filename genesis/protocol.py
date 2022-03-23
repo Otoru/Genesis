@@ -85,8 +85,32 @@ class Protocol(ABC):
 
             if "Content-Length" in event:
                 length = int(event["Content-Length"])
-                data = await self.reader.read(length)
-                event.body = data.decode("utf-8")
+
+                logging.debug(f"Read more {length} bytes.")
+                data = await self.reader.readexactly(length)
+                logging.debug(f"Recidev data: {data}")
+                result = data.decode("utf-8")
+
+                if "Content-Type" in event:
+                    content = event["Content-Type"]
+                    logging.debug(f"Check content type of event: {event}")
+
+                    if content in ["api/response", "text/rude-rejection", "log/data"]:
+                        event.body = result
+                    else:
+                        headers = parse_headers(result)
+                        logging.debug(f"Recived headers: {headers}")
+
+                        if "Content-Length" in headers:
+                            length = int(headers["Content-Length"])
+                            logging.debug(f"Read more {length} bytes.")
+                            data = await self.reader.readexactly(length)
+                            result = data.decode("utf-8")
+
+                            logging.debug(f"Recived body: {result}")
+                            event.body = result
+
+                        event.update(headers)
 
             await self.events.put(event)
 
