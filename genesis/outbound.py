@@ -97,7 +97,7 @@ class Session(Protocol):
             return await self.sendmsg("execute", "playback", path)
 
         logging.debug("Send playback command to freeswitch with block behavior.")
-        command_is_complete = self._awaitable_complete_command("playback")
+        command_is_complete = await self._awaitable_complete_command("playback")
         response = await self.sendmsg("execute", "playback", path)
 
         logging.debug("Await playback complete event...")
@@ -126,7 +126,7 @@ class Session(Protocol):
             return await self.sendmsg("execute", "say", arguments)
 
         logging.debug("Send say command to freeswitch with block behavior.")
-        command_is_complete = self._awaitable_complete_command("say")
+        command_is_complete = await self._awaitable_complete_command("say")
         response = await self.sendmsg("execute", "say", arguments)
         logging.debug(f"Response of say command: {response}")
 
@@ -177,7 +177,9 @@ class Session(Protocol):
         logging.debug(
             "Send play_and_get_digits command to freeswitch with block behavior."
         )
-        command_is_complete = self._awaitable_complete_command("play_and_get_digits")
+        command_is_complete = await self._awaitable_complete_command(
+            "play_and_get_digits"
+        )
         response = await self.sendmsg("execute", "play_and_get_digits", arguments)
         logging.debug(f"Response of play_and_get_digits command: {response}")
 
