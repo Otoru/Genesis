@@ -148,7 +148,7 @@ class Protocol(ABC):
 
             if name:
                 logging.debug(f"Get all handlers for '{name}'.")
-                specific = self.handlers.get(name, [])
+                specific = self.handlers.get(name, list())
                 generic = self.handlers.get("*", list())
                 handlers = specific + generic
 

@@ -55,6 +55,20 @@ class Inbound(Protocol):
             logging.debug("Freeswitch said the passed password is incorrect.")
             raise AuthenticationError("Invalid password")
 
+    async def sendevent(
+        self, name: str, headers: Dict[str, str], body: Optional[str] = None
+    ) -> Awaitable[ESLEvent]:
+        """Send an event into the freeswitch event system"""
+        cmd = f"sendevent ${name}"
+
+        for key, value in headers.items():
+            cmd += f"\n${key}: ${value}"
+
+        if body:
+            cmd += f"\n\n${body}"
+
+        return await self.send(cmd)
+
     async def start(self) -> Awaitable[None]:
         """Initiates an authenticated connection to a freeswitch server."""
         try:

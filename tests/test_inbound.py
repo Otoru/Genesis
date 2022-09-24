@@ -126,3 +126,17 @@ async def test_inbound_client_send_command(freeswitch):
             with pytest.raises(ConnectionError):
                 client.writer.close()
                 await client.send("uptime")
+
+
+async def test_inbound_client_sendevent(freeswitch):
+    async with freeswitch as server:
+        async with Inbound(*freeswitch.address) as client:
+            headers = {
+                "profile": "internal",
+                "content-type": "application/simple-message-summary",
+                "event-string": "check-sync",
+                "user": "1005",
+                "host": "192.168.10.4",
+                "content-length": "2",
+            }
+            response = await client.sendevent("NOTIFY", headers, "OK")
