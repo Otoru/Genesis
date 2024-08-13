@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "genesis"
-version = "0.3.5"
+version = "0.4.0"
 description = "Implementation of FreeSWITCH Event Socket protocol with asyncio"
 authors = ["Vitor <contato@vitoru.dev>"]
 license = "MIT"
@@ -13,9 +13,9 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
     "Intended Audience :: Telecommunications Industry",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Communications :: Telephony",
     "Topic :: Software Development",
 ]
@@ -23,14 +23,19 @@ exclude = ["tests"]
 
 [tool.poetry.dependencies]
 python = ">=3.7,<4.0"
+rich = "^13.7.1"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "^7.1.0"
 black = "^22.1.0"
 pytest-asyncio = "^0.18.2"
 pytest-cov = "^3.0.0"
 tox = "^3.24.5"
 mock = "^4.0.3"
+
+[tool.pytest.ini_options]
+addopts = "--cov --cov-report=term --cov-report=html -x --full-trace --disable-pytest-warnings"
+asyncio_mode = "auto"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

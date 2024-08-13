@@ -3,13 +3,14 @@ Consumer Module
 ---------------
 Simple abstraction used to put some syntactic sugar into freeswitch event consumption.
 """
+
 from typing import Awaitable, NoReturn, Callable
 import functools
-import logging
 import asyncio
 import re
 
-from .inbound import Inbound
+from genesis.inbound import Inbound
+from genesis.logger import logger
 
 
 def filtrate(key: str, value: str = None, regex: bool = False):
@@ -86,28 +87,28 @@ class Consumer:
 
     async def wait(self) -> Awaitable[NoReturn]:
         while bool(self.protocol.is_connected):
-            logging.debug("Wait to recive new events...")
+            logger.debug("Wait to recive new events...")
             await asyncio.sleep(1)
 
     async def start(self) -> Awaitable[NoReturn]:
         """Method called to request the freeswitch to start sending us the appropriate events."""
         try:
             async with self.protocol as protocol:
-                logging.debug("Asking freeswitch to send us all events.")
+                logger.debug("Asking freeswitch to send us all events.")
                 await protocol.send("events plain ALL")
 
                 for event in protocol.handlers.keys():
-                    logging.debug(
+                    logger.debug(
                         f"Requesting freeswitch to filter events of type '{event}'."
                     )
 
                     if event.isupper():
-                        logging.debug(
+                        logger.debug(
                             f"Send command to filtrate events with name: '{event}'."
                         )
                         await protocol.send(f"filter Event-Name {event}")
                     else:
-                        logging.debug(
+                        logger.debug(
                             f"Send command to filtrate events with subclass: '{event}'."
                         )
                         await protocol.send(f"filter Event-Subclass {event}")

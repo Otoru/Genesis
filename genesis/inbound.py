@@ -3,14 +3,15 @@ Genesis inbound
 ---------------
 ESL implementation used for incoming connections on freeswitch.
 """
+
 from __future__ import annotations
 
 from asyncio import open_connection, TimeoutError, wait_for
 from typing import Awaitable
-import logging
 
 from genesis.exceptions import ConnectionTimeoutError, AuthenticationError
 from genesis.protocol import Protocol
+from genesis.logger import logger
 
 
 class Inbound(Protocol):
@@ -48,11 +49,11 @@ class Inbound(Protocol):
     async def authenticate(self) -> Awaitable[None]:
         """Authenticates to the freeswitch server. Raises an exception on failure."""
         await self.authentication_event.wait()
-        logging.debug("Send command to authenticate inbound ESL connection.")
+        logger.debug("Send command to authenticate inbound ESL connection.")
         response = await self.send(f"auth {self.password}")
 
         if response["Reply-Text"] != "+OK accepted":
-            logging.debug("Freeswitch said the passed password is incorrect.")
+            logger.debug("Freeswitch said the passed password is incorrect.")
             raise AuthenticationError("Invalid password")
 
     async def start(self) -> Awaitable[None]:
@@ -61,9 +62,7 @@ class Inbound(Protocol):
             promise = open_connection(self.host, self.port)
             self.reader, self.writer = await wait_for(promise, self.timeout)
         except TimeoutError:
-            logging.debug(
-                "A timeout occurred when trying to connect to the freeswitch."
-            )
+            logger.debug("A timeout occurred when trying to connect to the freeswitch.")
             raise ConnectionTimeoutError()
 
         await super().start()

@@ -4,17 +4,18 @@ Genesis outbound
 
 ESL implementation used for outgoing connections on freeswitch.
 """
+
 from __future__ import annotations
 
 from asyncio import StreamReader, StreamWriter, Queue, start_server, Event, sleep
 from typing import Awaitable, NoReturn, Optional
 from functools import partial
-import logging
 import socket
 
 from genesis.protocol import Protocol
 from genesis.inbound import Inbound
 from genesis.parser import ESLEvent
+from genesis.logger import logger
 
 
 class Session(Protocol):
@@ -52,14 +53,14 @@ class Session(Protocol):
         semaphore = Event()
 
         async def handler(session: Session, event: ESLEvent):
-            logging.debug(f"Recived channel execute complete event: {event}")
+            logger.debug(f"Recived channel execute complete event: {event}")
 
             if "variable_current_application" in event:
                 if event["variable_current_application"] == application:
                     await session.fifo.put(event)
                     semaphore.set()
 
-        logging.debug(f"Register event handler to {application} complete event")
+        logger.debug(f"Register event handler to {application} complete event")
         self.on("CHANNEL_EXECUTE_COMPLETE", partial(handler, self))
 
         return semaphore
@@ -76,7 +77,7 @@ class Session(Protocol):
         if lock:
             cmd += f"\nevent-lock: true"
 
-        logging.debug(f"Send command to freeswitch: '{cmd}'.")
+        logger.debug(f"Send command to freeswitch: '{cmd}'.")
         return await self.send(cmd)
 
     async def answer(self) -> Awaitable[ESLEvent]:
@@ -96,11 +97,11 @@ class Session(Protocol):
         if not block:
             return await self.sendmsg("execute", "playback", path)
 
-        logging.debug("Send playback command to freeswitch with block behavior.")
+        logger.debug("Send playback command to freeswitch with block behavior.")
         command_is_complete = await self._awaitable_complete_command("playback")
         response = await self.sendmsg("execute", "playback", path)
 
-        logging.debug("Await playback complete event...")
+        logger.debug("Await playback complete event...")
         await command_is_complete.wait()
 
         return response
@@ -120,21 +121,21 @@ class Session(Protocol):
             module += f":{lang}"
 
         arguments = f"{module} {kind} {method} {gender} {text}"
-        logging.debug(f"Arguments used in say command: {arguments}")
+        logger.debug(f"Arguments used in say command: {arguments}")
 
         if not block:
             return await self.sendmsg("execute", "say", arguments)
 
-        logging.debug("Send say command to freeswitch with block behavior.")
+        logger.debug("Send say command to freeswitch with block behavior.")
         command_is_complete = await self._awaitable_complete_command("say")
         response = await self.sendmsg("execute", "say", arguments)
-        logging.debug(f"Response of say command: {response}")
+        logger.debug(f"Response of say command: {response}")
 
-        logging.debug("Await say complete event...")
+        logger.debug("Await say complete event...")
         await command_is_complete.wait()
 
         event = await self.fifo.get()
-        logging.debug(f"Execute complete event recived: {event}")
+        logger.debug(f"Execute complete event recived: {event}")
 
         return event
 
@@ -153,7 +154,7 @@ class Session(Protocol):
         digit_timeout: Optional[int] = None,
         transfer_on_failure: Optional[str] = None,
     ) -> Awaitable[ESLEvent]:
-        formatter = lambda value: "" if value is None else value
+        formatter = lambda value: "" if value is None else str(value)
         ordered_arguments = [
             minimal,
             maximum,
@@ -169,25 +170,25 @@ class Session(Protocol):
         ]
         formated_ordered_arguments = map(formatter, ordered_arguments)
         arguments = " ".join(formated_ordered_arguments)
-        logging.debug(f"Arguments used in play_and_get_digits command: {arguments}")
+        logger.debug(f"Arguments used in play_and_get_digits command: {arguments}")
 
         if not block:
             return await self.sendmsg("execute", "play_and_get_digits", arguments)
 
-        logging.debug(
+        logger.debug(
             "Send play_and_get_digits command to freeswitch with block behavior."
         )
         command_is_complete = await self._awaitable_complete_command(
             "play_and_get_digits"
         )
         response = await self.sendmsg("execute", "play_and_get_digits", arguments)
-        logging.debug(f"Response of play_and_get_digits command: {response}")
+        logger.debug(f"Response of play_and_get_digits command: {response}")
 
-        logging.debug("Await play_and_get_digits complete event...")
+        logger.debug("Await play_and_get_digits complete event...")
         await command_is_complete.wait()
 
         event = await self.fifo.get()
-        logging.debug(f"Execute complete event recived: {event}")
+        logger.debug(f"Execute complete event recived: {event}")
 
         return event
 
@@ -234,13 +235,13 @@ class Outbound:
             handler, self.host, self.port, family=socket.AF_INET
         )
         address = f"{self.host}:{self.port}"
-        logging.debug(f"Start application server and listen on '{address}'.")
+        logger.debug(f"Start application server and listen on '{address}'.")
         await self.server.serve_forever()
 
     async def stop(self) -> Awaitable[None]:
         """Terminate the application server."""
         if self.server:
-            logging.debug("Shutdown application server.")
+            logger.debug("Shutdown application server.")
             self.server.close()
             await self.server.wait_closed()
 
@@ -250,17 +251,17 @@ class Outbound:
     ) -> Awaitable[None]:
         """Method used to process new connections."""
         async with Session(reader, writer) as session:
-            logging.debug("Send command to start handle a call")
+            logger.debug("Send command to start handle a call")
             session.context = await session.send("connect")
 
             if server.myevents:
-                logging.debug("Send command to recive all call events")
+                logger.debug("Send command to recive all call events")
                 await session.send("myevents")
 
             if server.linger:
-                logging.debug("Send linger command to freeswitch")
+                logger.debug("Send linger command to freeswitch")
                 await session.send("linger")
                 session.is_lingering = True
 
-            logging.debug("Start server session handler")
+            logger.debug("Start server session handler")
             await server.app(session)
