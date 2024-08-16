@@ -24,6 +24,204 @@ import pytest
 
 
 @pytest.fixture
+def mod_audio_stream_play() -> str:
+    event = dedent(
+        """\
+        Event-Subclass: mod_audio_stream::play
+        Event-Name: CUSTOM
+        Core-UUID: 5f1c2da2-9958-44b2-ae1b-bce99d38f971
+        FreeSWITCH-Hostname: freeswitch-01
+        FreeSWITCH-Switchname: freeswitch-01
+        FreeSWITCH-IPv4: 10.10.10.23
+        FreeSWITCH-IPv6: ::1
+        Event-Date-Local: 2024-08-16%2013:46:02
+        Event-Date-GMT: Fri,%2016%20Aug%202024%2016:46:02%20GMT
+        Event-Date-Timestamp: 1723826762670076
+        Event-Calling-File: mod_audio_stream.c
+        Event-Calling-Function: responseHandler
+        Event-Calling-Line-Number: 16
+        Event-Sequence: 5642
+        Channel-State: CS_EXECUTE
+        Channel-Call-State: ACTIVE
+        Channel-State-Number: 4
+        Channel-Name: sofia/internal/1000%4010.10.10.23
+        Unique-ID: 84e7dad0-dc1e-4234-8c56-5688e2069d99
+        Call-Direction: inbound
+        Presence-Call-Direction: inbound
+        Channel-HIT-Dialplan: true
+        Channel-Presence-ID: 1000%4010.10.10.23
+        Channel-Call-UUID: 84e7dad0-dc1e-4234-8c56-5688e2069d99
+        Answer-State: answered
+        Channel-Read-Codec-Name: opus
+        Channel-Read-Codec-Rate: 48000
+        Channel-Read-Codec-Bit-Rate: 0
+        Channel-Write-Codec-Name: opus
+        Channel-Write-Codec-Rate: 48000
+        Channel-Write-Codec-Bit-Rate: 0
+        Caller-Direction: inbound
+        Caller-Logical-Direction: inbound
+        Caller-Username: 1000
+        Caller-Dialplan: XML
+        Caller-Caller-ID-Name: 1000
+        Caller-Caller-ID-Number: 1000
+        Caller-Orig-Caller-ID-Name: 1000
+        Caller-Orig-Caller-ID-Number: 1000
+        Caller-Network-Addr: 10.10.10.4
+        Caller-ANI: 1000
+        Caller-Destination-Number: 4001
+        Caller-Unique-ID: 84e7dad0-dc1e-4234-8c56-5688e2069d99
+        Caller-Source: mod_sofia
+        Caller-Context: default
+        Caller-Channel-Name: sofia/internal/1000%4010.10.10.23
+        Caller-Profile-Index: 1
+        Caller-Profile-Created-Time: 1723826754130221
+        Caller-Channel-Created-Time: 1723826754130221
+        Caller-Channel-Answered-Time: 1723826754130221
+        Caller-Channel-Progress-Time: 0
+        Caller-Channel-Progress-Media-Time: 1723826754130221
+        Caller-Channel-Hangup-Time: 0
+        Caller-Channel-Transfer-Time: 0
+        Caller-Channel-Resurrect-Time: 0
+        Caller-Channel-Bridged-Time: 0
+        Caller-Channel-Last-Hold: 0
+        Caller-Channel-Hold-Accum: 0
+        Caller-Screen-Bit: true
+        Caller-Privacy-Hide-Name: false
+        Caller-Privacy-Hide-Number: false
+        variable_direction: inbound
+        variable_uuid: 84e7dad0-dc1e-4234-8c56-5688e2069d99
+        variable_session_id: 46
+        variable_sip_from_user: 1000
+        variable_sip_from_uri: 1000%4010.10.10.23
+        variable_sip_from_host: 10.10.10.23
+        variable_video_media_flow: disabled
+        variable_text_media_flow: disabled
+        variable_channel_name: sofia/internal/1000%4010.10.10.23
+        variable_sip_call_id: nRVIux7E3nnbt4PrQw63Ir8tVRew3rTJ
+        variable_sip_local_network_addr: 170.247.5.105
+        variable_sip_network_ip: 10.10.10.4
+        variable_sip_network_port: 65154
+        variable_sip_invite_stamp: 1723826754130221
+        variable_sip_received_ip: 10.10.10.4
+        variable_sip_received_port: 65154
+        variable_sip_via_protocol: udp
+        variable_sip_authorized: true
+        variable_Event-Name: REQUEST_PARAMS
+        variable_Core-UUID: 5f1c2da2-9958-44b2-ae1b-bce99d38f971
+        variable_FreeSWITCH-Hostname: freeswitch-01
+        variable_FreeSWITCH-Switchname: freeswitch-01
+        variable_FreeSWITCH-IPv4: 10.10.10.23
+        variable_FreeSWITCH-IPv6: ::1
+        variable_Event-Date-Local: 2024-08-16%2013:45:54
+        variable_Event-Date-GMT: Fri,%2016%20Aug%202024%2016:45:54%20GMT
+        variable_Event-Date-Timestamp: 1723826754130221
+        variable_Event-Calling-File: sofia.c
+        variable_Event-Calling-Function: sofia_handle_sip_i_invite
+        variable_Event-Calling-Line-Number: 10723
+        variable_Event-Sequence: 5591
+        variable_sip_number_alias: 1000
+        variable_sip_auth_username: 1000
+        variable_sip_auth_realm: 10.10.10.23
+        variable_number_alias: 1000
+        variable_requested_user_name: 1000
+        variable_requested_domain_name: 10.10.10.23
+        variable_record_stereo: true
+        variable_default_gateway: example.com
+        variable_default_areacode: 918
+        variable_transfer_fallback_extension: operator
+        variable_toll_allow: domestic,international,local
+        variable_accountcode: 1000
+        variable_user_context: default
+        variable_effective_caller_id_name: Extension%201000
+        variable_effective_caller_id_number: 1000
+        variable_outbound_caller_id_name: FreeSWITCH
+        variable_outbound_caller_id_number: 0000000000
+        variable_callgroup: techsupport
+        variable_user_name: 1000
+        variable_domain_name: 10.10.10.23
+        variable_sip_from_user_stripped: 1000
+        variable_sip_from_tag: ctd4Q7kZX1X-ymiaOZW75CCNoctiyssB
+        variable_sofia_profile_name: internal
+        variable_sofia_profile_url: sip:mod_sofia%40170.247.5.105:5060
+        variable_recovery_profile_name: internal
+        variable_sip_full_via: SIP/2.0/UDP%2010.10.10.4:65154%3Brport%3D65154%3Bbranch%3Dz9hG4bKPjUtX7iY.6-KV2faycxhzseZiQy-KTpp9v
+        variable_sip_from_display: 1000
+        variable_sip_full_from: %221000%22%20%3Csip:1000%4010.10.10.23%3E%3Btag%3Dctd4Q7kZX1X-ymiaOZW75CCNoctiyssB
+        variable_sip_full_to: sip:4001%4010.10.10.23
+        variable_sip_allow: PRACK,%20INVITE,%20ACK,%20BYE,%20CANCEL,%20UPDATE,%20INFO,%20SUBSCRIBE,%20NOTIFY,%20REFER,%20MESSAGE,%20OPTIONS
+        variable_sip_req_user: 4001
+        variable_sip_req_uri: 4001%4010.10.10.23
+        variable_sip_req_host: 10.10.10.23
+        variable_sip_to_user: 4001
+        variable_sip_to_uri: 4001%4010.10.10.23
+        variable_sip_to_host: 10.10.10.23
+        variable_sip_contact_params: ob
+        variable_sip_contact_user: 1000
+        variable_sip_contact_port: 65154
+        variable_sip_contact_uri: 1000%4010.10.10.4:65154
+        variable_sip_contact_host: 10.10.10.4
+        variable_sip_user_agent: Telephone%201.6
+        variable_sip_via_host: 10.10.10.4
+        variable_sip_via_port: 65154
+        variable_sip_via_rport: 65154
+        variable_max_forwards: 70
+        variable_presence_id: 1000%4010.10.10.23
+        variable_switch_r_sdp: v%3D0%0D%0Ao%3D-%203932815554%203932815554%20IN%20IP4%2010.10.10.4%0D%0As%3Dpjmedia%0D%0Ab%3DAS:117%0D%0At%3D0%200%0D%0Aa%3DX-nat:0%0D%0Am%3Daudio%204004%20RTP/AVP%2096%209%208%200%20101%20102%0D%0Ac%3DIN%20IP4%2010.10.10.4%0D%0Ab%3DTIAS:96000%0D%0Aa%3Drtpmap:96%20opus/48000/2%0D%0Aa%3Dfmtp:96%20useinbandfec%3D1%0D%0Aa%3Drtpmap:9%20G722/8000%0D%0Aa%3Drtpmap:8%20PCMA/8000%0D%0Aa%3Drtpmap:0%20PCMU/8000%0D%0Aa%3Drtpmap:101%20telephone-event/48000%0D%0Aa%3Dfmtp:101%200-16%0D%0Aa%3Drtpmap:102%20telephone-event/8000%0D%0Aa%3Dfmtp:102%200-16%0D%0Aa%3Drtcp:4005%20IN%20IP4%2010.10.10.4%0D%0Aa%3Dssrc:1491843177%20cname:242da6923112cdcc%0D%0A
+        variable_ep_codec_string: mod_opus.opus%4048000h%4020i%402c,mod_spandsp.G722%408000h%4020i%4064000b,CORE_PCM_MODULE.PCMA%408000h%4020i%4064000b,CORE_PCM_MODULE.PCMU%408000h%4020i%4064000b
+        variable_DP_MATCH: ARRAY::DELAYED%20NEGOTIATION%7C:DELAYED%20NEGOTIATION
+        variable_call_uuid: 84e7dad0-dc1e-4234-8c56-5688e2069d99
+        variable_open: true
+        variable_RFC2822_DATE: Fri,%2016%20Aug%202024%2013:45:54%20-0300
+        variable_export_vars: RFC2822_DATE
+        variable_rtp_use_codec_string: OPUS,G722,PCMU,PCMA,H264,VP8
+        variable_remote_video_media_flow: inactive
+        variable_remote_text_media_flow: inactive
+        variable_remote_audio_media_flow: sendrecv
+        variable_audio_media_flow: sendrecv
+        variable_rtp_remote_audio_rtcp_port: 4005
+        variable_rtp_audio_recv_pt: 96
+        variable_rtp_use_codec_name: opus
+        variable_rtp_use_codec_fmtp: useinbandfec%3D1
+        variable_rtp_use_codec_rate: 48000
+        variable_rtp_use_codec_ptime: 20
+        variable_rtp_use_codec_channels: 1
+        variable_rtp_last_audio_codec_string: opus%4048000h%4020i%401c
+        variable_read_codec: opus
+        variable_original_read_codec: opus
+        variable_read_rate: 48000
+        variable_original_read_rate: 48000
+        variable_write_codec: opus
+        variable_write_rate: 48000
+        variable_dtmf_type: rfc2833
+        variable_local_media_ip: 10.10.10.23
+        variable_local_media_port: 19072
+        variable_advertised_media_ip: 10.10.10.23
+        variable_rtp_use_timer_name: soft
+        variable_rtp_use_pt: 96
+        variable_rtp_use_ssrc: 3539919802
+        variable_rtp_2833_send_payload: 101
+        variable_rtp_2833_recv_payload: 101
+        variable_remote_media_ip: 10.10.10.4
+        variable_remote_media_port: 4004
+        variable_rtp_local_sdp_str: v%3D0%0D%0Ao%3DFreeSWITCH%201723807682%201723807683%20IN%20IP4%2010.10.10.23%0D%0As%3DFreeSWITCH%0D%0Ac%3DIN%20IP4%2010.10.10.23%0D%0At%3D0%200%0D%0Am%3Daudio%2019072%20RTP/AVP%2096%20101%0D%0Aa%3Drtpmap:96%20opus/48000/2%0D%0Aa%3Dfmtp:96%20useinbandfec%3D1%0D%0Aa%3Drtpmap:101%20telephone-event/48000%0D%0Aa%3Dfmtp:101%200-15%0D%0Aa%3Dptime:20%0D%0Aa%3Dsendrecv%0D%0Aa%3Drtcp:19073%20IN%20IP4%2010.10.10.23%0D%0A
+        variable_endpoint_disposition: ANSWER
+        variable_send_silence_when_idle: -1
+        variable_hangup_after_bridge: false
+        variable_park_after_bridge: true
+        variable_playback_terminators: none
+        variable_STREAM_BUFFER_SIZE: 100
+        variable_current_application_data: 127.0.0.1:9000%20async%20full
+        variable_current_application: socket
+        variable_socket_host: 127.0.0.1
+        Content-Length: 103
+
+        {"audioDataType":"raw","sampleRate":16000,"file":"/tmp/84e7dad0-dc1e-4234-8c56-5688e2069d99_0.tmp.r16"}"""
+    )
+
+    return event
+
+
+@pytest.fixture
 def heartbeat() -> str:
     event = dedent(
         """\
@@ -32,9 +230,9 @@ def heartbeat() -> str:
             FreeSWITCH-Hostname: evoluxdev
             FreeSWITCH-Switchname: freeswitch
             FreeSWITCH-IPv4: 172.16.7.47
-            FreeSWITCH-IPv6: %3A%3A1
-            Event-Date-Local: 2015-01-19%2012%3A06%3A19
-            Event-Date-GMT: Mon,%2019%20Jan%202015%2015%3A06%3A19%20GMT
+            FreeSWITCH-IPv6: ::1
+            Event-Date-Local: 2015-01-19%2012:06:19
+            Event-Date-GMT: Mon,%2019%20Jan%202015%2015:06:19%20GMT
             Event-Date-Timestamp: 1421679979428652
             Event-Calling-File: switch_core.c
             Event-Calling-Function: send_heartbeat
@@ -256,9 +454,9 @@ def custom() -> str:
         Core-UUID: 6c6def18-9562-de11-a8e0-001fc6ab49e2
         FreeSWITCH-Hostname: localhost.localdomain
         FreeSWITCH-IPv4: 10.0.1.250
-        FreeSWITCH-IPv6: %3A%3A1
-        Event-Date-Local: 2009-06-26%2017%3A06%3A33
-        Event-Date-GMT: Fri,%2026%20Jun%202009%2021%3A06%3A33%20GMT
+        FreeSWITCH-IPv6: ::1
+        Event-Date-Local: 2009-06-26%2017:06:33
+        Event-Date-GMT: Fri,%2026%20Jun%202009%2021:06:33%20GMT
         Event-Date-Timestamp: 1246050393884782
         Event-Calling-File: switch_xml.c
         Event-Calling-Function: switch_xml_open_root
@@ -275,14 +473,14 @@ def custom() -> str:
 def register() -> str:
     event = dedent(
         """\
-        Event-Subclass: sofia%3A%3Aregister
+        Event-Subclass: sofia::register
         Event-Name: CUSTOM
         Core-UUID: 662db344-5ecc-4eaa-9002-9992b7ab7c4d
         FreeSWITCH-Hostname: DEV-CS2
         FreeSWITCH-IPv4: 192.168.1.15
-        FreeSWITCH-IPv6: %3A%3A1
-        Event-Date-Local: 2009-06-16%2018%3A15%3A46
-        Event-Date-GMT: Tue,%2016%20Jun%202009%2022%3A15%3A46%20GMT
+        FreeSWITCH-IPv6: ::1
+        Event-Date-Local: 2009-06-16%2018:15:46
+        Event-Date-GMT: Tue,%2016%20Jun%202009%2022:15:46%20GMT
         Event-Date-Timestamp: 1245190546126571
         Event-Calling-File: sofia_reg.c
         Event-Calling-Function: sofia_reg_handle_register
@@ -291,7 +489,7 @@ def register() -> str:
         from-user: 1000
         from-host: 192.168.1.15
         presence-hosts: 192.168.1.15
-        contact: %221000%22%20%3Csip%3A1000%40192.168.1.23%3A5060%3Bfs_nat%3Dyes%3Bfs_path%3Dsip%253A1000%2540192.168.1.23%253A5060%3E
+        contact: %221000%22%20%3Csip:1000%40192.168.1.23:5060%3Bfs_nat%3Dyes%3Bfs_path%3Dsip%253A1000%2540192.168.1.23%253A5060%3E
         call-id: 002D61B2-5F3A-DD11-BF4B-00132019B750%40192.168.1.23
         rpid: unknown
         statusd: Registered(UDP-NAT)
@@ -387,7 +585,7 @@ def connect() -> str:
         variable_sip_contact_params: line%3Dnc7obl5w
         variable_sip_contact_user: 1001
         variable_sip_contact_port: 2048
-        variable_sip_contact_uri: 1001%4010.0.1.241%3A2048
+        variable_sip_contact_uri: 1001%4010.0.1.241:2048
         variable_sip_contact_host: 10.0.1.241
         variable_channel_name: sofia/default/1001%4010.0.1.100
         variable_sip_call_id: 3c2bb21af10b-ogphkonpwqet
