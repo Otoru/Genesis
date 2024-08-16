@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "genesis"
-version = "0.4.0"
+version = "0.5.0"
 description = "Implementation of FreeSWITCH Event Socket protocol with asyncio"
-authors = ["Vitor <contato@vitoru.dev>"]
+authors = ["Vitor <vitor.hov@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/Otoru/Genesis"
 readme = "README.md"
@@ -22,8 +22,10 @@ classifiers = [
 exclude = ["tests"]
 
 [tool.poetry.dependencies]
-python = ">=3.7,<4.0"
+python = ">=3.8,<4.0"
 rich = "^13.7.1"
+typer = "^0.12.3"
+watchdog = "^4.0.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.1.0"
@@ -32,6 +34,9 @@ pytest-asyncio = "^0.18.2"
 pytest-cov = "^3.0.0"
 tox = "^3.24.5"
 mock = "^4.0.3"
+
+[tool.poetry.scripts]
+genesis = "genesis.cli:app"
 
 [tool.pytest.ini_options]
 addopts = "--cov --cov-report=term --cov-report=html -x --full-trace --disable-pytest-warnings"

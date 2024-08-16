@@ -1,6 +1,6 @@
 from .consumer import Consumer, filtrate
-from .outbound import Outbound, Session
+from .outbound import Outbound, Session, ESLEvent
 from .inbound import Inbound
 
-__all__ = ["Inbound", "Consumer", "filtrate", "Outbound", "Session"]
-__version__ = "0.3.0"
+__all__ = ["Inbound", "Consumer", "filtrate", "Outbound", "Session", "ESLEvent"]
+__version__ = "0.5.0"

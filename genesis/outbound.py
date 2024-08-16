@@ -7,7 +7,7 @@ ESL implementation used for outgoing connections on freeswitch.
 
 from __future__ import annotations
 
-from asyncio import StreamReader, StreamWriter, Queue, start_server, Event, sleep
+from asyncio import StreamReader, StreamWriter, Queue, start_server, Event
 from typing import Awaitable, NoReturn, Optional
 from functools import partial
 import socket
@@ -215,9 +215,9 @@ class Outbound:
 
     def __init__(
         self,
-        host: str,
-        port: int,
         handler: Awaitable,
+        host: str = "127.0.0.1",
+        port: int = 9000,
         events: bool = True,
         linger: bool = True,
     ) -> None:
