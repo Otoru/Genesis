@@ -96,9 +96,11 @@ class Protocol(ABC):
                     content = event["Content-Type"]
                     logger.debug(f"Check content type of event: {event}")
 
-                    if content in ["api/response", "text/rude-rejection", "log/data"]:
-                        event.body = result
-                    else:
+                    if content not in [
+                        "api/response",
+                        "text/rude-rejection",
+                        "log/data",
+                    ]:
                         headers = parse_headers(result)
                         logger.debug(f"Recived headers: {headers}")
 
@@ -112,6 +114,11 @@ class Protocol(ABC):
                             event.body = result
 
                         event.update(headers)
+                    else:
+                        event.body = result
+
+                else:
+                    event.body = result
 
             await self.events.put(event)
 
