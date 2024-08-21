@@ -72,3 +72,4 @@ venv.bak/
 dmypy.json
 .pyre/
 test
+.vscode

@@ -228,15 +228,18 @@ class Outbound:
         self.linger = linger
         self.server = None
 
-    async def start(self) -> Awaitable[NoReturn]:
+    async def start(self, block=True) -> Awaitable[NoReturn]:
         """Start the application server."""
         handler = partial(self.handler, self)
         self.server = await start_server(
             handler, self.host, self.port, family=socket.AF_INET
         )
         address = f"{self.host}:{self.port}"
-        logger.debug(f"Start application server and listen on '{address}'.")
-        await self.server.serve_forever()
+        logger.info(f"Start application server and listen on '{address}'.")
+        if block:
+            await self.server.serve_forever()
+        else:
+            await self.server.start_serving()
 
     async def stop(self) -> Awaitable[None]:
         """Terminate the application server."""

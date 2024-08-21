@@ -18,7 +18,9 @@ class Inbound(Protocol):
     """
     Inbound class
     -------------
+
     Given a valid set of information, establish a connection to a freeswitch server.
+
     Attributes:
     - host: required
         IP address associated with the connection destination server.

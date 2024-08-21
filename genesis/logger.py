@@ -14,6 +14,6 @@ handler = RichHandler(
 
 handler.setFormatter(logging.Formatter("%(message)s"))
 
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 logger.addHandler(handler)
 logger.propagate = False

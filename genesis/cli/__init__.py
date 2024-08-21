@@ -1,19 +1,27 @@
+"""
+CLI module for Genesis.
+------------------------
+
+This module contains the CLI commands for Genesis.
+"""
+
 import importlib.metadata
 from typing import Annotated, Union
 
 import typer
 from rich import print
 
-from genesis.cli.inbound import inbound
+from genesis.cli.consumer import consumer
 from genesis.cli.outbound import outbound
 
 
 app = typer.Typer(rich_markup_mode="rich")
-app.add_typer(inbound, name="inbound", short_help="Run you inbound automations.")
+app.add_typer(consumer, name="consumer", short_help="Run you ESL events consumer.")
 app.add_typer(outbound, name="outbound", short_help="Run you outbound services.")
 
 
 def version(show: bool) -> None:
+    """Show the version and exit."""
     if show:
         version = importlib.metadata.version("genesis")
         print(f"Genesis version: [green]{version}[/green]")

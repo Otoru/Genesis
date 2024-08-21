@@ -16,6 +16,7 @@ from genesis.cli.exceptions import CLIExcpetion
 def get_app_name(
     cls: object, module_import_str: str, app_name: Union[str, None] = None
 ) -> str:
+    """Get the app name from the module."""
     try:
         mod = importlib.import_module(module_import_str)
     except (ImportError, ValueError):
@@ -51,10 +52,10 @@ def get_app_name(
 def get_import_string(
     cls: object, path: Union[Path, None] = None, app_name: Union[str, None] = None
 ) -> str:
+    """Get the import string for the given module path."""
     if not path:
         raise CLIExcpetion("A path to a Python file or package directory is required.")
 
-    print(logger.handlers)
     logger.info(f"Resolved absolute path {path.resolve()}")
 
     if not path.exists():

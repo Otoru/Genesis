@@ -4,7 +4,7 @@ Consumer Module
 Simple abstraction used to put some syntactic sugar into freeswitch event consumption.
 """
 
-from typing import Awaitable, NoReturn, Callable
+from typing import Awaitable, NoReturn, Callable, Optional
 import functools
 import asyncio
 import re
@@ -13,9 +13,10 @@ from genesis.inbound import Inbound
 from genesis.logger import logger
 
 
-def filtrate(key: str, value: str = None, regex: bool = False):
+def filtrate(key: str, value: Optional[str] = None, regex: bool = False):
     """
     Method that allows to filter the events accordingto a set 'key', 'value'.
+
     Parameters
     ----------
     - key: required
@@ -52,6 +53,7 @@ class Consumer:
     Consumer class
     --------------
     Abstraction used to create valid event consumers.
+
     Attributes:
     - host: required
         IP address associated with the connection destination server.
@@ -68,6 +70,7 @@ class Consumer:
 
     def handle(self, event: str) -> Callable:
         """Decorator that allows the registration of new handlers.
+
         Parameters
         ----------
         - event: required
