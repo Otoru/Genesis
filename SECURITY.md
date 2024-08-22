@@ -6,10 +6,7 @@ At first, it is necessary to make it very clear where our library is supported
 | -------------- | ------------------ |
 | 3.12.x         | :white_check_mark: |
 | 3.11.x         | :white_check_mark: |
-| 3.10.x         | :white_check_mark: |
-| 3.9.x          | :warning:          |
-| 3.8.x          | :warning:          |
-| 3.7.x          | :warning:          |
+| 3.10.x         | :warning:          |
 
 ## Reporting a Vulnerability
 

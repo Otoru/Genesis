@@ -1,12 +1,10 @@
-from asyncio import ensure_future, sleep, Queue, Event
+from asyncio import Queue, Event
 from typing import Awaitable
 
 try:
     from unittest.mock import AsyncMock
 except ImportError:
     from mock import AsyncMock
-
-import pytest
 
 from genesis import Outbound, Session
 
@@ -18,11 +16,8 @@ async def test_outbound_session_has_context(host, port, dialplan):
         await buffer.put(session.context)
 
     address = (host(), port())
-    application = Outbound(*address, handler)
-    future = ensure_future(application.start())
-
-    while not application.server or not application.server.is_serving:
-        await sleep(0.0001)
+    application = Outbound(handler, *address)
+    await application.start(block=False)
 
     await dialplan.start(*address)
 
@@ -135,7 +130,6 @@ async def test_outbound_session_has_context(host, port, dialplan):
     await dialplan.stop()
 
     await application.stop()
-    future.cancel()
 
 
 async def test_outbound_session_send_answer_command(
@@ -152,19 +146,15 @@ async def test_outbound_session_send_answer_command(
         semaphore.set()
 
     address = (host(), port())
-    application = Outbound(*address, handler)
-    future = ensure_future(application.start())
+    application = Outbound(handler, *address)
 
-    while not application.server or not application.server.is_serving:
-        await sleep(0.0001)
-
+    await application.start(block=False)
     await dialplan.start(*address)
 
     await semaphore.wait()
 
     await dialplan.stop()
     await application.stop()
-    future.cancel()
 
     spider.assert_called_with("execute", "answer")
 
@@ -183,11 +173,9 @@ async def test_outbound_session_send_park_command(
         semaphore.set()
 
     address = (host(), port())
-    application = Outbound(*address, handler)
-    future = ensure_future(application.start())
+    application = Outbound(handler, *address)
 
-    while not application.server or not application.server.is_serving:
-        await sleep(0.0001)
+    await application.start(block=False)
 
     await dialplan.start(*address)
 
@@ -195,7 +183,6 @@ async def test_outbound_session_send_park_command(
 
     await dialplan.stop()
     await application.stop()
-    future.cancel()
 
     spider.assert_called_with("execute", "park")
 
@@ -214,11 +201,8 @@ async def test_outbound_session_send_hangup_command(
         semaphore.set()
 
     address = (host(), port())
-    application = Outbound(*address, handler)
-    future = ensure_future(application.start())
-
-    while not application.server or not application.server.is_serving:
-        await sleep(0.0001)
+    application = Outbound(handler, *address)
+    await application.start(block=False)
 
     await dialplan.start(*address)
 
@@ -226,6 +210,5 @@ async def test_outbound_session_send_hangup_command(
 
     await dialplan.stop()
     await application.stop()
-    future.cancel()
 
     spider.assert_called_with("execute", "hangup", "NORMAL_CLEARING")

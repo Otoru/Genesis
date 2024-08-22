@@ -2,7 +2,7 @@ import logging
 
 from rich.logging import RichHandler
 
-logger = logging.getLogger("genesis")
+logger = logging.getLogger(__name__)
 
 handler = RichHandler(
     show_time=False,
@@ -13,5 +13,7 @@ handler = RichHandler(
 )
 
 handler.setFormatter(logging.Formatter("%(message)s"))
-logger.setLevel(logging.DEBUG)
+
+logger.setLevel(logging.INFO)
+logger.addHandler(handler)
 logger.propagate = False
