@@ -1,4 +1,4 @@
-from typing import Annotated, Union, List
+from typing import Annotated, Union
 from pathlib import Path
 import importlib
 import asyncio
@@ -12,19 +12,12 @@ from rich.padding import Padding
 from genesis.cli import watcher
 from genesis.logger import logger
 from genesis.outbound import Outbound
-from genesis.cli.discover import get_import_string
 from genesis.cli.exceptions import CLIExcpetion
+from genesis.cli.utils import complete_log_levels
+from genesis.cli.discover import get_import_string
+
 
 outbound = typer.Typer(rich_markup_mode="rich")
-
-
-def complete_log_levels(incomplete: str):
-    """Autocompletion for log levels."""
-    levels = [item.lower() for item in logging.getLevelNamesMapping().keys()]
-
-    for item in levels:
-        if item.startswith(incomplete):
-            yield item
 
 
 @outbound.command()
@@ -32,28 +25,30 @@ def dev(
     path: Annotated[
         Path,
         typer.Argument(
-            help="A path to a Python file or package directory.", metavar="SCRIPT-PATH"
+            help="A path to a Python file or package directory.", metavar="PATH"
         ),
     ],
     *,
     host: Annotated[
         str,
-        typer.Option(help="The host to serve on."),
+        typer.Option(help="The host to serve on.", envvar="ESL_APP_HOST"),
     ] = "127.0.0.1",
     port: Annotated[
         int,
-        typer.Option(help="The port to serve on."),
+        typer.Option(help="The port to serve on.", envvar="ESL_APP_PORT"),
     ] = 9000,
     app: Annotated[
         Union[str, None],
         typer.Option(
-            help="The name of the variable that contains the [bold]Outbound[/bold] genesis app in the imported module or package."
+            help="Variable that contains the [bold]Outbound[/bold] app in the imported module or package.",
+            envvar="ESL_APP_NAME",
         ),
     ] = None,
     loglevel: Annotated[
         str,
         typer.Option(
             help="The log level to use.",
+            envvar="ESL_LOG_LEVEL",
             show_default=True,
             case_sensitive=False,
             autocompletion=complete_log_levels,
@@ -76,7 +71,9 @@ def dev(
 def run(
     path: Annotated[
         Path,
-        typer.Argument(help="A path to a Python file or package directory."),
+        typer.Argument(
+            help="A path to a Python file or package directory.", metavar="PATH"
+        ),
     ],
     *,
     host: Annotated[
@@ -90,13 +87,15 @@ def run(
     app: Annotated[
         Union[str, None],
         typer.Option(
-            help="The name of the variable that contains the [bold]Outbound[/bold] genesis app in the imported module or package."
+            help="Variable that contains the [bold]Outbound[/bold] app in the imported module or package.",
+            envvar="ESL_APP_NAME",
         ),
     ] = None,
     loglevel: Annotated[
         str,
         typer.Option(
             help="The log level to use.",
+            envvar="ESL_LOG_LEVEL",
             show_default=True,
             case_sensitive=False,
             autocompletion=complete_log_levels,

@@ -65,7 +65,13 @@ class Consumer:
         Maximum time we wait to initiate a connection.
     """
 
-    def __init__(self, host: str, port: int, password: str, timeout: int = 5) -> None:
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8021,
+        password: str = "ClueCon",
+        timeout: int = 5,
+    ) -> None:
         self.protocol: Inbound = Inbound(host, port, password, timeout)
 
     def handle(self, event: str) -> Callable:
