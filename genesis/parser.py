@@ -15,7 +15,7 @@ class ESLEvent(UserDict):
         self.body: Optional[str] = None
 
 
-def parse_headers(payload: str) -> Dict[str, Union[str, List[str]]]:
+def parse_headers(payload: str) -> ESLEvent:
     lines = payload.strip().splitlines()
     headers = ESLEvent()
     buffer = ""

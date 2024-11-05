@@ -8,7 +8,8 @@ ESL implementation used for outgoing connections on freeswitch.
 from __future__ import annotations
 
 from asyncio import StreamReader, StreamWriter, Queue, start_server, Event
-from typing import Awaitable, NoReturn, Optional
+from collections.abc import Callable, Coroutine
+from typing import Awaitable, NoReturn, Optional, Union
 from functools import partial
 import socket
 
@@ -44,7 +45,7 @@ class Session(Protocol):
         await self.start()
         return self
 
-    async def __aexit__(self, *args, **kwargs) -> Awaitable[None]:
+    async def __aexit__(self, *args, **kwargs) -> NoReturn:
         """Interface used to implement a context manager."""
         await self.stop()
 
@@ -215,7 +216,7 @@ class Outbound:
 
     def __init__(
         self,
-        handler: Awaitable,
+        handler: Union[Callable, Coroutine],
         host: str = "127.0.0.1",
         port: int = 9000,
         events: bool = True,
@@ -228,7 +229,7 @@ class Outbound:
         self.linger = linger
         self.server = None
 
-    async def start(self, block=True) -> Awaitable[NoReturn]:
+    async def start(self, block=True) -> None:
         """Start the application server."""
         handler = partial(self.handler, self)
         self.server = await start_server(
@@ -241,7 +242,7 @@ class Outbound:
         else:
             await self.server.start_serving()
 
-    async def stop(self) -> Awaitable[None]:
+    async def stop(self) -> None:
         """Terminate the application server."""
         if self.server:
             logger.debug("Shutdown application server.")
@@ -251,7 +252,7 @@ class Outbound:
     @staticmethod
     async def handler(
         server: Outbound, reader: StreamReader, writer: StreamWriter
-    ) -> Awaitable[None]:
+    ) -> None:
         """Method used to process new connections."""
         async with Session(reader, writer) as session:
             logger.debug("Send command to start handle a call")
