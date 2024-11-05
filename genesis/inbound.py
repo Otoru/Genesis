@@ -39,16 +39,16 @@ class Inbound(Protocol):
         self.host = host
         self.port = port
 
-    async def __aenter__(self) -> Awaitable[Inbound]:
+    async def __aenter__(self) -> Inbound:
         """Interface used to implement a context manager."""
         await self.start()
         return self
 
-    async def __aexit__(self, *args, **kwargs) -> Awaitable[None]:
+    async def __aexit__(self, *args, **kwargs) -> None:
         """Interface used to implement a context manager."""
         await self.stop()
 
-    async def authenticate(self) -> Awaitable[None]:
+    async def authenticate(self) -> None:
         """Authenticates to the freeswitch server. Raises an exception on failure."""
         await self.authentication_event.wait()
         logger.debug("Send command to authenticate inbound ESL connection.")
@@ -58,7 +58,7 @@ class Inbound(Protocol):
             logger.debug("Freeswitch said the passed password is incorrect.")
             raise AuthenticationError("Invalid password")
 
-    async def start(self) -> Awaitable[None]:
+    async def start(self) -> None:
         """Initiates an authenticated connection to a freeswitch server."""
         try:
             promise = open_connection(self.host, self.port)

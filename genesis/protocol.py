@@ -14,7 +14,7 @@ from asyncio import (
     Queue,
     Task,
 )
-from typing import List, Awaitable, Dict, NoReturn, Optional
+from typing import List, Awaitable, Dict, NoReturn, Optional, Callable, Coroutine, Any, Union
 from inspect import isawaitable
 from abc import ABC
 
@@ -34,17 +34,20 @@ class Protocol(ABC):
         self.consumer: Optional[Task] = None
         self.reader: Optional[StreamReader] = None
         self.writer: Optional[StreamWriter] = None
-        self.handlers: Dict[str, List[Awaitable[None]]] = {}
+        self.handlers: Dict[str, List[Union[
+            Callable[[ESLEvent], None],
+            Callable[[ESLEvent], Coroutine[Any, Any, None]]
+        ]]] = {}
 
-    async def start(self) -> Awaitable[None]:
-        """Initiates an connection to a freeswitch."""
+    async def start(self) -> NoReturn:
+        """Initiates a connection to a freeswitch."""
         self.is_connected = True
 
         logger.debug("Create tasks to work with ESL events.")
         self.producer = create_task(self.handler())
         self.consumer = create_task(self.consume())
 
-    async def stop(self) -> Awaitable[None]:
+    async def stop(self) -> None:
         """Terminates connection to a freeswitch."""
         if self.writer and not self.writer.is_closing():
             logger.debug("Closer stream writter.")
@@ -60,7 +63,7 @@ class Protocol(ABC):
             logger.debug("Cancel event consumer task.")
             self.consumer.cancel()
 
-    async def handler(self) -> Awaitable[NoReturn]:
+    async def handler(self) -> None:
         """Defines intelligence to treat received events."""
         while self.is_connected:
             request = None
@@ -122,7 +125,7 @@ class Protocol(ABC):
 
             await self.events.put(event)
 
-    async def consume(self) -> Awaitable[NoReturn]:
+    async def consume(self) -> None:
         """Arm all event processors."""
         while self.is_connected:
             event = await self.events.get()
@@ -165,7 +168,10 @@ class Protocol(ABC):
                         if isawaitable(handler) or iscoroutinefunction(handler):
                             await handler(event)
 
-    def on(self, key: str, handler: Awaitable[None]) -> None:
+    def on(self, key: str, handler: Union[
+           Callable[[ESLEvent], None],
+           Callable[[ESLEvent], Coroutine[Any, Any, None]]
+       ]) -> None:
         """Associate a handler with an event key."""
         logger.debug(f"Register handler to '{key}' event.")
         self.handlers.setdefault(key, list()).append(handler)
