@@ -9,12 +9,11 @@ from __future__ import annotations
 
 from asyncio import StreamReader, StreamWriter, Queue, start_server, Event
 from collections.abc import Callable, Coroutine
-from typing import Awaitable, NoReturn, Optional, Union
+from typing import Awaitable, NoReturn, Optional, Union, Dict
 from functools import partial
 import socket
 
 from genesis.protocol import Protocol
-from genesis.inbound import Inbound
 from genesis.parser import ESLEvent
 from genesis.logger import logger
 
@@ -35,7 +34,7 @@ class Session(Protocol):
 
     def __init__(self, reader: StreamReader, writer: StreamWriter) -> None:
         super().__init__()
-        self.context = dict()
+        self.context: Dict[str, str] = dict()
         self.reader = reader
         self.writer = writer
         self.fifo = Queue()
@@ -45,7 +44,7 @@ class Session(Protocol):
         await self.start()
         return self
 
-    async def __aexit__(self, *args, **kwargs) -> NoReturn:
+    async def __aexit__(self, *args, **kwargs) -> None:
         """Interface used to implement a context manager."""
         await self.stop()
 
@@ -68,7 +67,7 @@ class Session(Protocol):
 
     async def sendmsg(
         self, command: str, application: str, data: Optional[str] = None, lock=False
-    ) -> Awaitable[ESLEvent]:
+    ) -> ESLEvent:
         """Used to send commands from dialplan to session."""
         cmd = f"sendmsg\ncall-command: {command}\nexecute-app-name: {application}"
 
@@ -81,19 +80,19 @@ class Session(Protocol):
         logger.debug(f"Send command to freeswitch: '{cmd}'.")
         return await self.send(cmd)
 
-    async def answer(self) -> Awaitable[ESLEvent]:
+    async def answer(self) -> ESLEvent:
         """Answer the call associated with the session."""
         return await self.sendmsg("execute", "answer")
 
-    async def park(self) -> Awaitable[ESLEvent]:
+    async def park(self) -> ESLEvent:
         """Move session-associated call to park."""
         return await self.sendmsg("execute", "park")
 
-    async def hangup(self, cause: str = "NORMAL_CLEARING") -> Awaitable[ESLEvent]:
+    async def hangup(self, cause: str = "NORMAL_CLEARING") -> ESLEvent:
         """Hang up the call associated with the session."""
         return await self.sendmsg("execute", "hangup", cause)
 
-    async def playback(self, path: str, block=True) -> Awaitable[ESLEvent]:
+    async def playback(self, path: str, block=True) -> ESLEvent:
         """Requests the freeswitch to play an audio."""
         if not block:
             return await self.sendmsg("execute", "playback", path)
@@ -154,7 +153,7 @@ class Session(Protocol):
         invalid_file: Optional[str] = None,
         digit_timeout: Optional[int] = None,
         transfer_on_failure: Optional[str] = None,
-    ) -> Awaitable[ESLEvent]:
+    ) -> ESLEvent:
         formatter = lambda value: "" if value is None else str(value)
         ordered_arguments = [
             minimal,
@@ -229,7 +228,7 @@ class Outbound:
         self.linger = linger
         self.server = None
 
-    async def start(self, block=True) -> None:
+    async def start(self, block: bool = True) -> None:
         """Start the application server."""
         handler = partial(self.handler, self)
         self.server = await start_server(
@@ -259,7 +258,7 @@ class Outbound:
             session.context = await session.send("connect")
 
             if server.myevents:
-                logger.debug("Send command to recive all call events")
+                logger.debug("Send command to receive all call events")
                 await session.send("myevents")
 
             if server.linger:
