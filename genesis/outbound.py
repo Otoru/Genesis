@@ -49,7 +49,15 @@ class Session(Protocol):
         await self.stop()
 
     async def _awaitable_complete_command(self, application: str) -> Event:
-        """Used to build an event associated with the completion of a command."""
+        """
+        Create an event that will be set when a command completes.
+
+        Args:
+            application: Name of the application to wait for completion
+
+        Returns:
+            Event that will be set when command completes
+        """
         semaphore = Event()
 
         async def handler(session: Session, event: ESLEvent):
@@ -59,6 +67,7 @@ class Session(Protocol):
                 if event["variable_current_application"] == application:
                     await session.fifo.put(event)
                     semaphore.set()
+                    self.remove("CHANNEL_EXECUTE_COMPLETE", handler)
 
         logger.debug(f"Register event handler to {application} complete event")
         self.on("CHANNEL_EXECUTE_COMPLETE", partial(handler, self))
@@ -115,7 +124,7 @@ class Session(Protocol):
         method: str = "pronounced",
         gender: str = "FEMININE",
         block=True,
-    ) -> Awaitable[ESLEvent]:
+    ) -> ESLEvent:
         """The say application will use the pre-recorded sound files to read or say things."""
         if lang:
             module += f":{lang}"

@@ -175,7 +175,10 @@ class Protocol(ABC):
         logger.debug(f"Register handler to '{key}' event.")
         self.handlers.setdefault(key, list()).append(handler)
 
-    def remove(self, key: str, handler: Awaitable[None]) -> None:
+    def remove(self, key: str, handler: Union[
+           Callable[[ESLEvent], None],
+           Callable[[ESLEvent], Coroutine[Any, Any, None]]
+       ]) -> None:
         """Removes the HANDLER from the list of handlers for the given event KEY name."""
         logger.debug(f"Remove handler to '{key}' event.")
         if key in self.handlers and handler in self.handlers[key]:

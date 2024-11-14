@@ -96,7 +96,7 @@ class Consumer:
 
     async def wait(self) -> None:
         while bool(self.protocol.is_connected):
-            logger.debug("Wait to recive new events...")
+            logger.debug("Wait to receive new events...")
             await asyncio.sleep(1)
 
     async def start(self) -> None:
