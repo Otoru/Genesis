@@ -4,7 +4,7 @@ Genesis parse
 It implements the intelligence necessary for us to transform freeswitch events into python primitive types.
 """
 
-from typing import Dict, List, Union, Optional
+from typing import Optional
 from collections import UserDict
 from urllib.parse import unquote
 

@@ -4,7 +4,7 @@ Consumer Module
 Simple abstraction used to put some syntactic sugar into freeswitch event consumption.
 """
 
-from typing import Awaitable, NoReturn, Callable, Optional
+from typing import Callable, Optional, Coroutine, Union
 import functools
 import asyncio
 import re
@@ -13,9 +13,9 @@ from genesis.inbound import Inbound
 from genesis.logger import logger
 
 
-def filtrate(key: str, value: Optional[str] = None, regex: bool = False):
+def filtrate(key: str, value: Optional[str] = None, regex: bool = False) -> Union[Callable, Coroutine]:
     """
-    Method that allows to filter the events accordingto a set 'key', 'value'.
+    Method that allows to filter the events according to a set 'key', 'value'.
 
     Parameters
     ----------
@@ -27,7 +27,7 @@ def filtrate(key: str, value: Optional[str] = None, regex: bool = False):
         Tells whether 'value' is a regular expression.
     """
 
-    def decorator(function: Awaitable):
+    def decorator(function: Union[Callable, Coroutine]):
         @functools.wraps(function)
         async def wrapper(message):
             if isinstance(message, dict):
@@ -74,7 +74,7 @@ class Consumer:
     ) -> None:
         self.protocol: Inbound = Inbound(host, port, password, timeout)
 
-    def handle(self, event: str) -> Callable:
+    def handle(self, event: str) -> Union[Callable, Coroutine]:
         """Decorator that allows the registration of new handlers.
 
         Parameters
@@ -83,7 +83,7 @@ class Consumer:
             Name of the event to be parsed.
         """
 
-        def decorator(function: Awaitable):
+        def decorator(function: Union[Callable, Coroutine]):
             self.protocol.on(event, function)
 
             @functools.wraps(function)
@@ -94,12 +94,12 @@ class Consumer:
 
         return decorator
 
-    async def wait(self) -> Awaitable[NoReturn]:
+    async def wait(self) -> None:
         while bool(self.protocol.is_connected):
-            logger.debug("Wait to recive new events...")
+            logger.debug("Wait to receive new events...")
             await asyncio.sleep(1)
 
-    async def start(self) -> Awaitable[NoReturn]:
+    async def start(self) -> None:
         """Method called to request the freeswitch to start sending us the appropriate events."""
         try:
             async with self.protocol as protocol:
@@ -128,5 +128,5 @@ class Consumer:
             await self.stop()
             raise
 
-    async def stop(self) -> Awaitable[NoReturn]:
-        return await self.protocol.stop()
+    async def stop(self) -> None:
+        await self.protocol.stop()

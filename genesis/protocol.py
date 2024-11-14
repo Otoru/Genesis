@@ -13,6 +13,7 @@ from asyncio import (
     Event,
     Queue,
     Task,
+    to_thread,
 )
 from typing import List, Awaitable, Dict, NoReturn, Optional, Callable, Coroutine, Any, Union
 from inspect import isawaitable
@@ -39,7 +40,7 @@ class Protocol(ABC):
             Callable[[ESLEvent], Coroutine[Any, Any, None]]
         ]]] = {}
 
-    async def start(self) -> NoReturn:
+    async def start(self) -> None:
         """Initiates a connection to a freeswitch."""
         self.is_connected = True
 
@@ -50,7 +51,7 @@ class Protocol(ABC):
     async def stop(self) -> None:
         """Terminates connection to a freeswitch."""
         if self.writer and not self.writer.is_closing():
-            logger.debug("Closer stream writter.")
+            logger.debug("Closer stream writer.")
             self.writer.close()
 
         self.is_connected = False
@@ -80,6 +81,7 @@ class Protocol(ABC):
 
                 if buffer[-2:] == "\n\n" or buffer[-4:] == "\r\n\r\n":
                     request = buffer
+                    logger.debug(f"<<< Complete message received: {repr(request)}")
                     break
 
             if not request or not self.is_connected:
@@ -89,23 +91,18 @@ class Protocol(ABC):
 
             if "Content-Length" in event:
                 length = int(event["Content-Length"])
-
                 logger.debug(f"Read more {length} bytes.")
                 data = await self.reader.readexactly(length)
-                logger.debug(f"Recidev data: {data}")
+                logger.debug(f"Received data: {data}")
                 result = data.decode("utf-8")
 
                 if "Content-Type" in event:
                     content = event["Content-Type"]
                     logger.debug(f"Check content type of event: {event}")
 
-                    if content not in [
-                        "api/response",
-                        "text/rude-rejection",
-                        "log/data",
-                    ]:
+                    if content not in ["api/response", "text/rude-rejection", "log/data"]:
                         headers = parse_headers(result)
-                        logger.debug(f"Recived headers: {headers}")
+                        logger.debug(f"Received headers: {headers}")
 
                         if "Content-Length" in headers:
                             length = int(headers["Content-Length"])
@@ -113,7 +110,7 @@ class Protocol(ABC):
                             data = await self.reader.readexactly(length)
                             result = data.decode("utf-8")
 
-                            logger.debug(f"Recived body: {result}")
+                            logger.debug(f"Received body: {result}")
                             event.body = result
 
                         event.update(headers)
@@ -129,7 +126,7 @@ class Protocol(ABC):
         """Arm all event processors."""
         while self.is_connected:
             event = await self.events.get()
-            logger.debug(f"Recived an event: '{event}'.")
+            logger.debug(f"Received an event: '{event}'.")
 
             if "Content-Type" in event and event["Content-Type"] == "auth/request":
                 self.authentication_event.set()
@@ -165,8 +162,10 @@ class Protocol(ABC):
 
                 if handlers:
                     for handler in handlers:
-                        if isawaitable(handler) or iscoroutinefunction(handler):
-                            await handler(event)
+                        if iscoroutinefunction(handler):
+                            create_task(handler(event))
+                        else:
+                            create_task(to_thread(handler, event))
 
     def on(self, key: str, handler: Union[
            Callable[[ESLEvent], None],
@@ -176,13 +175,16 @@ class Protocol(ABC):
         logger.debug(f"Register handler to '{key}' event.")
         self.handlers.setdefault(key, list()).append(handler)
 
-    def remove(self, key: str, handler: Awaitable[None]) -> None:
+    def remove(self, key: str, handler: Union[
+           Callable[[ESLEvent], None],
+           Callable[[ESLEvent], Coroutine[Any, Any, None]]
+       ]) -> None:
         """Removes the HANDLER from the list of handlers for the given event KEY name."""
         logger.debug(f"Remove handler to '{key}' event.")
         if key in self.handlers and handler in self.handlers[key]:
             self.handlers.setdefault(key, list()).remove(handler)
 
-    async def send(self, cmd: str) -> Awaitable[ESLEvent]:
+    async def send(self, cmd: str) -> ESLEvent:
         """Method used to send commands to or freeswitch."""
         if not self.is_connected:
             raise UnconnectedError()
