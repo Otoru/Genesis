@@ -422,7 +422,7 @@ def channel() -> Dict[str, str]:
 def background_job() -> str:
     event = dedent(
         """\
-        Content-Length: 542
+        Content-Length: 582
         Content-Type: text/event-plain
 
         Job-UUID: 7f4db78a-17d7-11dd-b7a0-db4edd065621
