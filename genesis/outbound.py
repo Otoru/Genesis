@@ -61,7 +61,7 @@ class Session(Protocol):
         semaphore = Event()
 
         async def handler(session: Session, event: ESLEvent):
-            logger.debug(f"Recived channel execute complete event: {event}")
+            logger.debug(f"Received channel execute complete event: {event}")
 
             if "variable_current_application" in event:
                 if event["variable_current_application"] == application:
@@ -144,7 +144,7 @@ class Session(Protocol):
         await command_is_complete.wait()
 
         event = await self.fifo.get()
-        logger.debug(f"Execute complete event recived: {event}")
+        logger.debug(f"Execute complete event received: {event}")
 
         return event
 
@@ -197,7 +197,7 @@ class Session(Protocol):
         await command_is_complete.wait()
 
         event = await self.fifo.get()
-        logger.debug(f"Execute complete event recived: {event}")
+        logger.debug(f"Execute complete event received: {event}")
 
         return event
 

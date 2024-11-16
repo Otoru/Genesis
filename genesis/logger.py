@@ -1,4 +1,5 @@
 import logging
+import os
 
 from rich.logging import RichHandler
 
@@ -14,6 +15,7 @@ handler = RichHandler(
 
 handler.setFormatter(logging.Formatter("%(message)s"))
 
-logger.setLevel(logging.INFO)
+level = os.getenv('GENESIS_LOG_LEVEL', 'INFO')
+logger.setLevel(getattr(logging, level.upper()))
 logger.addHandler(handler)
 logger.propagate = False

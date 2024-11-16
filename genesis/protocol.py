@@ -90,35 +90,37 @@ class Protocol(ABC):
             event = parse_headers(request)
 
             if "Content-Length" in event:
-                length = int(event["Content-Length"])
-                logger.debug(f"Read more {length} bytes.")
+                # Get the total length from the first Content-Length header
+                length = int(event["Content-Length"].split('\n')[0])
+                logger.debug(f"Total content length: {length} bytes")
+
+                # Read the complete data
                 data = await self.reader.readexactly(length)
-                logger.debug(f"Received data: {data}")
-                result = data.decode("utf-8")
+                logger.debug(f"Received complete data: {data}")
+                complete_content = data.decode("utf-8")
 
                 if "Content-Type" in event:
                     content = event["Content-Type"]
                     logger.debug(f"Check content type of event: {event}")
 
                     if content not in ["api/response", "text/rude-rejection", "log/data"]:
-                        headers = parse_headers(result)
-                        logger.debug(f"Received headers: {headers}")
+                        # Try to split headers and body
+                        if '\n\n' in complete_content:
+                            headers_part, body = complete_content.split('\n\n', 1)
 
-                        if "Content-Length" in headers:
-                            length = int(headers["Content-Length"])
-                            logger.debug(f"Read more {length} bytes.")
-                            data = await self.reader.readexactly(length)
-                            result = data.decode("utf-8")
+                            # Parse additional headers if present
+                            additional_headers = parse_headers(headers_part)
+                            event.update(additional_headers)
 
-                            logger.debug(f"Received body: {result}")
-                            event.body = result
-
-                        event.update(headers)
+                            # Store the actual body
+                            event.body = body
+                        else:
+                            # If no clear header/body separation, treat everything as body
+                            event.body = complete_content
                     else:
-                        event.body = result
-
+                        event.body = complete_content
                 else:
-                    event.body = result
+                    event.body = complete_content
 
             await self.events.put(event)
 
