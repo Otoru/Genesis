@@ -18,10 +18,11 @@ from asyncio import (
 from typing import List, Awaitable, Dict, NoReturn, Optional, Callable, Coroutine, Any, Union
 from inspect import isawaitable
 from abc import ABC
+import logging
 
 from genesis.exceptions import UnconnectedError, ConnectionError
 from genesis.parser import parse_headers, ESLEvent
-from genesis.logger import logger
+from genesis.logger import logger, TRACE_LEVEL_NUM
 
 
 class Protocol(ABC):
@@ -74,14 +75,14 @@ class Protocol(ABC):
                 try:
                     content = await self.reader.readline()
                     buffer += content.decode("utf-8")
-
-                except:
+                except Exception as e:
+                    logger.error(f"Error reading from stream. {str(e)}")
                     self.is_connected = False
                     break
 
                 if buffer[-2:] == "\n\n" or buffer[-4:] == "\r\n\r\n":
                     request = buffer
-                    logger.debug(f"<<< Complete message received: {repr(request)}")
+                    logger.trace(f"<<< Complete message received: {repr(request)}")
                     break
 
             if not request or not self.is_connected:
@@ -90,35 +91,64 @@ class Protocol(ABC):
             event = parse_headers(request)
 
             if "Content-Length" in event:
-                length = int(event["Content-Length"])
-                logger.debug(f"Read more {length} bytes.")
+                # Get the total length from the first Content-Length header
+                length = int(event["Content-Length"].split('\n')[0])
+                logger.trace(f"Total content length: {length} bytes")
+
+                # Read the complete data
                 data = await self.reader.readexactly(length)
-                logger.debug(f"Received data: {data}")
-                result = data.decode("utf-8")
+                logger.trace(f"Received complete data: {data}")
+                complete_content = data.decode("utf-8")
 
                 if "Content-Type" in event:
                     content = event["Content-Type"]
-                    logger.debug(f"Check content type of event: {event}")
+                    logger.trace(f"Check content type of event: {event}")
 
                     if content not in ["api/response", "text/rude-rejection", "log/data"]:
-                        headers = parse_headers(result)
-                        logger.debug(f"Received headers: {headers}")
+                        # Try to split headers and body
+                        if '\n\n' in complete_content:
+                            headers_part, body = complete_content.split('\n\n', 1)
 
-                        if "Content-Length" in headers:
-                            length = int(headers["Content-Length"])
-                            logger.debug(f"Read more {length} bytes.")
-                            data = await self.reader.readexactly(length)
-                            result = data.decode("utf-8")
+                            # Here we check for multiple events in one message (can happen if event-lock is set)
+                            event_parts = []
+                            if "event-lock: true" in headers_part.lower():
+                                # Split the string on "Event-Name: "
+                                parts = headers_part.split("\nEvent-Name: ")
+                                if len(parts) > 1:
+                                    # reconstruct the event parts
+                                    event_parts = [parts[0]]  # First part don't need to be modified
+                                    for part in parts[1:]:
+                                        event_parts.append(f"Event-Name: {part}")
+                                    logger.debug(f"Split locked event into {len(event_parts)} separate events")
+                            else:
+                                event_parts = [headers_part]
 
-                            logger.debug(f"Received body: {result}")
-                            event.body = result
+                            # Process each event part
+                            for idx, event_str in enumerate(event_parts):
+                                if idx == 0:
+                                    # First event is the original event
+                                    additional_headers = parse_headers(event_str)
+                                    event.update(additional_headers)
+                                    event.body = body
+                                    await self.events.put(event)
+                                else:
+                                    # More events are new events
+                                    new_event = parse_headers(event_str)
+                                    # Copy some headers from the original event
+                                    for key in ['Content-Length', 'Content-Type']:
+                                        if key in event:
+                                            new_event[key] = event[key]
+                                    new_event.body = body
+                                    await self.events.put(new_event)
+                            continue  # Skip the final event.put
 
-                        event.update(headers)
+                        else:
+                            # If no clear header/body separation, treat everything as body
+                            event.body = complete_content
                     else:
-                        event.body = result
-
+                        event.body = complete_content
                 else:
-                    event.body = result
+                    event.body = complete_content
 
             await self.events.put(event)
 
@@ -126,7 +156,32 @@ class Protocol(ABC):
         """Arm all event processors."""
         while self.is_connected:
             event = await self.events.get()
-            logger.debug(f"Received an event: '{event}'.")
+
+            try:
+                if logger.isEnabledFor(TRACE_LEVEL_NUM):
+                    logger.trace(f"Received an event: '{event}'.")
+                else:
+                    if logger.isEnabledFor(logging.DEBUG):
+                        if "Unique-ID" in event:
+                            logtext = f"Received an event: '{event['Event-Name']}' for call '{event['Unique-ID']}'. "
+                            if event["Event-Name"] == "CHANNEL_EXECUTE_COMPLETE":
+                                logtext += f"Application: '{event['Application']}' - "
+                                logtext += f"Response: '{event['Application-Response']}'"
+                            logger.debug(logtext)
+                        else:
+                            if "Event-Name" in event:
+                                logger.debug(f"Received an event: '{event['Event-Name']}'.")
+                            elif "Content-Type" in event and event["Content-Type"] in ["command/reply", "auth/request"]:
+                                if event["Content-Type"] == "command/reply":
+                                    if "Reply-Text" in event:
+                                        logger.debug(f"Received an command reply: '{event['Reply-Text']}'.")
+                                if event["Content-Type"] == "auth/request":
+                                    if "Reply-Text" in event:
+                                        logger.debug(f"Received an authentication reply: '{event}'.")
+                            else:
+                                logger.debug(f"Received an event: '{event}'.")
+            except Exception as e:
+                logger.error(f"Error logging event: {str(e)} - Event: {event}")
 
             if "Content-Type" in event and event["Content-Type"] == "auth/request":
                 self.authentication_event.set()
@@ -155,7 +210,7 @@ class Protocol(ABC):
                 name = identifier
 
             if name:
-                logger.debug(f"Get all handlers for '{name}'.")
+                logger.trace(f"Get all handlers for '{name}'.")
                 specific = self.handlers.get(name, [])
                 generic = self.handlers.get("*", list())
                 handlers = specific + generic

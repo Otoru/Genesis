@@ -154,7 +154,7 @@ async def test_consumer_wait_method_behavior(host, port, password, monkeypatch):
     assert spider.call_count == 2, message
 
 
-async def test_recive_background_job_event(freeswitch, background_job):
+async def test_receive_background_job_event(freeswitch, background_job):
     async with freeswitch as server:
         server.events.append(background_job)
         server.oncommand(
@@ -199,7 +199,7 @@ async def test_recive_background_job_event(freeswitch, background_job):
         future.cancel()
 
 
-async def test_recive_mod_audio_stream_play(freeswitch, mod_audio_stream_play):
+async def test_receive_mod_audio_stream_play(freeswitch, mod_audio_stream_play):
     async with freeswitch as server:
         server.events.append(mod_audio_stream_play)
 
