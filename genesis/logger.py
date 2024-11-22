@@ -2,8 +2,8 @@ import logging
 import os
 from rich.logging import RichHandler
 
-# Define TRACE level
 TRACE_LEVEL_NUM = 5
+
 logging.addLevelName(TRACE_LEVEL_NUM, "TRACE")
 
 
@@ -19,7 +19,14 @@ def get_log_level() -> int:
     """
     Get log level from environment variable or return default (INFO).
 
-    Valid values for LOG_LEVEL are: DEBUG, INFO, WARNING, ERROR, CRITICAL, TRACE
+    Valid values for LOG_LEVEL are:
+     - TRACE
+     - DEBUG
+     - INFO
+     - WARNING
+     - ERROR
+     - CRITICAL
+
     Returns logging level constant.
     """
     level_map = {
@@ -50,7 +57,6 @@ def setup_logger(name: str = __name__) -> logging.Logger:
     if logger.handlers:
         return logger
 
-    # Configure Rich Handler according to conventions
     handler = RichHandler(
         rich_tracebacks=True,
         tracebacks_show_locals=True,

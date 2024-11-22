@@ -10,13 +10,12 @@ from asyncio import (
     StreamWriter,
     StreamReader,
     create_task,
+    to_thread,
     Event,
     Queue,
     Task,
-    to_thread,
 )
-from typing import List, Awaitable, Dict, NoReturn, Optional, Callable, Coroutine, Any, Union
-from inspect import isawaitable
+from typing import List, Dict, Optional, Callable, Coroutine, Any, Union
 from abc import ABC
 import logging
 
@@ -36,10 +35,15 @@ class Protocol(ABC):
         self.consumer: Optional[Task] = None
         self.reader: Optional[StreamReader] = None
         self.writer: Optional[StreamWriter] = None
-        self.handlers: Dict[str, List[Union[
-            Callable[[ESLEvent], None],
-            Callable[[ESLEvent], Coroutine[Any, Any, None]]
-        ]]] = {}
+        self.handlers: Dict[
+            str,
+            List[
+                Union[
+                    Callable[[ESLEvent], None],
+                    Callable[[ESLEvent], Coroutine[Any, Any, None]],
+                ]
+            ],
+        ] = {}
 
     async def start(self) -> None:
         """Initiates a connection to a freeswitch."""
@@ -82,7 +86,7 @@ class Protocol(ABC):
 
                 if buffer[-2:] == "\n\n" or buffer[-4:] == "\r\n\r\n":
                     request = buffer
-                    logger.trace(f"<<< Complete message received: {repr(request)}")
+                    logger.trace(f"Complete message received: {repr(request)}")
                     break
 
             if not request or not self.is_connected:
@@ -92,34 +96,43 @@ class Protocol(ABC):
 
             if "Content-Length" in event:
                 # Get the total length from the first Content-Length header
-                length = int(event["Content-Length"].split('\n')[0])
+                length = int(event["Content-Length"].split("\n")[0])
                 logger.trace(f"Total content length: {length} bytes")
 
                 # Read the complete data
                 data = await self.reader.readexactly(length)
                 logger.trace(f"Received complete data: {data}")
                 complete_content = data.decode("utf-8")
+                contentType = event.get("Content-Type", None)
 
-                if "Content-Type" in event:
-                    content = event["Content-Type"]
+                if contentType:
                     logger.trace(f"Check content type of event: {event}")
 
-                    if content not in ["api/response", "text/rude-rejection", "log/data"]:
+                    if contentType not in [
+                        "api/response",
+                        "text/rude-rejection",
+                        "log/data",
+                    ]:
                         # Try to split headers and body
-                        if '\n\n' in complete_content:
-                            headers_part, body = complete_content.split('\n\n', 1)
+                        if "\n\n" in complete_content:
+                            headers_part, body = complete_content.split("\n\n", 1)
 
                             # Here we check for multiple events in one message (can happen if event-lock is set)
                             event_parts = []
+
                             if "event-lock: true" in headers_part.lower():
                                 # Split the string on "Event-Name: "
                                 parts = headers_part.split("\nEvent-Name: ")
+
                                 if len(parts) > 1:
-                                    # reconstruct the event parts
-                                    event_parts = [parts[0]]  # First part don't need to be modified
+                                    event_parts = [parts[0]]
+
                                     for part in parts[1:]:
                                         event_parts.append(f"Event-Name: {part}")
-                                    logger.debug(f"Split locked event into {len(event_parts)} separate events")
+
+                                    logger.debug(
+                                        f"Split locked event into {len(event_parts)} separate events"
+                                    )
                             else:
                                 event_parts = [headers_part]
 
@@ -135,7 +148,7 @@ class Protocol(ABC):
                                     # More events are new events
                                     new_event = parse_headers(event_str)
                                     # Copy some headers from the original event
-                                    for key in ['Content-Length', 'Content-Type']:
+                                    for key in ["Content-Length", "Content-Type"]:
                                         if key in event:
                                             new_event[key] = event[key]
                                     new_event.body = body
@@ -160,26 +173,45 @@ class Protocol(ABC):
             try:
                 if logger.isEnabledFor(TRACE_LEVEL_NUM):
                     logger.trace(f"Received an event: '{event}'.")
+
                 else:
                     if logger.isEnabledFor(logging.DEBUG):
-                        if "Unique-ID" in event:
-                            logtext = f"Received an event: '{event['Event-Name']}' for call '{event['Unique-ID']}'. "
-                            if event["Event-Name"] == "CHANNEL_EXECUTE_COMPLETE":
-                                logtext += f"Application: '{event['Application']}' - "
-                                logtext += f"Response: '{event['Application-Response']}'"
-                            logger.debug(logtext)
+                        name = event.get("Event-Name", None)
+                        uuid = event.get("Unique-ID", None)
+
+                        if uuid:
+                            logger.debug(
+                                f"Received an event: '{name}' for call '{uuid}'. "
+                            )
+
+                            if name == "CHANNEL_EXECUTE_COMPLETE":
+                                application = event.get("Application")
+                                response = event.get("Application-Response")
+
+                                logger.debug(
+                                    f"Application: '{application}' - Response: '{response}'."
+                                )
+
                         else:
-                            if "Event-Name" in event:
-                                logger.debug(f"Received an event: '{event['Event-Name']}'.")
-                            elif "Content-Type" in event and event["Content-Type"] in ["command/reply", "auth/request"]:
-                                if event["Content-Type"] == "command/reply":
-                                    if "Reply-Text" in event:
-                                        logger.debug(f"Received an command reply: '{event['Reply-Text']}'.")
-                                if event["Content-Type"] == "auth/request":
-                                    if "Reply-Text" in event:
-                                        logger.debug(f"Received an authentication reply: '{event}'.")
-                            else:
-                                logger.debug(f"Received an event: '{event}'.")
+                            if name:
+                                logger.debug(f"Received an event: '{name}'.")
+
+                            elif "Content-Type" in event and event["Content-Type"] in [
+                                "command/reply",
+                                "auth/request",
+                            ]:
+                                reply = event.get("Reply-Text", None)
+
+                                if reply and event["Content-Type"] == "command/reply":
+                                    logger.debug(
+                                        f"Received an command reply: '{reply}'."
+                                    )
+
+                                if reply and event["Content-Type"] == "auth/request":
+                                    logger.debug(
+                                        f"Received an authentication reply: '{event}'."
+                                    )
+
             except Exception as e:
                 logger.error(f"Error logging event: {str(e)} - Event: {event}")
 
@@ -222,18 +254,24 @@ class Protocol(ABC):
                         else:
                             create_task(to_thread(handler, event))
 
-    def on(self, key: str, handler: Union[
-           Callable[[ESLEvent], None],
-           Callable[[ESLEvent], Coroutine[Any, Any, None]]
-       ]) -> None:
+    def on(
+        self,
+        key: str,
+        handler: Union[
+            Callable[[ESLEvent], None], Callable[[ESLEvent], Coroutine[Any, Any, None]]
+        ],
+    ) -> None:
         """Associate a handler with an event key."""
         logger.debug(f"Register handler to '{key}' event.")
         self.handlers.setdefault(key, list()).append(handler)
 
-    def remove(self, key: str, handler: Union[
-           Callable[[ESLEvent], None],
-           Callable[[ESLEvent], Coroutine[Any, Any, None]]
-       ]) -> None:
+    def remove(
+        self,
+        key: str,
+        handler: Union[
+            Callable[[ESLEvent], None], Callable[[ESLEvent], Coroutine[Any, Any, None]]
+        ],
+    ) -> None:
         """Removes the HANDLER from the list of handlers for the given event KEY name."""
         logger.debug(f"Remove handler to '{key}' event.")
         if key in self.handlers and handler in self.handlers[key]:

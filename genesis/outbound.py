@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from asyncio import StreamReader, StreamWriter, Queue, start_server, Event
 from collections.abc import Callable, Coroutine
-from typing import Awaitable, NoReturn, Optional, Union, Dict
+from typing import Optional, Union, Dict
 from functools import partial
 import socket
 

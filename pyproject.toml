@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "genesis"
-version = "0.5.1"
+version = "0.5.2"
 description = "Implementation of FreeSWITCH Event Socket protocol with asyncio"
 authors = ["Vitor <vitor.hov@gmail.com>"]
 license = "MIT"
@@ -39,7 +39,7 @@ mock = "^4.0.3"
 genesis = "genesis.cli:app"
 
 [tool.pytest.ini_options]
-addopts = "--no-cov -vvv -x --full-trace --disable-pytest-warnings"
+addopts = "-vvv -x --full-trace --disable-pytest-warnings"
 asyncio_mode = "auto"
 
 [build-system]
