@@ -11,8 +11,17 @@ from urllib.parse import unquote
 
 class ESLEvent(UserDict):
     def __init__(self, *args, **kwargs):
+        self._body = kwargs.pop('body', None)
         super().__init__(*args, **kwargs)
-        self.body: Optional[str] = None
+
+    @property
+    def body(self) -> Optional[str]:
+        return self._body
+
+    @body.setter
+    def body(self, value: Optional[str]):
+        self._body = value
+        self.data['body'] = value
 
 
 def parse_headers(payload: str) -> ESLEvent:

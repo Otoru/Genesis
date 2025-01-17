@@ -156,11 +156,14 @@ class Protocol(ABC):
                             continue  # Skip the final event.put
 
                         else:
+                            logger.trace("No clear header/body separation found")
                             # If no clear header/body separation, treat everything as body
                             event.body = complete_content
                     else:
+                        logger.trace("Content-Type is api/response, text/rude-rejection or log/data")
                         event.body = complete_content
                 else:
+                    logger.trace("No Content-Type found")
                     event.body = complete_content
 
             await self.events.put(event)
