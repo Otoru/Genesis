@@ -212,3 +212,54 @@ async def test_outbound_session_send_hangup_command(
     await application.stop()
 
     spider.assert_called_with("execute", "hangup", "NORMAL_CLEARING")
+
+
+async def test_outbound_session_sendmsg_parameters(host, port, dialplan, monkeypatch, generic):
+    """Test different parameter combinations for sendmsg."""
+    spider = AsyncMock()
+    spider.return_value = generic
+    monkeypatch.setattr(Session, "sendmsg", spider)
+
+    test_cases = [
+        {
+            "args": ("execute", "playback", "/tmp/test.wav", True),
+            "kwargs": {"lock": True},
+            "desc": "with lock"
+        },
+        {
+            "args": ("execute", "playback", "/tmp/test.wav"),
+            "kwargs": {"uuid": "test-uuid-1234"},
+            "desc": "with uuid" 
+        },
+        {
+            "args": ("execute", "playback", "/tmp/test.wav"),
+            "kwargs": {"event_uuid": "test-event-5678"},
+            "desc": "with event_uuid"
+        },
+        {
+            "args": ("execute", "playback", "/tmp/test.wav"),
+            "kwargs": {"block": True},
+            "desc": "with block"
+        },
+        {
+            "args": ("execute", "playback", "/tmp/test.wav"),
+            "kwargs": {"headers": {"X-Test": "value"}},
+            "desc": "with headers"
+        }
+    ]
+
+    async def handler(session: Session) -> None:
+        for case in test_cases:
+            await session.sendmsg(*case["args"], **case["kwargs"])
+
+    address = (host(), port())
+    app = Outbound(handler, *address)
+    
+    await app.start(block=False)
+    await dialplan.start(*address)
+    await app.stop()
+    await dialplan.stop()
+
+    # Verify all calls were made with correct parameters
+    for case in test_cases:
+        spider.assert_any_call(*case["args"], **case["kwargs"])
