@@ -76,8 +76,9 @@ class Session(Protocol):
         return semaphore
 
     async def sendmsg(
-        self, command: str, application: str, data: Optional[str] = None, lock: bool = False, 
-        uuid: Optional[str] = None, event_uuid: Optional[str] = None, block: bool = False
+        self, command: str, application: str, data: Optional[str] = None, lock: bool = False,
+        uuid: Optional[str] = None, event_uuid: Optional[str] = None, block: bool = False,
+        headers: Optional[Dict[str, str]] = None
     ) -> ESLEvent:
         """
         Used to send commands from dialplan to session.
@@ -98,38 +99,44 @@ class Session(Protocol):
                 CHANNEL_EXECUTE_COMPLETE), the UUID will be in the Application-UUID header.
             block: optional
                 If true, wait for command completion before returning.
+            headers: optional
+                Additional headers to send with the command.
         """
         if uuid:
             cmd = f"sendmsg {uuid}\n"
         else:
             cmd = "sendmsg\n"
 
-        cmd += f"call-command: {command}\nexecute-app-name: {application}"
-
-        if data:
-            cmd += f"\nexecute-app-arg: {data}"
-
-        if lock:
-            cmd += f"\nevent-lock: true"
+        cmd += f"call-command: {command}\n"
 
         # Generate event_uuid if not provided and command is execute
         if command == "execute":
+            cmd += f"\nexecute-app-name: {application}"
+            if data:
+                cmd += f"\nexecute-app-arg: {data}"
             if not event_uuid:
                 event_uuid = str(uuid4())
             cmd += f"\nEvent-UUID: {event_uuid}"
 
+        if lock:
+            cmd += f"\nevent-lock: true"
+
         if command == "hangup":
             cmd += f"\nhangup-cause: {data}"
 
+        if headers:
+            for key, value in headers.items():
+                cmd += f"\n{key}: {value}"
+
         logger.debug(f"Send command to freeswitch: '{cmd}'.")
-        
+
         if block and command == "execute":
             logger.debug(f"Waiting for command completion with Application-UUID: {event_uuid}")
             command_is_complete = await self._awaitable_complete_command(application, event_uuid)
             response = await self.send(cmd)
             await command_is_complete.wait()
             return await self.fifo.get()
-        
+
         return await self.send(cmd)
 
     async def answer(self) -> ESLEvent:
