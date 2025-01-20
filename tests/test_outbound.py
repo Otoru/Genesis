@@ -222,14 +222,14 @@ async def test_outbound_session_sendmsg_parameters(host, port, dialplan, monkeyp
 
     test_cases = [
         {
-            "args": ("execute", "playback", "/tmp/test.wav", True),
+            "args": ("execute", "playback", "/tmp/test.wav"),
             "kwargs": {"lock": True},
             "desc": "with lock"
         },
         {
             "args": ("execute", "playback", "/tmp/test.wav"),
             "kwargs": {"uuid": "test-uuid-1234"},
-            "desc": "with uuid" 
+            "desc": "with uuid"
         },
         {
             "args": ("execute", "playback", "/tmp/test.wav"),
@@ -254,7 +254,7 @@ async def test_outbound_session_sendmsg_parameters(host, port, dialplan, monkeyp
 
     address = (host(), port())
     app = Outbound(handler, *address)
-    
+
     await app.start(block=False)
     await dialplan.start(*address)
     await app.stop()
@@ -262,4 +262,7 @@ async def test_outbound_session_sendmsg_parameters(host, port, dialplan, monkeyp
 
     # Verify all calls were made with correct parameters
     for case in test_cases:
-        spider.assert_any_call(*case["args"], **case["kwargs"])
+        expected_args = case["args"]
+        expected_kwargs = case["kwargs"]
+        spider.assert_any_call(*expected_args, **expected_kwargs)
+
