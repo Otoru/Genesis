@@ -117,8 +117,6 @@ class Session(Protocol):
             if not event_uuid:
                 event_uuid = str(uuid4())
             cmd += f"\nEvent-UUID: {event_uuid}"
-        else:
-            cmd += f"\nEvent-UUID: {uuid4()}"
 
         if command == "hangup":
             cmd += f"\nhangup-cause: {data}"
