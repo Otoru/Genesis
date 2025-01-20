@@ -103,11 +103,11 @@ class Session(Protocol):
                 Additional headers to send with the command.
         """
         if uuid:
-            cmd = f"sendmsg {uuid}\n"
+            cmd = f"sendmsg {uuid}"
         else:
-            cmd = "sendmsg\n"
+            cmd = "sendmsg"
 
-        cmd += f"call-command: {command}\n"
+        cmd += f"\ncall-command: {command}"
 
         # Generate event_uuid if not provided and command is execute
         if command == "execute":
