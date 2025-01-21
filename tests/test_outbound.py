@@ -220,6 +220,9 @@ async def test_outbound_session_sendmsg_parameters(host, port, dialplan, monkeyp
     spider.return_value = generic
     monkeypatch.setattr(Session, "sendmsg", spider)
 
+    # Add an Event to track completion
+    test_complete = Event()
+
     test_cases = [
         {
             "args": ("execute", "playback", "/tmp/test.wav"),
@@ -251,12 +254,18 @@ async def test_outbound_session_sendmsg_parameters(host, port, dialplan, monkeyp
     async def handler(session: Session) -> None:
         for case in test_cases:
             await session.sendmsg(*case["args"], **case["kwargs"])
+        # Signal that all calls are complete
+        test_complete.set()
 
     address = (host(), port())
     app = Outbound(handler, *address)
 
     await app.start(block=False)
     await dialplan.start(*address)
+
+    # Wait for all calls to complete before stopping
+    await test_complete.wait()
+
     await app.stop()
     await dialplan.stop()
 
