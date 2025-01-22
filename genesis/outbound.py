@@ -11,6 +11,7 @@ from asyncio import StreamReader, StreamWriter, Queue, start_server, Event
 from collections.abc import Callable, Coroutine
 from typing import Optional, Union, Dict
 from functools import partial
+from uuid import uuid4
 import socket
 
 from genesis.protocol import Protocol
@@ -48,12 +49,13 @@ class Session(Protocol):
         """Interface used to implement a context manager."""
         await self.stop()
 
-    async def _awaitable_complete_command(self, application: str) -> Event:
+    async def _awaitable_complete_command(self, application: str, event_uuid: str) -> Event:
         """
         Create an event that will be set when a command completes.
 
         Args:
             application: Name of the application to wait for completion
+            event_uuid: UUID to track the specific command execution
 
         Returns:
             Event that will be set when command completes
@@ -63,30 +65,78 @@ class Session(Protocol):
         async def handler(session: Session, event: ESLEvent):
             logger.debug(f"Received channel execute complete event: {event}")
 
-            if "variable_current_application" in event:
-                if event["variable_current_application"] == application:
-                    await session.fifo.put(event)
-                    semaphore.set()
-                    self.remove("CHANNEL_EXECUTE_COMPLETE", handler)
+            if "Application-UUID" in event and event["Application-UUID"] == event_uuid:
+                await session.fifo.put(event)
+                semaphore.set()
+                self.remove("CHANNEL_EXECUTE_COMPLETE", handler)
 
-        logger.debug(f"Register event handler to {application} complete event")
+        logger.debug(f"Register event handler for Application-UUID: {event_uuid}")
         self.on("CHANNEL_EXECUTE_COMPLETE", partial(handler, self))
 
         return semaphore
 
     async def sendmsg(
-        self, command: str, application: str, data: Optional[str] = None, lock=False
+        self, command: str, application: str, data: Optional[str] = None, lock: bool = False,
+        uuid: Optional[str] = None, event_uuid: Optional[str] = None, block: bool = False,
+        headers: Optional[Dict[str, str]] = None
     ) -> ESLEvent:
-        """Used to send commands from dialplan to session."""
-        cmd = f"sendmsg\ncall-command: {command}\nexecute-app-name: {application}"
+        """
+        Used to send commands from dialplan to session.
 
-        if data:
-            cmd += f"\nexecute-app-arg: {data}"
+        Args:
+            command: required
+                Command to send to freeswitch. One of: execute, hangup, unicast, nomedia, xferext
+            application: required
+                Dialplan application to execute.
+            data: optional
+                Arguments to send to the application. If the command is 'hangup', this is the cause.
+            lock: optional
+                If true, lock the event.
+            uuid: optional
+                UUID of the call/session/channel to send the command.
+            event_uuid: optional
+                Adds a UUID to the execute command. In the corresponding events (CHANNEL_EXECUTE and
+                CHANNEL_EXECUTE_COMPLETE), the UUID will be in the Application-UUID header.
+            block: optional
+                If true, wait for command completion before returning.
+            headers: optional
+                Additional headers to send with the command.
+        """
+        if uuid:
+            cmd = f"sendmsg {uuid}"
+        else:
+            cmd = "sendmsg"
+
+        cmd += f"\ncall-command: {command}"
+
+        # Generate event_uuid if not provided and command is execute
+        if command == "execute":
+            cmd += f"\nexecute-app-name: {application}"
+            if data:
+                cmd += f"\nexecute-app-arg: {data}"
+            if not event_uuid:
+                event_uuid = str(uuid4())
+            cmd += f"\nEvent-UUID: {event_uuid}"
 
         if lock:
             cmd += f"\nevent-lock: true"
 
+        if command == "hangup":
+            cmd += f"\nhangup-cause: {data}"
+
+        if headers:
+            for key, value in headers.items():
+                cmd += f"\n{key}: {value}"
+
         logger.debug(f"Send command to freeswitch: '{cmd}'.")
+
+        if block and command == "execute":
+            logger.debug(f"Waiting for command completion with Application-UUID: {event_uuid}")
+            command_is_complete = await self._awaitable_complete_command(application, event_uuid)
+            response = await self.send(cmd)
+            await command_is_complete.wait()
+            return await self.fifo.get()
+
         return await self.send(cmd)
 
     async def answer(self) -> ESLEvent:
@@ -103,17 +153,7 @@ class Session(Protocol):
 
     async def playback(self, path: str, block=True) -> ESLEvent:
         """Requests the freeswitch to play an audio."""
-        if not block:
-            return await self.sendmsg("execute", "playback", path)
-
-        logger.debug("Send playback command to freeswitch with block behavior.")
-        command_is_complete = await self._awaitable_complete_command("playback")
-        response = await self.sendmsg("execute", "playback", path)
-
-        logger.debug("Await playback complete event...")
-        await command_is_complete.wait()
-
-        return response
+        return await self.sendmsg("execute", "playback", path, block=block)
 
     async def say(
         self,
@@ -131,22 +171,7 @@ class Session(Protocol):
 
         arguments = f"{module} {kind} {method} {gender} {text}"
         logger.debug(f"Arguments used in say command: {arguments}")
-
-        if not block:
-            return await self.sendmsg("execute", "say", arguments)
-
-        logger.debug("Send say command to freeswitch with block behavior.")
-        command_is_complete = await self._awaitable_complete_command("say")
-        response = await self.sendmsg("execute", "say", arguments)
-        logger.debug(f"Response of say command: {response}")
-
-        logger.debug("Await say complete event...")
-        await command_is_complete.wait()
-
-        event = await self.fifo.get()
-        logger.debug(f"Execute complete event received: {event}")
-
-        return event
+        return await self.sendmsg("execute", "say", arguments, block=block)
 
     async def play_and_get_digits(
         self,
@@ -180,26 +205,8 @@ class Session(Protocol):
         formated_ordered_arguments = map(formatter, ordered_arguments)
         arguments = " ".join(formated_ordered_arguments)
         logger.debug(f"Arguments used in play_and_get_digits command: {arguments}")
-
-        if not block:
-            return await self.sendmsg("execute", "play_and_get_digits", arguments)
-
-        logger.debug(
-            "Send play_and_get_digits command to freeswitch with block behavior."
-        )
-        command_is_complete = await self._awaitable_complete_command(
-            "play_and_get_digits"
-        )
-        response = await self.sendmsg("execute", "play_and_get_digits", arguments)
-        logger.debug(f"Response of play_and_get_digits command: {response}")
-
-        logger.debug("Await play_and_get_digits complete event...")
-        await command_is_complete.wait()
-
-        event = await self.fifo.get()
-        logger.debug(f"Execute complete event received: {event}")
-
-        return event
+        
+        return await self.sendmsg("execute", "play_and_get_digits", arguments, block=block)
 
 
 class Outbound:
