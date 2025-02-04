@@ -39,7 +39,7 @@ mock = "^4.0.3"
 genesis = "genesis.cli:app"
 
 [tool.pytest.ini_options]
-addopts = "-vvv -x --full-trace --disable-pytest-warnings"
+addopts = "-vvv -x --full-trace"
 asyncio_mode = "auto"
 
 [build-system]

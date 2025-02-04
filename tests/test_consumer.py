@@ -33,6 +33,7 @@ cases = [
 
 @pytest.mark.parametrize("content", cases)
 @pytest.mark.filterwarnings("ignore: coroutine")
+@pytest.mark.filterwarnings("ignore: There is no current event loop")
 async def test_decorator_behavior(content):
     """Validates decorator behavior."""
     handler = AsyncMock()

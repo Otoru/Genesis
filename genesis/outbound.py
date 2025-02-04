@@ -8,9 +8,10 @@ ESL implementation used for outgoing connections on freeswitch.
 from __future__ import annotations
 
 from asyncio import StreamReader, StreamWriter, Queue, start_server, Event
+from typing import Optional, Union, Dict, Literal
 from collections.abc import Callable, Coroutine
-from typing import Optional, Union, Dict
 from functools import partial
+from pprint import pformat
 from uuid import uuid4
 import socket
 
@@ -49,12 +50,11 @@ class Session(Protocol):
         """Interface used to implement a context manager."""
         await self.stop()
 
-    async def _awaitable_complete_command(self, application: str, event_uuid: str) -> Event:
+    async def _awaitable_complete_command(self, event_uuid: str) -> Event:
         """
         Create an event that will be set when a command completes.
 
         Args:
-            application: Name of the application to wait for completion
             event_uuid: UUID to track the specific command execution
 
         Returns:
@@ -76,9 +76,15 @@ class Session(Protocol):
         return semaphore
 
     async def sendmsg(
-        self, command: str, application: str, data: Optional[str] = None, lock: bool = False,
-        uuid: Optional[str] = None, event_uuid: Optional[str] = None, block: bool = False,
-        headers: Optional[Dict[str, str]] = None
+        self,
+        command: str,
+        application: str,
+        data: Optional[str] = None,
+        lock: bool = False,
+        uuid: Optional[str] = None,
+        event_uuid: Optional[str] = None,
+        block: bool = False,
+        headers: Optional[Dict[str, str]] = None,
     ) -> ESLEvent:
         """
         Used to send commands from dialplan to session.
@@ -131,13 +137,28 @@ class Session(Protocol):
         logger.debug(f"Send command to freeswitch: '{cmd}'.")
 
         if block and command == "execute":
-            logger.debug(f"Waiting for command completion with Application-UUID: {event_uuid}")
-            command_is_complete = await self._awaitable_complete_command(application, event_uuid)
+            logger.debug(
+                f"Waiting for command completion with Application-UUID: {event_uuid}"
+            )
+            command_is_complete = await self._awaitable_complete_command(event_uuid)
             response = await self.send(cmd)
+            logger.debug(
+                f"Recived reponse of execute command with block: {pformat(response)}"
+            )
             await command_is_complete.wait()
             return await self.fifo.get()
 
         return await self.send(cmd)
+
+    async def log(
+        self,
+        level: Literal[
+            "CONSOLE", "ALERT", "CRIT", "ERR", "WARNING", "NOTICE", "INFO", "DEBUG"
+        ],
+        message: str,
+    ) -> ESLEvent:
+        """Log a message to FreeSWITCH using dp tools log."""
+        return await self.sendmsg("execute", "log", f"{level} {message}")
 
     async def answer(self) -> ESLEvent:
         """Answer the call associated with the session."""
@@ -205,8 +226,10 @@ class Session(Protocol):
         formated_ordered_arguments = map(formatter, ordered_arguments)
         arguments = " ".join(formated_ordered_arguments)
         logger.debug(f"Arguments used in play_and_get_digits command: {arguments}")
-        
-        return await self.sendmsg("execute", "play_and_get_digits", arguments, block=block)
+
+        return await self.sendmsg(
+            "execute", "play_and_get_digits", arguments, block=block
+        )
 
 
 class Outbound:
