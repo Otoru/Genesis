@@ -1,0 +1,50 @@
+name: Bump Version
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  bump-version:
+    name: Bump Version
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          installer-parallel: true
+          virtualenvs-in-project: true
+
+      - name: Detect and bump version
+        id: version
+        run: |
+          # Detect version bump based on commit messages
+          if [[ "$(git log -1 --pretty=%B)" == *"(major)"* ]]; then
+            poetry version major
+          elif [[ "$(git log -1 --pretty=%B)" == *"(minor)"* ]]; then
+            poetry version minor
+          else
+            poetry version patch
+          fi
+          echo "🚀 New version: $(poetry version -s)"
+
+      - name: Commit and push updated version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml
+          git commit -m "🚀 Bump version of project to $(poetry version -s)"
+          git push origin main
