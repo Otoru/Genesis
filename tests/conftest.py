@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from asyncio import (
+    get_event_loop_policy,
     open_connection,
     ensure_future,
     StreamReader,
@@ -733,7 +734,10 @@ class Freeswitch(ESLMixin):
             self.server.close()
 
             if self.processor:
-                self.processor.cancel()
+                try:
+                    self.processor.cancel()
+                except RuntimeError:
+                    pass
 
         await sleep(0.00001)
 
@@ -820,22 +824,29 @@ class Freeswitch(ESLMixin):
                 await self.command(writer, "-ERR command not found")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
+def event_loop(request: pytest.FixtureRequest):
+    loop = get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture(scope="session")
 async def host() -> Callable[[], str]:
     return lambda: socket.gethostbyname(socket.gethostname())
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 async def port() -> Callable[[], int]:
     return lambda: get_free_tcp_port()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 async def password() -> Callable[[], str]:
     return lambda: get_random_password(7)
 
 
-@pytest.fixture
+@pytest.fixture()
 async def freeswitch(host, port, password) -> Freeswitch:
     server = Freeswitch(host(), port(), password())
     return server
