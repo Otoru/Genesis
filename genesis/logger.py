@@ -30,15 +30,15 @@ def get_log_level() -> int:
     Returns logging level constant.
     """
     level_map = {
-        'TRACE': TRACE_LEVEL_NUM,
-        'DEBUG': logging.DEBUG,
-        'INFO': logging.INFO,
-        'WARNING': logging.WARNING,
-        'ERROR': logging.ERROR,
-        'CRITICAL': logging.CRITICAL
+        "TRACE": TRACE_LEVEL_NUM,
+        "DEBUG": logging.DEBUG,
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL,
     }
 
-    env_level = os.getenv('GENESIS_LOG_LEVEL', 'INFO').upper()
+    env_level = os.getenv("GENESIS_LOG_LEVEL", "INFO").upper()
     return level_map.get(env_level, logging.INFO)
 
 
@@ -63,7 +63,7 @@ def setup_logger(name: str = __name__) -> logging.Logger:
         markup=True,
         show_path=False,
         show_time=True,
-        omit_repeated_times=False
+        omit_repeated_times=False,
     )
 
     formatter = logging.Formatter("%(message)s")
