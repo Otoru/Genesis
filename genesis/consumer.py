@@ -13,7 +13,9 @@ from genesis.inbound import Inbound
 from genesis.logger import logger
 
 
-def filtrate(key: str, value: Optional[str] = None, regex: bool = False) -> Union[Callable, Coroutine]:
+def filtrate(
+    key: str, value: Optional[str] = None, regex: bool = False
+) -> Union[Callable, Coroutine]:
     """
     Method that allows to filter the events according to a set 'key', 'value'.
 

@@ -23,9 +23,9 @@ async def test_send_command_without_connection():
         await client.send("uptime")
 
 
-async def test_connect_without_freeswitch():
+async def test_connect_without_freeswitch(port):
     with pytest.raises((ConnectionRefusedError, OSError)):
-        async with Inbound("0.0.0.0", 8021, "ClueCon"):
+        async with Inbound("0.0.0.0", port(), "ClueCon"):
             await asyncio.sleep(1)
 
 

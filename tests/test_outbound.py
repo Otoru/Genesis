@@ -214,7 +214,9 @@ async def test_outbound_session_send_hangup_command(
     spider.assert_called_with("execute", "hangup", "NORMAL_CLEARING")
 
 
-async def test_outbound_session_sendmsg_parameters(host, port, dialplan, monkeypatch, generic):
+async def test_outbound_session_sendmsg_parameters(
+    host, port, dialplan, monkeypatch, generic
+):
     """Test different parameter combinations for sendmsg."""
     spider = AsyncMock()
     spider.return_value = generic
@@ -227,28 +229,28 @@ async def test_outbound_session_sendmsg_parameters(host, port, dialplan, monkeyp
         {
             "args": ("execute", "playback", "/tmp/test.wav"),
             "kwargs": {"lock": True},
-            "desc": "with lock"
+            "desc": "with lock",
         },
         {
             "args": ("execute", "playback", "/tmp/test.wav"),
             "kwargs": {"uuid": "test-uuid-1234"},
-            "desc": "with uuid"
+            "desc": "with uuid",
         },
         {
             "args": ("execute", "playback", "/tmp/test.wav"),
             "kwargs": {"event_uuid": "test-event-5678"},
-            "desc": "with event_uuid"
+            "desc": "with event_uuid",
         },
         {
             "args": ("execute", "playback", "/tmp/test.wav"),
             "kwargs": {"block": True},
-            "desc": "with block"
+            "desc": "with block",
         },
         {
             "args": ("execute", "playback", "/tmp/test.wav"),
             "kwargs": {"headers": {"X-Test": "value"}},
-            "desc": "with headers"
-        }
+            "desc": "with headers",
+        },
     ]
 
     async def handler(session: Session) -> None:
@@ -274,4 +276,3 @@ async def test_outbound_session_sendmsg_parameters(host, port, dialplan, monkeyp
         expected_args = case["args"]
         expected_kwargs = case["kwargs"]
         spider.assert_any_call(*expected_args, **expected_kwargs)
-
