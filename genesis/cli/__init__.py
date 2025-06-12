@@ -40,5 +40,5 @@ def callback(
 
     Run yours freeswitch apps without any external dependencies.
 
-    ℹ️ Read more in the docs: [link]https://github.com/Otoru/Genesis/wiki[/link].
+    ℹ️ Read more in the docs: [link]https://otoru.github.io/Genesis/[/link].
     """

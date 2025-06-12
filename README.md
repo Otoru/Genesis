@@ -21,11 +21,34 @@ ESL is a way to communicate with FreeSwitch. See more details [here](https://fre
 
 ## Why asyncio?
 
+
 Asynchronous programming is a type of parallel programming in which a unit of work is allowed to run separately from the primary application thread. When the work is complete, it notifies the main thread about completion or failure of the worker thread. There are numerous benefits to using it, such as improved application performance and enhanced responsiveness. We adopted this way of working, as integrating genesis with other applications is simpler, since you only need to deal with python's native asynchronous programming interface.
+
+## Installation
+
+Install Genesis using pip:
+
+```bash
+pip install genesis
+```
 
 ## Docs
 
-The project documentation is in [here](https://github.com/Otoru/Genesis/wiki).
+Full documentation is available on the [documentation website](https://otoru.github.io/Genesis/).
+To preview the docs locally, install [Hugo](https://gohugo.io) and run:
+
+```bash
+hugo --source docs --serve
+```
+
+## Running tests
+
+Install development dependencies with [Poetry](https://python-poetry.org) and execute the test suite using [tox](https://tox.wiki):
+
+```bash
+poetry install
+tox
+```
 
 ## How to contribute?
 

@@ -1,4 +1,4 @@
-baseURL = 'https://otoru.github.io/genesis'
+baseURL = 'https://otoru.github.io/Genesis/'
 languageCode = 'en-us'
 title = 'Genesis'
 theme = 'book'
