@@ -18,7 +18,7 @@ jobs:
           hugo-version: 'latest'
 
       - name: Build do site
-        run: hugo --destination docs
+        run: hugo --source docs --destination ../public
 
       - name: Deploy para GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
