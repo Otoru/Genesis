@@ -37,13 +37,22 @@ def filtrate(
                     content = message[key]
 
                     if value is None:
-                        return function(message)
+                        result = function(message)
+                        if asyncio.iscoroutine(result):
+                            return await result
+                        return result
 
                     if not regex and content == value:
-                        return function(message)
+                        result = function(message)
+                        if asyncio.iscoroutine(result):
+                            return await result
+                        return result
 
                     if regex and re.match(value, content):
-                        return function(message)
+                        result = function(message)
+                        if asyncio.iscoroutine(result):
+                            return await result
+                        return result
 
         return wrapper
 
