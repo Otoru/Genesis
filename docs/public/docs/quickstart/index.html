@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en-us" dir="ltr">
+<head><script src="/genesis/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=genesis/livereload" data-no-instant defer></script>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="
+  Quickstart
+  #
+
+Genesis can be used in three main ways. Below we will briefly address each of them.
+
+  Inbound Socket Mode
+  #
+
+An inbound socket app made with Genesis looks like this:
+import asyncio
+from genesis import Inbound
+
+async def uptime():
+    async with Inbound(&#34;127.0.0.1&#34;, 8021, &#34;ClueCon&#34;) as client:
+        return await client.send(&#34;uptime&#34;)
+
+async def main():
+    response = await uptime()
+    print(response)
+
+asyncio.run(main())
+So what does this code do?
+
+We create an async function with uptime name.
+In it, we use the Inbound class as an asynchronous context manager to connect to the freeswitch.
+The connection is made at address 127.0.0.1 on port 8021 and authentication is done with the ClueCon password.
+With the connection established, we send the uptime command to the server.
+In the main function, we call this function to display the command return on the screen.
+
+
+  Incoming Event handler
+  #
+
+An event handler app made with Genesis looks like this:">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#343a40">
+<meta name="color-scheme" content="light dark"><meta property="og:url" content="http://localhost:1313/genesis/docs/quickstart/">
+  <meta property="og:site_name" content="Genesis">
+  <meta property="og:title" content="Genesis">
+  <meta property="og:description" content="Quickstart # Genesis can be used in three main ways. Below we will briefly address each of them.
+Inbound Socket Mode # An inbound socket app made with Genesis looks like this:
+import asyncio from genesis import Inbound async def uptime(): async with Inbound(&#34;127.0.0.1&#34;, 8021, &#34;ClueCon&#34;) as client: return await client.send(&#34;uptime&#34;) async def main(): response = await uptime() print(response) asyncio.run(main()) So what does this code do?
+We create an async function with uptime name. In it, we use the Inbound class as an asynchronous context manager to connect to the freeswitch. The connection is made at address 127.0.0.1 on port 8021 and authentication is done with the ClueCon password. With the connection established, we send the uptime command to the server. In the main function, we call this function to display the command return on the screen. Incoming Event handler # An event handler app made with Genesis looks like this:">
+  <meta property="og:locale" content="en_us">
+  <meta property="og:type" content="website">
+<title>Quickstart | Genesis</title>
+<link rel="icon" href="/genesis/favicon.png" >
+<link rel="manifest" href="/genesis/manifest.json">
+<link rel="canonical" href="http://localhost:1313/genesis/docs/quickstart/">
+<link rel="stylesheet" href="/genesis/book.min.d5e59cb0aa8d22a5813c62cd5e25d3d172489a369c61dc3f622ee96ae1ebb457.css" integrity="sha256-1eWcsKqNIqWBPGLNXiXT0XJImjacYdw/Yi7pauHrtFc=" crossorigin="anonymous">
+  <script defer src="/genesis/fuse.min.js"></script>
+  <script defer src="/genesis/en.search.min.c1b997aa75f5c5cf8ee89f8df49478d1f1124c7382ea22b378243cf106b8a076.js" integrity="sha256-wbmXqnX1xc&#43;O6J&#43;N9JR40fESTHOC6iKzeCQ88Qa4oHY=" crossorigin="anonymous"></script>
+<link rel="alternate" type="application/rss+xml" href="http://localhost:1313/genesis/docs/quickstart/index.xml" title="Genesis" />
+<!--
+Made with Book Theme
+https://github.com/alex-shpak/hugo-book
+-->
+  
+</head>
+<body dir="ltr">
+  <input type="checkbox" class="hidden toggle" id="menu-control" />
+  <input type="checkbox" class="hidden toggle" id="toc-control" />
+  <main class="container flex">
+    <aside class="book-menu">
+      <div class="book-menu-content">
+        
+  <nav>
+<h2 class="book-brand">
+  <a class="flex align-center" href="/genesis/"><span>Genesis</span>
+  </a>
+</h2>
+
+
+<div class="book-search hidden">
+  <input type="text" id="book-search-input" placeholder="Search" aria-label="Search" maxlength="64" data-hotkeys="s/" />
+  <div class="book-search-spinner hidden"></div>
+  <ul id="book-search-results"></ul>
+</div>
+<script>document.querySelector(".book-search").classList.remove("hidden")</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/genesis/docs/installation/" class="">Installation</a>
+  
+
+          
+  <ul>
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/genesis/docs/quickstart/" class="active">Quickstart</a>
+  
+
+          
+  <ul>
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/genesis/docs/tools/" class="">Tools</a>
+  
+
+          
+  <ul>
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/genesis/docs/esl-events-structure/" class="">ESL events structure</a>
+  
+
+          
+  <ul>
+    
+  </ul>
+
+        </li>
+      
+    
+  </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</nav>
+
+
+
+
+  <script>(function(){var e=document.querySelector("aside .book-menu-content");addEventListener("beforeunload",function(){localStorage.setItem("menu.scrollTop",e.scrollTop)}),e.scrollTop=localStorage.getItem("menu.scrollTop")})()</script>
+
+
+ 
+      </div>
+    </aside>
+
+    <div class="book-page">
+      <header class="book-header">
+        
+  <div class="flex align-center justify-between">
+  <label for="menu-control">
+    <img src="/genesis/svg/menu.svg" class="book-icon" alt="Menu" />
+  </label>
+
+  <h3>Quickstart</h3>
+
+  <label for="toc-control">
+    
+    <img src="/genesis/svg/toc.svg" class="book-icon" alt="Table of Contents" />
+    
+  </label>
+</div>
+
+
+  
+  <aside class="hidden clearfix">
+    
+  
+<nav id="TableOfContents">
+  <ul>
+    <li><a href="#inbound-socket-mode">Inbound Socket Mode</a></li>
+    <li><a href="#incoming-event-handler">Incoming Event handler</a></li>
+    <li><a href="#outbound-socket-mode">Outbound Socket Mode</a></li>
+  </ul>
+</nav>
+
+
+
+  </aside>
+  
+ 
+      </header>
+
+      
+      
+  <article class="markdown book-article"><h1 id="quickstart">
+  Quickstart
+  <a class="anchor" href="#quickstart">#</a>
+</h1>
+<p>Genesis can be used in three main ways. Below we will briefly address each of them.</p>
+<h2 id="inbound-socket-mode">
+  Inbound Socket Mode
+  <a class="anchor" href="#inbound-socket-mode">#</a>
+</h2>
+<p>An inbound socket app made with Genesis looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">import</span> asyncio
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> genesis <span style="color:#f92672">import</span> Inbound
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">async</span> <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">uptime</span>():
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">async</span> <span style="color:#66d9ef">with</span> Inbound(<span style="color:#e6db74">&#34;127.0.0.1&#34;</span>, <span style="color:#ae81ff">8021</span>, <span style="color:#e6db74">&#34;ClueCon&#34;</span>) <span style="color:#66d9ef">as</span> client:
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">await</span> client<span style="color:#f92672">.</span>send(<span style="color:#e6db74">&#34;uptime&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">async</span> <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">main</span>():
+</span></span><span style="display:flex;"><span>    response <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> uptime()
+</span></span><span style="display:flex;"><span>    print(response)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>asyncio<span style="color:#f92672">.</span>run(main())
+</span></span></code></pre></div><p>So what does this code do?</p>
+<ul>
+<li>We create an async function with <code>uptime</code> name.</li>
+<li>In it, we use the <code>Inbound</code> class as an asynchronous context manager to connect to the freeswitch.</li>
+<li>The connection is made at address <code>127.0.0.1</code> on port <code>8021</code> and authentication is done with the <code>ClueCon</code> password.</li>
+<li>With the connection established, we send the <code>uptime</code> command to the server.</li>
+<li>In the main function, we call this function to display the command return on the screen.</li>
+</ul>
+<h2 id="incoming-event-handler">
+  Incoming Event handler
+  <a class="anchor" href="#incoming-event-handler">#</a>
+</h2>
+<p>An event handler app made with Genesis looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">import</span> asyncio
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> genesis <span style="color:#f92672">import</span> Consumer
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>app <span style="color:#f92672">=</span> Consumer(<span style="color:#e6db74">&#34;127.0.0.1&#34;</span>, <span style="color:#ae81ff">8021</span>, <span style="color:#e6db74">&#34;ClueCon&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">@app.handle</span>(<span style="color:#e6db74">&#34;HEARTBEAT&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">async</span> <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">handler</span>(event):
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> asyncio<span style="color:#f92672">.</span>sleep(<span style="color:#ae81ff">0.001</span>)
+</span></span><span style="display:flex;"><span>    print(event)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>asyncio<span style="color:#f92672">.</span>run(app<span style="color:#f92672">.</span>start())
+</span></span></code></pre></div><p>So what does this code do?</p>
+<ul>
+<li>We create an application with the <code>Consumer</code> class.</li>
+<li>The connection is established using the address <code>127.0.0.1</code> on port <code>8021</code> and authentication is done with the <code>ClueCon</code> password.</li>
+<li>We use the <code>@app.handler</code> decorator to define a <code>handler</code> function and define that it will be used to handle all <code>HEARTBEAT</code> events that are received.</li>
+<li>We start the consumer with the <code>app.start()</code> instruction.</li>
+</ul>
+<h2 id="outbound-socket-mode">
+  Outbound Socket Mode
+  <a class="anchor" href="#outbound-socket-mode">#</a>
+</h2>
+<p>An outbound socket app made with Genesis looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">import</span> asyncio
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> genesis <span style="color:#f92672">import</span> Outbound
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">async</span> <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">handler</span>(session):
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> session<span style="color:#f92672">.</span>answer()
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> session<span style="color:#f92672">.</span>playback(<span style="color:#e6db74">&#39;ivr/ivr-welcome&#39;</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> session<span style="color:#f92672">.</span>hangup()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>app <span style="color:#f92672">=</span> Outbound(<span style="color:#e6db74">&#34;127.0.0.1&#34;</span>, <span style="color:#ae81ff">5000</span>, handler)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>asyncio<span style="color:#f92672">.</span>run(app<span style="color:#f92672">.</span>start())
+</span></span></code></pre></div><p>And the dialplan should have an entry similar to this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-xml" data-lang="xml"><span style="display:flex;"><span><span style="color:#f92672">&lt;extension</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">&#34;out socket&#34;</span><span style="color:#f92672">&gt;</span>
+</span></span><span style="display:flex;"><span>   <span style="color:#f92672">&lt;condition&gt;</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&lt;action</span> <span style="color:#a6e22e">application=</span><span style="color:#e6db74">&#34;socket&#34;</span> <span style="color:#a6e22e">data=</span><span style="color:#e6db74">&#34;127.0.0.1:5000 async full&#34;</span><span style="color:#f92672">/&gt;</span>
+</span></span><span style="display:flex;"><span>   <span style="color:#f92672">&lt;/condition&gt;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">&lt;/extension&gt;</span>
+</span></span></code></pre></div><p>So what does this code do?</p>
+<ul>
+<li>We define a <code>handler</code> function that will handle all sessions established with the application.</li>
+<li>We create an application that will listen on address <code>127.0.0.1</code>, on port <code>5000</code> and will use the <code>handler</code> function to handle connections.</li>
+<li>We start the application with the <code>app.start()</code> instruction.</li>
+</ul>
+</article>
+ 
+      
+
+      <footer class="book-footer">
+        
+  <div class="flex flex-wrap justify-between">
+
+
+
+
+
+</div>
+
+
+
+  <script>(function(){function e(e){const t=window.getSelection(),n=document.createRange();n.selectNodeContents(e),t.removeAllRanges(),t.addRange(n)}document.querySelectorAll("pre code").forEach(t=>{t.addEventListener("click",function(){if(window.getSelection().toString())return;e(t.parentElement),navigator.clipboard&&navigator.clipboard.writeText(t.parentElement.textContent)})})})()</script>
+
+
+ 
+        
+      </footer>
+
+      
+  
+  <div class="book-comments">
+
+</div>
+  
+ 
+
+      <label for="menu-control" class="hidden book-menu-overlay"></label>
+    </div>
+
+    
+    <aside class="book-toc">
+      <div class="book-toc-content">
+        
+  
+<nav id="TableOfContents">
+  <ul>
+    <li><a href="#inbound-socket-mode">Inbound Socket Mode</a></li>
+    <li><a href="#incoming-event-handler">Incoming Event handler</a></li>
+    <li><a href="#outbound-socket-mode">Outbound Socket Mode</a></li>
+  </ul>
+</nav>
+
+
+ 
+      </div>
+    </aside>
+    
+  </main>
+
+  
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+

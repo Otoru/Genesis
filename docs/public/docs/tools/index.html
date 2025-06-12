@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en-us" dir="ltr">
+<head><script src="/genesis/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=genesis/livereload" data-no-instant defer></script>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="
+  tools
+  #
+
+Here we will list some methods that may be useful during the development of a Genesis project.
+
+  Command Line Interface
+  #
+
+The Genesis CLI provides commands to run and manage your FreeSWITCH Event Socket applications. Below are the available commands and their usage.
+
+  Usage
+  #
+
+genesis [OPTIONS] COMMAND [ARGS]...
+
+  Options
+  #
+
+
+  
+      
+          Option
+          Description
+      
+  
+  
+      
+          &ndash;version
+          Show the version and exit.
+      
+  
+
+
+  genesis consumer
+  #
+
+Run your ESL events consumer.">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#343a40">
+<meta name="color-scheme" content="light dark"><meta property="og:url" content="http://localhost:1313/genesis/docs/tools/">
+  <meta property="og:site_name" content="Genesis">
+  <meta property="og:title" content="Genesis">
+  <meta property="og:description" content="tools # Here we will list some methods that may be useful during the development of a Genesis project.
+Command Line Interface # The Genesis CLI provides commands to run and manage your FreeSWITCH Event Socket applications. Below are the available commands and their usage.
+Usage # genesis [OPTIONS] COMMAND [ARGS]... Options # Option Description –version Show the version and exit. genesis consumer # Run your ESL events consumer.">
+  <meta property="og:locale" content="en_us">
+  <meta property="og:type" content="website">
+<title>Tools | Genesis</title>
+<link rel="icon" href="/genesis/favicon.png" >
+<link rel="manifest" href="/genesis/manifest.json">
+<link rel="canonical" href="http://localhost:1313/genesis/docs/tools/">
+<link rel="stylesheet" href="/genesis/book.min.d5e59cb0aa8d22a5813c62cd5e25d3d172489a369c61dc3f622ee96ae1ebb457.css" integrity="sha256-1eWcsKqNIqWBPGLNXiXT0XJImjacYdw/Yi7pauHrtFc=" crossorigin="anonymous">
+  <script defer src="/genesis/fuse.min.js"></script>
+  <script defer src="/genesis/en.search.min.c1b997aa75f5c5cf8ee89f8df49478d1f1124c7382ea22b378243cf106b8a076.js" integrity="sha256-wbmXqnX1xc&#43;O6J&#43;N9JR40fESTHOC6iKzeCQ88Qa4oHY=" crossorigin="anonymous"></script>
+<link rel="alternate" type="application/rss+xml" href="http://localhost:1313/genesis/docs/tools/index.xml" title="Genesis" />
+<!--
+Made with Book Theme
+https://github.com/alex-shpak/hugo-book
+-->
+  
+</head>
+<body dir="ltr">
+  <input type="checkbox" class="hidden toggle" id="menu-control" />
+  <input type="checkbox" class="hidden toggle" id="toc-control" />
+  <main class="container flex">
+    <aside class="book-menu">
+      <div class="book-menu-content">
+        
+  <nav>
+<h2 class="book-brand">
+  <a class="flex align-center" href="/genesis/"><span>Genesis</span>
+  </a>
+</h2>
+
+
+<div class="book-search hidden">
+  <input type="text" id="book-search-input" placeholder="Search" aria-label="Search" maxlength="64" data-hotkeys="s/" />
+  <div class="book-search-spinner hidden"></div>
+  <ul id="book-search-results"></ul>
+</div>
+<script>document.querySelector(".book-search").classList.remove("hidden")</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/genesis/docs/installation/" class="">Installation</a>
+  
+
+          
+  <ul>
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/genesis/docs/quickstart/" class="">Quickstart</a>
+  
+
+          
+  <ul>
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/genesis/docs/tools/" class="active">Tools</a>
+  
+
+          
+  <ul>
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/genesis/docs/esl-events-structure/" class="">ESL events structure</a>
+  
+
+          
+  <ul>
+    
+  </ul>
+
+        </li>
+      
+    
+  </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</nav>
+
+
+
+
+  <script>(function(){var e=document.querySelector("aside .book-menu-content");addEventListener("beforeunload",function(){localStorage.setItem("menu.scrollTop",e.scrollTop)}),e.scrollTop=localStorage.getItem("menu.scrollTop")})()</script>
+
+
+ 
+      </div>
+    </aside>
+
+    <div class="book-page">
+      <header class="book-header">
+        
+  <div class="flex align-center justify-between">
+  <label for="menu-control">
+    <img src="/genesis/svg/menu.svg" class="book-icon" alt="Menu" />
+  </label>
+
+  <h3>Tools</h3>
+
+  <label for="toc-control">
+    
+    <img src="/genesis/svg/toc.svg" class="book-icon" alt="Table of Contents" />
+    
+  </label>
+</div>
+
+
+  
+  <aside class="hidden clearfix">
+    
+  
+<nav id="TableOfContents">
+  <ul>
+    <li><a href="#command-line-interface">Command Line Interface</a>
+      <ul>
+        <li><a href="#usage">Usage</a></li>
+        <li><a href="#options">Options</a></li>
+        <li><a href="#genesis-consumer">genesis consumer</a></li>
+        <li><a href="#genesis-outbound">genesis outbound</a></li>
+      </ul>
+    </li>
+    <li><a href="#filtrate">Filtrate</a>
+      <ul>
+        <li><a href="#key-only">Key only</a></li>
+        <li><a href="#with-key-and-value">With key and value</a></li>
+        <li><a href="#with-key-and-regex-in-value">With key and regex in value</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+
+
+
+  </aside>
+  
+ 
+      </header>
+
+      
+      
+  <article class="markdown book-article"><h1 id="tools">
+  tools
+  <a class="anchor" href="#tools">#</a>
+</h1>
+<p>Here we will list some methods that may be useful during the development of a Genesis project.</p>
+<h2 id="command-line-interface">
+  Command Line Interface
+  <a class="anchor" href="#command-line-interface">#</a>
+</h2>
+<p>The Genesis CLI provides commands to run and manage your FreeSWITCH Event Socket applications. Below are the available commands and their usage.</p>
+<h3 id="usage">
+  Usage
+  <a class="anchor" href="#usage">#</a>
+</h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>genesis <span style="color:#f92672">[</span>OPTIONS<span style="color:#f92672">]</span> COMMAND <span style="color:#f92672">[</span>ARGS<span style="color:#f92672">]</span>...
+</span></span></code></pre></div><h3 id="options">
+  Options
+  <a class="anchor" href="#options">#</a>
+</h3>
+<table>
+  <thead>
+      <tr>
+          <th>Option</th>
+          <th>Description</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>&ndash;version</td>
+          <td>Show the version and exit.</td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="genesis-consumer">
+  genesis consumer
+  <a class="anchor" href="#genesis-consumer">#</a>
+</h3>
+<p>Run your ESL events consumer.</p>
+<h4 id="usage-1">
+  Usage
+  <a class="anchor" href="#usage-1">#</a>
+</h4>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>genesis consumer <span style="color:#f92672">[</span>OPTIONS<span style="color:#f92672">]</span> PATH
+</span></span></code></pre></div><h4 id="options-1">
+  Options
+  <a class="anchor" href="#options-1">#</a>
+</h4>
+<table>
+  <thead>
+      <tr>
+          <th>Option</th>
+          <th>Description</th>
+          <th>Default</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>&ndash;host TEXT</td>
+          <td>The host to connect on.</td>
+          <td>127.0.0.1</td>
+      </tr>
+      <tr>
+          <td>&ndash;port INTEGER</td>
+          <td>The port to connect on.</td>
+          <td>8021</td>
+      </tr>
+      <tr>
+          <td>&ndash;password TEXT</td>
+          <td>The password to authenticate on host.</td>
+          <td>ClueCon</td>
+      </tr>
+      <tr>
+          <td>&ndash;app TEXT</td>
+          <td>Variable that contains the Consumer app in the imported module or package.</td>
+          <td>None</td>
+      </tr>
+      <tr>
+          <td>&ndash;loglevel TEXT</td>
+          <td>The log level to use.</td>
+          <td>info</td>
+      </tr>
+  </tbody>
+</table>
+<h4 id="example">
+  Example
+  <a class="anchor" href="#example">#</a>
+</h4>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>genesis consumer /path/to/your/app --host 192.168.1.100 --port <span style="color:#ae81ff">8021</span> --password MySecretPassword --loglevel debug
+</span></span></code></pre></div><h3 id="genesis-outbound">
+  genesis outbound
+  <a class="anchor" href="#genesis-outbound">#</a>
+</h3>
+<p>Run your outbound services.</p>
+<h4 id="usage-2">
+  Usage
+  <a class="anchor" href="#usage-2">#</a>
+</h4>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>genesis outbound <span style="color:#f92672">[</span>OPTIONS<span style="color:#f92672">]</span> PATH
+</span></span></code></pre></div><h4 id="options-2">
+  Options
+  <a class="anchor" href="#options-2">#</a>
+</h4>
+<table>
+  <thead>
+      <tr>
+          <th>Option</th>
+          <th>Description</th>
+          <th>Default</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>&ndash;host TEXT</td>
+          <td>The host to serve on.</td>
+          <td>127.0.0.1</td>
+      </tr>
+      <tr>
+          <td>&ndash;port INTEGER</td>
+          <td>The port to serve on.</td>
+          <td>9000</td>
+      </tr>
+      <tr>
+          <td>&ndash;app TEXT</td>
+          <td>Variable that contains the Outbound app in the imported module or package.</td>
+          <td>None</td>
+      </tr>
+      <tr>
+          <td>&ndash;loglevel TEXT</td>
+          <td>The log level to use.</td>
+          <td>info</td>
+      </tr>
+  </tbody>
+</table>
+<h4 id="example-1">
+  Example
+  <a class="anchor" href="#example-1">#</a>
+</h4>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>genesis outbound /path/to/your/app --host 192.168.1.100 --port <span style="color:#ae81ff">9000</span> --loglevel debug
+</span></span></code></pre></div><h2 id="filtrate">
+  Filtrate
+  <a class="anchor" href="#filtrate">#</a>
+</h2>
+<p>When added to a function that will be used as a handler for FreeSwitch events, it ensures that this function will only process events that have the entered <strong>key</strong> and that have the <strong>value</strong> associated with that key.</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>Argument</strong></th>
+          <th><strong>Type</strong></th>
+          <th><strong>Required</strong></th>
+          <th><strong>Default</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>key</td>
+          <td>str</td>
+          <td>True</td>
+          <td>N/A</td>
+      </tr>
+      <tr>
+          <td>value</td>
+          <td>str</td>
+          <td>False</td>
+          <td>N/A</td>
+      </tr>
+      <tr>
+          <td>regex</td>
+          <td>bool</td>
+          <td>False</td>
+          <td>False</td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="key-only">
+  Key only
+  <a class="anchor" href="#key-only">#</a>
+</h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#a6e22e">@app.handle</span>(<span style="color:#e6db74">&#39;sofia::register&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">@filtrate</span>(<span style="color:#e6db74">&#39;from-user&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">register</span>(event):
+</span></span><span style="display:flex;"><span>    domain <span style="color:#f92672">=</span> event[<span style="color:#e6db74">&#39;from-host&#39;</span>]
+</span></span><span style="display:flex;"><span>    username <span style="color:#f92672">=</span> event[<span style="color:#e6db74">&#39;from-user&#39;</span>]
+</span></span><span style="display:flex;"><span>    date <span style="color:#f92672">=</span> event[<span style="color:#e6db74">&#39;Event-Date-Local&#39;</span>]
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">f</span><span style="color:#e6db74">&#39;[</span><span style="color:#e6db74">{</span>date<span style="color:#e6db74">}</span><span style="color:#e6db74">] </span><span style="color:#e6db74">{</span>username<span style="color:#e6db74">}</span><span style="color:#e6db74">@</span><span style="color:#e6db74">{</span>domain<span style="color:#e6db74">}</span><span style="color:#e6db74"> - Registred.&#39;</span>)
+</span></span></code></pre></div><h3 id="with-key-and-value">
+  With key and value
+  <a class="anchor" href="#with-key-and-value">#</a>
+</h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#a6e22e">@app.handle</span>(<span style="color:#e6db74">&#39;sofia::register&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">@filtrate</span>(<span style="color:#e6db74">&#39;from-user&#39;</span>, <span style="color:#e6db74">&#39;1000&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">register</span>(event):
+</span></span><span style="display:flex;"><span>    domain <span style="color:#f92672">=</span> event[<span style="color:#e6db74">&#39;from-host&#39;</span>]
+</span></span><span style="display:flex;"><span>    username <span style="color:#f92672">=</span> event[<span style="color:#e6db74">&#39;from-user&#39;</span>]
+</span></span><span style="display:flex;"><span>    date <span style="color:#f92672">=</span> event[<span style="color:#e6db74">&#39;Event-Date-Local&#39;</span>]
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">f</span><span style="color:#e6db74">&#39;[</span><span style="color:#e6db74">{</span>date<span style="color:#e6db74">}</span><span style="color:#e6db74">] </span><span style="color:#e6db74">{</span>username<span style="color:#e6db74">}</span><span style="color:#e6db74">@</span><span style="color:#e6db74">{</span>domain<span style="color:#e6db74">}</span><span style="color:#e6db74"> - Registred.&#39;</span>)
+</span></span></code></pre></div><h3 id="with-key-and-regex-in-value">
+  With key and regex in value
+  <a class="anchor" href="#with-key-and-regex-in-value">#</a>
+</h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#a6e22e">@app.handle</span>(<span style="color:#e6db74">&#39;sofia::register&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">@filtrate</span>(<span style="color:#e6db74">&#39;from-user&#39;</span>, <span style="color:#e6db74">&#39;^1[0-9]</span><span style="color:#e6db74">{3}</span><span style="color:#e6db74">$&#39;</span>, regex<span style="color:#f92672">=</span><span style="color:#66d9ef">True</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">register</span>(event):
+</span></span><span style="display:flex;"><span>    domain <span style="color:#f92672">=</span> event[<span style="color:#e6db74">&#39;from-host&#39;</span>]
+</span></span><span style="display:flex;"><span>    username <span style="color:#f92672">=</span> event[<span style="color:#e6db74">&#39;from-user&#39;</span>]
+</span></span><span style="display:flex;"><span>    date <span style="color:#f92672">=</span> event[<span style="color:#e6db74">&#39;Event-Date-Local&#39;</span>]
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">f</span><span style="color:#e6db74">&#39;[</span><span style="color:#e6db74">{</span>date<span style="color:#e6db74">}</span><span style="color:#e6db74">] </span><span style="color:#e6db74">{</span>username<span style="color:#e6db74">}</span><span style="color:#e6db74">@</span><span style="color:#e6db74">{</span>domain<span style="color:#e6db74">}</span><span style="color:#e6db74"> - Registred.&#39;</span>)
+</span></span></code></pre></div></article>
+ 
+      
+
+      <footer class="book-footer">
+        
+  <div class="flex flex-wrap justify-between">
+
+
+
+
+
+</div>
+
+
+
+  <script>(function(){function e(e){const t=window.getSelection(),n=document.createRange();n.selectNodeContents(e),t.removeAllRanges(),t.addRange(n)}document.querySelectorAll("pre code").forEach(t=>{t.addEventListener("click",function(){if(window.getSelection().toString())return;e(t.parentElement),navigator.clipboard&&navigator.clipboard.writeText(t.parentElement.textContent)})})})()</script>
+
+
+ 
+        
+      </footer>
+
+      
+  
+  <div class="book-comments">
+
+</div>
+  
+ 
+
+      <label for="menu-control" class="hidden book-menu-overlay"></label>
+    </div>
+
+    
+    <aside class="book-toc">
+      <div class="book-toc-content">
+        
+  
+<nav id="TableOfContents">
+  <ul>
+    <li><a href="#command-line-interface">Command Line Interface</a>
+      <ul>
+        <li><a href="#usage">Usage</a></li>
+        <li><a href="#options">Options</a></li>
+        <li><a href="#genesis-consumer">genesis consumer</a></li>
+        <li><a href="#genesis-outbound">genesis outbound</a></li>
+      </ul>
+    </li>
+    <li><a href="#filtrate">Filtrate</a>
+      <ul>
+        <li><a href="#key-only">Key only</a></li>
+        <li><a href="#with-key-and-value">With key and value</a></li>
+        <li><a href="#with-key-and-regex-in-value">With key and regex in value</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+
+
+ 
+      </div>
+    </aside>
+    
+  </main>
+
+  
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+

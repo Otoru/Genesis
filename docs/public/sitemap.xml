@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>http://localhost:1313/genesis/</loc>
+  </url><url>
+    <loc>http://localhost:1313/genesis/docs/installation/</loc>
+  </url><url>
+    <loc>http://localhost:1313/genesis/docs/quickstart/</loc>
+  </url><url>
+    <loc>http://localhost:1313/genesis/docs/tools/</loc>
+  </url><url>
+    <loc>http://localhost:1313/genesis/categories/</loc>
+  </url><url>
+    <loc>http://localhost:1313/genesis/docs/</loc>
+  </url><url>
+    <loc>http://localhost:1313/genesis/docs/esl-events-structure/</loc>
+  </url><url>
+    <loc>http://localhost:1313/genesis/tags/</loc>
+  </url>
+</urlset>
