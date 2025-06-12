@@ -1,6 +1,16 @@
 # Welcome to the Genesis docs
 
-Genesis is a python library designed to build applications (with asyncio) that work with freeswitch through ESL.
+Genesis is a Python library that helps you build applications for
+[FreeSWITCH](https://freeswitch.org/) using `asyncio`. Here you will find
+guides and references to get your projects up and running quickly.
+
+Genesis provides three core building blocks:
+
+- **Inbound mode** for sending commands directly to FreeSWITCH.
+- **Consumer mode** to process events asynchronously.
+- **Outbound mode** for creating dialplan-driven services.
+
+In addition, a small CLI is included to launch your applications.
 
 ## What is Freeswitch?
 
@@ -18,4 +28,10 @@ Asynchronous programming is a type of parallel programming in which a unit of wo
 
 ## How to start?
 
-Start by following the [Installation](https://github.com/Otoru/Genesis/wiki/Installation) process described in the documentation and then take a look at our [quickstart](https://github.com/Otoru/Genesis/wiki/Quickstart) to learn how to work using genesis.
+Start by following the [Installation](/docs/Installation/) process described in the documentation and then take a look at our [quickstart](/docs/Quickstart/) to learn how to work using Genesis.
+
+## Next steps
+
+- Get familiar with the [CLI](/docs/CLI/) commands.
+- Explore the [Tools](/docs/Tools/) page for helper utilities.
+- Dive into the [ESL events structure](/docs/ESL-events-structure/) guide to understand how FreeSWITCH messages are represented.
