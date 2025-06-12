@@ -1,8 +1,6 @@
 ---
-menu:
-  main:
-    identifier: "cli"
-    weight: 3
+title: Command line interface
+weight: 3
 ---
 # Command Line Interface
 

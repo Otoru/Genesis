@@ -1,13 +1,10 @@
 ---
-menu:
-  main:
-    identifier: "tools"
-    weight: 4
+title: Tools and tricks
+weight: 4
 ---
-# tools
+# Tools
 
 Here we will list some methods that may be useful during the development of a Genesis project.
-
 
 ## Filtrate
 

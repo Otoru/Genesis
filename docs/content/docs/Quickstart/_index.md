@@ -1,8 +1,6 @@
 ---
-menu:
-  main:
-    identifier: "quickstart"
-    weight: 1
+title: Quickstart
+weight: 1
 ---
 # Quickstart
 

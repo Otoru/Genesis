@@ -28,10 +28,10 @@ Asynchronous programming is a type of parallel programming in which a unit of wo
 
 ## How to start?
 
-Start by following the [Installation](/docs/Installation/) process described in the documentation and then take a look at our [quickstart](/docs/Quickstart/) to learn how to work using Genesis.
+Start by following the [Installation](/Genesis/docs/Installation/) process described in the documentation and then take a look at our [quickstart](/Genesis/docs/Quickstart/) to learn how to work using Genesis.
 
 ## Next steps
 
-- Get familiar with the [CLI](/docs/CLI/) commands.
-- Explore the [Tools](/docs/Tools/) page for helper utilities.
-- Dive into the [ESL events structure](/docs/ESL-events-structure/) guide to understand how FreeSWITCH messages are represented.
+- Get familiar with the [CLI](/Genesis/docs/CLI/) commands.
+- Explore the [Tools](/Genesis/docs/Tools/) page for helper utilities.
+- Dive into the [ESL events structure](/Genesis/docs/ESL-events-structure/) guide to understand how FreeSWITCH messages are represented.

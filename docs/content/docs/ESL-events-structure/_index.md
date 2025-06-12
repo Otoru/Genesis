@@ -1,9 +1,6 @@
 ---
 title: 'ESL events structure'
-menu:
-  main:
-    identifier: "esl-events-structure"
-    weight: 2
+weight: 2
 ---
 # ESL events structure
 
