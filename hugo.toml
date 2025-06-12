@@ -1,5 +1,0 @@
-baseURL = 'https://otor.github.io/genesis'
-languageCode = 'en-us'
-title = 'Genesis'
-theme = 'book'
-enableGitInfo = true
