@@ -73,6 +73,24 @@ def setup_logger(name: str = __name__) -> logging.Logger:
     log_level = get_log_level()
     logger.setLevel(log_level)
     logger.addHandler(handler)
+    
+    # Check if log file path is specified in environment
+    log_file_path = os.getenv("GENESIS_LOG_FILE")
+    if log_file_path:
+        # Create file handler with clean formatting and line buffering
+        file_handler = logging.FileHandler(log_file_path, mode='a', encoding='utf-8', delay=False)
+        file_formatter = logging.Formatter(
+            "%(asctime)s | %(levelname)-8s | %(module)s.%(funcName)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        file_handler.setFormatter(file_formatter)
+        file_handler.setLevel(log_level)
+        
+        # Set the handler to flush after each log entry
+        file_handler.flush = lambda: file_handler.stream.flush()
+        
+        logger.addHandler(file_handler)
+        logger.debug(f"Added file logging to: {log_file_path}")
     logger.propagate = False
 
     logger.debug(f"Logger initialized with level: {logging.getLevelName(log_level)}")

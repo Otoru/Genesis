@@ -7,283 +7,16 @@ ESL implementation used for outgoing connections on freeswitch.
 
 from __future__ import annotations
 
-from asyncio import StreamReader, StreamWriter, Queue, start_server, Event, wait_for
-from typing import Optional, Union, Dict, Literal
+
+from asyncio import StreamReader, StreamWriter, start_server
+from typing import Union, Dict, List, Optional
+
 from collections.abc import Callable, Coroutine
 from functools import partial
-from pprint import pformat
-from uuid import uuid4
 import socket
 
-from genesis.protocol import Protocol
-from genesis.parser import ESLEvent
 from genesis.logger import logger
-
-
-class Session(Protocol):
-    """
-    Session class
-    -------------
-
-    Abstracts a session established between the application and the freeswitch.
-
-    Attributes:
-    - reader: required
-        StreamReader used to read incoming information.
-    - writer: required
-        StreamWriter used to send information to freeswitch.
-    """
-
-    def __init__(self, reader: StreamReader, writer: StreamWriter) -> None:
-        super().__init__()
-        self.context: Dict[str, str] = dict()
-        self.reader = reader
-        self.writer = writer
-        self.fifo = Queue()
-
-    async def __aenter__(self) -> Session:
-        """Interface used to implement a context manager."""
-        await self.start()
-        return self
-
-    async def __aexit__(self, *args, **kwargs) -> None:
-        """Interface used to implement a context manager."""
-        await self.stop()
-
-    async def _awaitable_complete_command(
-        self, event_uuid: str, timeout: Optional[int] = None
-    ) -> Event:
-        """
-        Create an event that will be set when a command completes.
-
-        Args:
-            event_uuid: UUID to track the specific command execution.
-            timeout: Optional timeout in seconds for the command to complete.
-
-        Raises:
-            asyncio.TimeoutError: if the command does not complete within the timeout period.
-
-        Returns:
-            Event that will be set when command completes.
-        """
-        semaphore = Event()
-
-        handlers = {}
-
-        async def cleanup():
-            for key, value in handlers.items():
-                self.remove(key, value)
-
-        async def channel_execute_complete_handler(session: Session, event: ESLEvent):
-            logger.debug(f"Received channel execute complete event: {event}")
-
-            if "Application-UUID" in event and event["Application-UUID"] == event_uuid:
-                await session.fifo.put(event)
-                semaphore.set()
-                await cleanup()
-
-        # Handler for CHANNEL_HANGUP_COMPLETE event to ensure we don't miss it
-        # if the call is hung up before the command completes
-        async def channel_hangup_complete_handler(session: Session, event: ESLEvent):
-            logger.debug(f"Received hangup event: {event}")
-
-            if (
-                "Unique-ID" in event
-                and session.context.get("Channel-Unique-ID", None) == event["Unique-ID"]
-            ):
-                await session.fifo.put(event)
-                semaphore.set()
-                await cleanup()
-
-        handlers["CHANNEL_EXECUTE_COMPLETE"] = channel_execute_complete_handler
-        handlers["CHANNEL_HANGUP_COMPLETE"] = channel_hangup_complete_handler
-
-        for key, value in handlers.items():
-            self.on(key, value)
-
-        logger.debug(f"Register event handler for Application-UUID: {event_uuid}")
-
-        return wait_for(semaphore, timeout=timeout)
-
-    async def sendmsg(
-        self,
-        command: str,
-        application: str,
-        data: Optional[str] = None,
-        lock: bool = False,
-        uuid: Optional[str] = None,
-        event_uuid: Optional[str] = None,
-        block: bool = False,
-        headers: Optional[Dict[str, str]] = None,
-        timeout: Optional[int] = None,
-    ) -> ESLEvent:
-        """
-        Used to send commands from dialplan to session.
-
-        Args:
-            command: required
-                Command to send to freeswitch. One of: execute, hangup, unicast, nomedia, xferext
-            application: required
-                Dialplan application to execute.
-            data: optional
-                Arguments to send to the application. If the command is 'hangup', this is the cause.
-            lock: optional
-                If true, lock the event.
-            uuid: optional
-                UUID of the call/session/channel to send the command.
-            event_uuid: optional
-                Adds a UUID to the execute command. In the corresponding events (CHANNEL_EXECUTE and
-                CHANNEL_EXECUTE_COMPLETE), the UUID will be in the Application-UUID header.
-            block: optional
-                If true, wait for command completion before returning.
-            headers: optional
-                Additional headers to send with the command.
-            timeout: optional
-                Timeout for the command to complete. Just used if block is true.
-
-        Raises:
-            asyncio.TimeoutError: if the command does not complete within the timeout period.
-
-        Returns:
-            ESLEvent: The event received from FreeSWITCH after executing the command.
-        """
-        if uuid:
-            cmd = f"sendmsg {uuid}"
-        else:
-            cmd = "sendmsg"
-
-        cmd += f"\ncall-command: {command}"
-
-        # Generate event_uuid if not provided and command is execute
-        if command == "execute":
-            cmd += f"\nexecute-app-name: {application}"
-            if data:
-                cmd += f"\nexecute-app-arg: {data}"
-
-            event_uuid = event_uuid or str(uuid4())
-
-            cmd += f"\nEvent-UUID: {event_uuid}"
-
-        if lock:
-            cmd += f"\nevent-lock: true"
-
-        if command == "hangup":
-            cmd += f"\nhangup-cause: {data}"
-
-        if headers:
-            for key, value in headers.items():
-                cmd += f"\n{key}: {value}"
-
-        logger.debug(f"Send command to freeswitch: '{cmd}'.")
-
-        if block and command == "execute":
-            logger.debug(
-                f"Waiting for command completion with Application-UUID: {event_uuid}"
-            )
-            command_is_complete = await self._awaitable_complete_command(
-                event_uuid, timeout
-            )
-            response = await self.send(cmd)
-            logger.debug(
-                f"Recived reponse of execute command with block: {pformat(response)}"
-            )
-            await command_is_complete.wait()
-            return await self.fifo.get()
-
-        return await self.send(cmd)
-
-    async def log(
-        self,
-        level: Literal[
-            "CONSOLE", "ALERT", "CRIT", "ERR", "WARNING", "NOTICE", "INFO", "DEBUG"
-        ],
-        message: str,
-    ) -> ESLEvent:
-        """Log a message to FreeSWITCH using dp tools log."""
-        return await self.sendmsg("execute", "log", f"{level} {message}")
-
-    async def answer(self) -> ESLEvent:
-        """Answer the call associated with the session."""
-        return await self.sendmsg("execute", "answer")
-
-    async def park(self) -> ESLEvent:
-        """Move session-associated call to park."""
-        return await self.sendmsg("execute", "park")
-
-    async def hangup(self, cause: str = "NORMAL_CLEARING") -> ESLEvent:
-        """Hang up the call associated with the session."""
-        return await self.sendmsg("execute", "hangup", cause)
-
-    async def playback(
-        self, path: str, block=True, timeout: Optional[int] = None
-    ) -> ESLEvent:
-        """Requests the freeswitch to play an audio."""
-        return await self.sendmsg(
-            "execute", "playback", path, block=block, timeout=timeout
-        )
-
-    async def say(
-        self,
-        text: str,
-        module="en",
-        lang: Optional[str] = None,
-        kind: str = "NUMBER",
-        method: str = "pronounced",
-        gender: str = "FEMININE",
-        block=True,
-        timeout: Optional[int] = None,
-    ) -> ESLEvent:
-        """The say application will use the pre-recorded sound files to read or say things."""
-        if lang:
-            module += f":{lang}"
-
-        arguments = f"{module} {kind} {method} {gender} {text}"
-        logger.debug(f"Arguments used in say command: {arguments}")
-        return await self.sendmsg(
-            "execute", "say", arguments, block=block, timeout=timeout
-        )
-
-    async def play_and_get_digits(
-        self,
-        tries,
-        timeout,
-        terminators,
-        file,
-        minimal=0,
-        maximum=128,
-        block=True,
-        regexp: Optional[str] = None,
-        var_name: Optional[str] = None,
-        invalid_file: Optional[str] = None,
-        digit_timeout: Optional[int] = None,
-        transfer_on_failure: Optional[str] = None,
-        sendmsg_timeout: Optional[int] = None,
-    ) -> ESLEvent:
-        formatter = lambda value: "" if value is None else str(value)
-        ordered_arguments = [
-            minimal,
-            maximum,
-            tries,
-            timeout,
-            terminators,
-            file,
-            invalid_file,
-            var_name,
-            regexp,
-            digit_timeout,
-            transfer_on_failure,
-        ]
-        formated_ordered_arguments = map(formatter, ordered_arguments)
-        arguments = " ".join(formated_ordered_arguments)
-        logger.debug(f"Arguments used in play_and_get_digits command: {arguments}")
-
-        return await self.sendmsg(
-            "execute",
-            "play_and_get_digits",
-            arguments,
-            block=block,
-            timeout=sendmsg_timeout,
-        )
+from genesis.session import Session
 
 
 class Outbound:
@@ -295,37 +28,42 @@ class Outbound:
 
     Attributes:
     - host: required
-        IP address the server should listen on.
+        IP address the server should listen to.
     - port: required
-        Network port the server should listen on.
+        Network port the server should listen to.
     - handler: required
         Function that will take a session as an argument and will actually process the call.
-    - events: optional
-        If true, ask freeswitch to send us all events associated with the session.
+    - myevents: optional
+        If true, ask freeswitch to send us all events associated with the caller.
+        Be aware that this prevents the ability to add other channels events to this session, so you get only the
+        events from the first leg! Since genesis is managing the event filters this should be False in most cases!
     - linger: optional
         If true, asks that the events associated with the session come even after the call hangup.
+    - active_sessions: Dict[str, Session]
+        Dictionary of active sessions, keyed by the A-leg channel UUID.
     """
 
     def __init__(
         self,
-        handler: Union[Callable, Coroutine],
+        handler: Union[Callable[[Session], Coroutine], Callable[[Session], None]],
         host: str = "127.0.0.1",
         port: int = 9000,
-        events: bool = True,
+        myevents: bool = False,
         linger: bool = True,
     ) -> None:
         self.host = host
         self.port = port
         self.app = handler
-        self.myevents = events
+        self.myevents = myevents
         self.linger = linger
         self.server = None
+        self.active_sessions: Dict[str, Session] = {}
 
     async def start(self, block: bool = True) -> None:
         """Start the application server."""
         handler = partial(self.handler, self)
         self.server = await start_server(
-            handler, self.host, self.port, family=socket.AF_INET
+            handler, self.host, self.port, family=socket.AF_INET # type: ignore
         )
         address = f"{self.host}:{self.port}"
         logger.info(f"Start application server and listen on '{address}'.")
@@ -340,24 +78,106 @@ class Outbound:
             logger.debug("Shutdown application server.")
             self.server.close()
             await self.server.wait_closed()
+            
+        # Clean up any remaining sessions
+        for session_id, session in list(self.active_sessions.items()):
+            try:
+                logger.info(f"Cleaning up session {session_id} during server shutdown")
+                await session.stop()
+            except Exception as e:
+                logger.error(f"Error stopping session {session_id}: {e}")
+            
+        self.active_sessions.clear()
 
     @staticmethod
     async def handler(
         server: Outbound, reader: StreamReader, writer: StreamWriter
     ) -> None:
         """Method used to process new connections."""
-        async with Session(reader, writer) as session:
-            logger.debug("Send command to start handle a call")
-            session.context = await session.send("connect")
+        logger.debug(f"Outbound.handler: New connection received from {writer.get_extra_info('peername')}")
+        session = Session(reader, writer, myevents=server.myevents)
+        session_id = None
 
-            if server.myevents:
-                logger.debug("Send command to receive all call events")
-                await session.send("myevents")
+        try:
+            async with session:
+                logger.debug(f"Outbound.handler: Session {session} started. Sending 'connect' command.")
+                connect_event_context = await session.send("connect")
+                logger.trace(f"Outbound.handler: 'connect' command sent. Received context: {connect_event_context}")
+                session.context = connect_event_context
 
-            if server.linger:
-                logger.debug("Send linger command to freeswitch")
-                await session.send("linger")
-                session.is_lingering = True
+                await session._dispatch_event_to_channels(connect_event_context)
 
-            logger.debug("Start server session handler")
-            await server.app(session)
+                if not session.channel_a:
+                    logger.error("A-leg channel initialization failed via dispatch. Aborting handler.")
+                    return
+
+                # Store the session in active_sessions using the A-leg UUID as key
+                session_id = session.channel_a.uuid
+                server.active_sessions[session_id] = session
+                logger.info(f"Outbound.handler: Added session {session_id} to active_sessions. Total active: {len(server.active_sessions)}")
+
+                if server.myevents:
+                    logger.debug("Send command to receive all call events (myevents).")
+                    await session.send("myevents")
+                else:
+                    logger.debug("We don't use 'myevents', send command to receive all events for this session (events plain ALL).")
+                    await session.send("events plain ALL")
+
+                if server.linger:
+                    logger.debug("Send linger command to FreeSWITCH.")
+                    await session.send("linger")
+                    session.linger = True
+
+                logger.debug(f"Outbound.handler: Starting application handler server.app for session {session_id}.")
+                try:
+                    await server.app(session)
+                except Exception as e:
+                    logger.error(f"Unhandled exception in application handler: {e}", exc_info=True)
+                    # Ensure hangup on error if the app didn't handle it
+                    if session.channel_a and not session.channel_a.is_gone:
+                        try:
+                            logger.info("Hanging up call due to application handler error.")
+                            await session.channel_a.hangup(cause="SYSTEM_ERROR")
+                        except Exception as hangup_err:
+                            logger.error(f"Error during hangup after application error: {hangup_err}")
+                finally:
+                    logger.debug(f"Outbound.handler: Application handler for session {session_id} finished (finally block).")
+        except Exception as e_outer_handler:
+            logger.error(f"Outbound.handler: Outer exception for session {session_id if session_id else 'unknown'}: {e_outer_handler}", exc_info=True)
+            # Re-raise if necessary, or ensure cleanup
+        finally:
+            # Remove the session from active_sessions when done
+            if session_id and session_id in server.active_sessions:
+                del server.active_sessions[session_id]
+                logger.info(f"Outbound.handler: Removed session {session_id} from active_sessions. Remaining active: {len(server.active_sessions)}")
+            logger.info(f"Outbound.handler: Finished processing connection from {writer.get_extra_info('peername')}. Session ID was: {session_id if session_id else 'N/A'}")
+
+    def get_active_sessions(self) -> List[Session]:
+        """
+        Returns a list of all active sessions.
+        
+        Returns:
+            List of active Session objects
+        """
+        return list(self.active_sessions.values())
+    
+    def get_session_by_uuid(self, uuid: str) -> Optional[Session]:
+        """
+        Get a session by its A-leg UUID.
+        
+        Args:
+            uuid: The UUID of the A-leg channel
+            
+        Returns:
+            The Session if found, None otherwise
+        """
+        return self.active_sessions.get(uuid)
+    
+    def get_session_count(self) -> int:
+        """
+        Returns the number of active sessions.
+        
+        Returns:
+            Count of active sessions
+        """
+        return len(self.active_sessions)

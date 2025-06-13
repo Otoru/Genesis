@@ -73,6 +73,7 @@ dmypy.json
 .pyre/
 test
 .vscode
+.idea/
 .tool-versions
 /docs/public/
 /docs/resources/_gen/
@@ -82,3 +83,4 @@ test
 /docs/hugo.darwin
 /docs/hugo.linux
 /docs/.hugo_build.lock
+
