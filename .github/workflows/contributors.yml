@@ -18,5 +18,5 @@ jobs:
           IMG_WIDTH: "100"
           FONT_SIZE: "14"
           PATH: "/README.md"
-          COMMIT_MESSAGE: "docs(README): update contributors"
+          COMMIT_MESSAGE: ":pencil: (docs) update contributors"
           AVATAR_SHAPE: "round"
