@@ -59,3 +59,22 @@ Do not forget to see our [Contributing Guide][2] and our [Code of Conduct][3] to
 [3]: https://github.com/Otoru/Genesis/blob/master/CODE_OF_CONDUCT.md
 
 ## Contributors
+
+<table>
+<tr>
+    <td align="center" style="word-wrap: break-word; width: 150.0; height: 150.0">
+        <a href=https://github.com/Otoru>
+            <img src=https://avatars.githubusercontent.com/u/26543872?v=4 width="100;"  style="border-radius:50%;align-items:center;justify-content:center;overflow:hidden;padding-top:10px" alt=Vitor Hugo/>
+            <br />
+            <sub style="font-size:14px"><b>Vitor Hugo</b></sub>
+        </a>
+    </td>
+    <td align="center" style="word-wrap: break-word; width: 150.0; height: 150.0">
+        <a href=https://github.com/Netzvamp>
+            <img src=https://avatars.githubusercontent.com/u/4619406?v=4 width="100;"  style="border-radius:50%;align-items:center;justify-content:center;overflow:hidden;padding-top:10px" alt=RL/>
+            <br />
+            <sub style="font-size:14px"><b>RL</b></sub>
+        </a>
+    </td>
+</tr>
+</table>
