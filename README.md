@@ -21,7 +21,6 @@ ESL is a way to communicate with FreeSwitch. See more details [here](https://fre
 
 ## Why asyncio?
 
-
 Asynchronous programming is a type of parallel programming in which a unit of work is allowed to run separately from the primary application thread. When the work is complete, it notifies the main thread about completion or failure of the worker thread. There are numerous benefits to using it, such as improved application performance and enhanced responsiveness. We adopted this way of working, as integrating genesis with other applications is simpler, since you only need to deal with python's native asynchronous programming interface.
 
 ## Installation
@@ -60,10 +59,3 @@ Do not forget to see our [Contributing Guide][2] and our [Code of Conduct][3] to
 [3]: https://github.com/Otoru/Genesis/blob/master/CODE_OF_CONDUCT.md
 
 ## Contributors
-
-Will be welcome ❤️
-
-## Author
-
-| [<img src="https://avatars0.githubusercontent.com/u/26543872?v=3&s=115"><br><sub>@Otoru</sub>](https://github.com/Otoru) |
-| :----------------------------------------------------------------------------------------------------------------------: |
