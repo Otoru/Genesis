@@ -7,7 +7,6 @@ ESL implementation used for incoming connections on freeswitch.
 from __future__ import annotations
 
 from asyncio import open_connection, TimeoutError, wait_for
-from typing import Awaitable
 
 from genesis.exceptions import ConnectionTimeoutError, AuthenticationError
 from genesis.protocol import Protocol

@@ -23,9 +23,10 @@ exclude = ["tests"]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-rich = "^13.7.1"
-typer = "^0.12.3"
-watchdog = "^4.0.2"
+rich = "^14.0.0"
+typer = "^0.15.2"
+watchdog = "^6.0.0"
+pytest = "^8.3.5"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.4"

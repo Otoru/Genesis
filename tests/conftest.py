@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from asyncio import (
     get_event_loop_policy,
     open_connection,
@@ -9,6 +10,8 @@ from asyncio import (
     start_server,
     Future,
     sleep,
+    CancelledError,
+    TimeoutError as AsyncioTimeoutError
 )
 from typing import Awaitable, Callable, Optional, Dict, Union, List
 from asyncio.base_events import Server
@@ -20,6 +23,9 @@ from random import choices
 from copy import copy
 import string
 import socket
+
+from genesis.logger import logger as conftest_logger
+conftest_logger.setLevel("DEBUG")
 
 import pytest
 
@@ -666,42 +672,85 @@ class ESLMixin(ABC):
 
     @staticmethod
     async def handler(
-        server: ESLMixin, reader: StreamReader, writer: StreamWriter, dial: bool
-    ) -> Awaitable[None]:
+        server_instance: ESLMixin, reader: StreamReader, writer: StreamWriter, dial_param: bool
+    ) -> None:
+        client_address_info = writer.get_extra_info('peername')
+        conftest_logger.debug(f"ESLMIXIN HANDLER [{client_address_info}]: New connection received. dial_param={dial_param}")
 
-        if not dial:
-            await server.send(writer, ["Content-Type: auth/request"])
+        if not dial_param and hasattr(server_instance, 'send') and callable(getattr(server_instance, 'send')):
+            conftest_logger.debug(f"ESLMIXIN HANDLER [{client_address_info}]: Sending auth/request.")
+            await server_instance.send(writer, ["Content-Type: auth/request"])
 
-        while server.is_running:
-            request = None
-            buffer = ""
+        try:
+            while server_instance.is_running and not writer.is_closing():
+                buffer = ""
+                # Inner loop for reading a full request (until \n\n or \r\n\r\n)
+                while server_instance.is_running and not writer.is_closing():
+                    try:
+                        # Add a timeout to reader.read to make it responsive to cancellation
+                        char_bytes = await asyncio.wait_for(reader.read(1), timeout=0.1)
+                    except AsyncioTimeoutError:
+                        # Timeout is okay, just means no data, loop again to check server_instance.is_running
+                        if not server_instance.is_running or writer.is_closing():
+                            break # Break inner while if server stopped during timeout
+                        continue
+                    except CancelledError:
+                        conftest_logger.debug(f"ESLMIXIN HANDLER [{client_address_info}]: Read cancelled.")
+                        raise  # Propagate to outer try-except
+                    except ConnectionResetError:
+                        conftest_logger.debug(f"ESLMIXIN HANDLER [{client_address_info}]: Connection reset.")
+                        return  # Connection is gone, exit handler
+                    except Exception as e_read:
+                        if server_instance.is_running: # Log only if we expected to be running
+                             conftest_logger.error(f"ESLMIXIN HANDLER [{client_address_info}]: Exception during read: {e_read}", exc_info=True)
+                        return  # Error, exit handler
 
-            while server.is_running and not writer.is_closing():
+                    if not char_bytes:  # EOF
+                        conftest_logger.debug(f"ESLMIXIN HANDLER [{client_address_info}]: EOF received.")
+                        return  # Connection closed by peer, exit handler
+                    
+                    try:
+                        buffer += char_bytes.decode("utf-8", errors="ignore")
+                    except UnicodeDecodeError:
+                        conftest_logger.warning("Non-decodable character encountered, skipping.")
+                        continue
+
+                    if buffer.endswith("\n\n") or buffer.endswith("\r\n\r\n"):
+                        break  # Got a full request
+                
+                if not server_instance.is_running or writer.is_closing():
+                    conftest_logger.debug(f"ESLMIXIN HANDLER [{client_address_info}]: Exiting main read loop. is_running={server_instance.is_running}, writer_closing={writer.is_closing()}")
+                    break  # Exit main while loop
+
+                request_data = buffer.strip()
+                if not request_data:
+                    if reader.at_eof() or writer.is_closing():
+                        conftest_logger.debug(f"ESLMIXIN HANDLER [{client_address_info}]: Empty request and EOF/closing. Exiting.")
+                        break
+                    continue
+
+                conftest_logger.trace(f"ESLMIXIN HANDLER [{client_address_info}]: Processing request: {request_data[:100]}...")
+                await server_instance.process(writer, request_data)
+
+        except CancelledError:
+            conftest_logger.debug(f"ESLMIXIN HANDLER [{client_address_info}]: Handler task cancelled.")
+        except Exception as e_handler:
+            if server_instance.is_running:
+                conftest_logger.error(f"ESLMIXIN HANDLER [{client_address_info}]: Unhandled exception in handler: {e_handler} (Type: {type(e_handler)})", exc_info=True)
+        finally:
+            conftest_logger.debug(f"ESLMIXIN HANDLER [{client_address_info}]: Handler finishing. Closing writer.")
+            if writer and not writer.is_closing():
+                writer.close()
                 try:
-                    content = await reader.read(1)
-
-                except:
-                    server.is_running = False
-                    await server.stop()
-                    break
-
-                buffer += content.decode("utf-8")
-
-                if buffer[-2:] == "\n\n" or buffer[-4:] == "\r\n\r\n":
-                    request = buffer
-                    break
-
-            request = buffer.strip()
-
-            if not request or not server.is_running:
-                break
-
-            else:
-                await server.process(writer, request)
+                    await writer.wait_closed()
+                except Exception as e_wc:
+                    conftest_logger.warning(f"ESLMIXIN HANDLER [{client_address_info}]: Error during final writer.wait_closed(): {e_wc}")
+            conftest_logger.debug(f"ESLMIXIN HANDLER [{client_address_info}]: Handler finished.")
 
 
 class Freeswitch(ESLMixin):
     def __init__(self, host: str, port: int, password: str) -> None:
+        conftest_logger.debug(f"FREESWITCH MOCK [{port}]: __init__ called.")
         self.host = host
         self.port = port
         self.password = password
@@ -709,7 +758,8 @@ class Freeswitch(ESLMixin):
         self.commands = dict()
         self.events = list()
         self.server: Optional[Server] = None
-        self.processor: Optional[Awaitable] = None
+        self.processor: Optional[Future] = None # This is the serve_forever task
+        self.client_handler_tasks: List[asyncio.Task] = [] # To keep track of client handlers
 
     @property
     def address(self):
@@ -720,28 +770,96 @@ class Freeswitch(ESLMixin):
             for event in self.events:
                 await self.send(writer, event.splitlines())
 
+    async def _client_handler_wrapper(self, reader: StreamReader, writer: StreamWriter):
+        # Wrapper to manage client handler tasks
+        task = asyncio.create_task(ESLMixin.handler(self, reader, writer, False))
+        self.client_handler_tasks.append(task)
+        try:
+            await task
+        except CancelledError:
+            conftest_logger.debug(f"FREESWITCH MOCK [{self.port}]: Client handler task cancelled.")
+        finally:
+            if task in self.client_handler_tasks:
+                self.client_handler_tasks.remove(task)
+
+
     async def start(self) -> Awaitable[None]:
-        handler = partial(self.handler, self, dial=False)
-        self.server = await start_server(
-            handler, self.host, self.port, family=socket.AF_INET
-        )
+        conftest_logger.trace(f"FREESWITCH MOCK [{self.port}]: start() - ENTER")
+        if self.is_running:
+            conftest_logger.warning(f"FREESWITCH MOCK [{self.port}]: start() called but server is already running. Skipping.")
+            return
+
+        self.is_running = True # Set before starting server to allow handlers to run
+        
+        conftest_logger.debug(f"FREESWITCH MOCK [{self.port}]: start() - About to call start_server for {self.host}:{self.port}")
+        try:
+            self.server = await start_server(
+                self._client_handler_wrapper, self.host, self.port, family=socket.AF_INET
+            )
+            conftest_logger.debug(f"FREESWITCH MOCK [{self.port}]: start() - start_server SUCCEEDED. Server: {self.server}")
+        except Exception as e_ss:
+            conftest_logger.critical(f"FREESWITCH MOCK [{self.port}]: start() - start_server FAILED: {type(e_ss).__name__}: {e_ss}", exc_info=True)
+            self.is_running = False 
+            raise
+
         self.processor = ensure_future(self.server.serve_forever())
-        self.is_running = True
+        conftest_logger.debug(f"FREESWITCH MOCK [{self.port}]: start() - serve_forever task created: {self.processor}")
 
     async def stop(self) -> Awaitable[None]:
+        current_is_running = self.is_running
+        self.is_running = False # Signal all handlers to stop first
+
+        if not current_is_running and not self.server and not self.client_handler_tasks:
+            conftest_logger.debug(f"FREESWITCH MOCK [{self.port}]: stop() - Already stopped or never fully started, returning.")
+            return
+
+        # Cancel and await client handler tasks
+        if self.client_handler_tasks:
+            conftest_logger.debug(f"FREESWITCH MOCK [{self.port}]: stop() - Cancelling {len(self.client_handler_tasks)} client handler tasks.")
+            for task in list(self.client_handler_tasks): # Iterate over a copy
+                if not task.done():
+                    task.cancel()
+            results = await asyncio.gather(*self.client_handler_tasks, return_exceptions=True)
+            for i, result in enumerate(results):
+                if isinstance(result, CancelledError):
+                    conftest_logger.debug(f"FREESWITCH MOCK [{self.port}]: Client handler task {i} successfully cancelled.")
+                elif isinstance(result, Exception):
+                    conftest_logger.error(f"FREESWITCH MOCK [{self.port}]: Client handler task {i} raised an exception: {result}", exc_info=True)
+            self.client_handler_tasks.clear()
+            conftest_logger.debug(f"FREESWITCH MOCK [{self.port}]: stop() - All client handler tasks processed.")
+
+
+        # Stop the main server
         if self.server:
-            self.is_running = False
             self.server.close()
+            try:
+                await self.server.wait_closed()
+                conftest_logger.debug(f"FREESWITCH MOCK [{self.port}]: stop() - Server.wait_closed() completed.")
+            except Exception as e_wc:
+                conftest_logger.warning(f"FREESWITCH MOCK [{self.port}]: stop() - Exception during server.wait_closed(): {e_wc}")
+            self.server = None
 
-            if self.processor:
+        # Cancel and await the server's serve_forever task (self.processor)
+        if self.processor:
+            if not self.processor.done():
+                self.processor.cancel()
                 try:
-                    self.processor.cancel()
-                except RuntimeError:
-                    pass
+                    await self.processor
+                    conftest_logger.debug(f"FREESWITCH MOCK [{self.port}]: stop() - Awaited self.processor successfully after cancel.")
+                except CancelledError:
+                    conftest_logger.debug(f"FREESWITCH MOCK [{self.port}]: stop() - self.processor successfully cancelled.")
+                except Exception as e_proc:
+                    conftest_logger.error(f"FREESWITCH MOCK [{self.port}]: stop() - Exception from self.processor: {e_proc}", exc_info=True)
+            else: # If already done, check for exceptions
+                try:
+                    exc = self.processor.exception()
+                    if exc:
+                         conftest_logger.warning(f"FREESWITCH MOCK [{self.port}]: stop() - self.processor was already done with exception: {exc}")
+                except (CancelledError, asyncio.InvalidStateError):
+                    pass # Expected or already handled
+            self.processor = None
 
-        await sleep(0.00001)
-
-    async def __aenter__(self) -> Awaitable[Server]:
+    async def __aenter__(self) -> Freeswitch:
         await self.start()
         return self
 
@@ -782,10 +900,17 @@ class Freeswitch(ESLMixin):
         )
         if not writer.is_closing():
             writer.close()
-            await writer.wait_closed()
+            try:
+                await writer.wait_closed()
+            except Exception as e_wdc:
+                 conftest_logger.warning(f"FREESWITCH MOCK [{self.port}]: Exception during writer.wait_closed in disconnect: {e_wdc}")
+
 
     async def process(self, writer: StreamWriter, request: str) -> Awaitable[None]:
         payload = copy(request)
+        client_address_info = writer.get_extra_info('peername', 'Unknown Peer')
+        conftest_logger.trace(f"FREESWITCH MOCK [{self.port}] PROCESS from [{client_address_info}]: Received payload: {payload[:100]}...")
+
 
         if payload.startswith("auth"):
             received_password = payload.split().pop().strip()
@@ -800,7 +925,8 @@ class Freeswitch(ESLMixin):
         elif payload == "exit":
             await self.command(writer, "+OK bye")
             await self.disconnect(writer)
-            await self.stop()
+            # No longer call self.stop() here, let __aexit__ or explicit test cleanup handle it.
+            # This prevents issues if 'exit' is received while other clients are connected.
 
         elif payload == "events plain ALL":
             await self.command(writer, "+OK event listener enabled plain")
@@ -808,20 +934,22 @@ class Freeswitch(ESLMixin):
 
         elif payload in self.commands:
             response = self.commands.get(payload)
+            if response is None: # Should not happen if key is in self.commands
+                await self.command(writer, "-ERR command response not configured")
+                return
 
             if payload.startswith("api"):
                 await self.api(writer, response)
-
             else:
                 await self.command(writer, response)
 
         else:
             if payload.startswith("api"):
-                command = payload.replace("api", "").split().pop().strip()
-                await self.command(writer, f"-ERR {command} command not found")
-
+                command_part = payload.split(" ", 1)
+                actual_command = command_part[1] if len(command_part) > 1 else ""
+                await self.command(writer, f"-ERR api {actual_command} command not found")
             else:
-                await self.command(writer, "-ERR command not found")
+                await self.command(writer, f"-ERR {payload.split()[0] if payload else 'empty'} command not found")
 
 
 @pytest.fixture(scope="session")
@@ -833,7 +961,7 @@ def event_loop(request: pytest.FixtureRequest):
 
 @pytest.fixture(scope="session")
 async def host() -> Callable[[], str]:
-    return lambda: socket.gethostbyname(socket.gethostname())
+    return lambda: "127.0.0.1"
 
 
 @pytest.fixture(scope="session")
@@ -848,46 +976,109 @@ async def password() -> Callable[[], str]:
 
 @pytest.fixture()
 async def freeswitch(host, port, password) -> Freeswitch:
-    server = Freeswitch(host(), port(), password())
-    return server
+    server_instance = Freeswitch(host(), port(), password())
+    conftest_logger.debug(f"PYTEST FIXTURE freeswitch - Freeswitch instance created for port {server_instance.port}. About to YIELD.")
+    yield server_instance 
+    conftest_logger.debug(f"PYTEST FIXTURE freeswitch - Resumed after YIELD for port {server_instance.port}. Ensuring server is stopped.")
+    await server_instance.stop() # Ensure server is stopped after test, even if __aexit__ was used.
+    conftest_logger.debug(f"PYTEST FIXTURE freeswitch - server_instance.stop() called. EXIT.")
 
 
 class Dialplan(ESLMixin):
     def __init__(self) -> None:
         self.commands = dict()
         self.is_running = False
-        self.worker: Optional[Future] = None
+        self.worker: Optional[Future] = None # This is the ESLMixin.handler task
         self.reader: Optional[StreamReader] = None
         self.writer: Optional[StreamWriter] = None
 
     async def process(self, writer: StreamWriter, request: str) -> Awaitable[None]:
         payload = copy(request)
+        client_address_info = writer.get_extra_info('peername', 'Unknown Peer')
+        conftest_logger.trace(f"DIALPLAN PROCESS from [{client_address_info}]: Received payload: {payload[:100]}...")
 
         if payload in self.commands:
             response = self.commands.get(payload)
+            if response is None: # Should not happen
+                 await self.send(writer, ["Content-Type: command/reply", "Reply-Text: -ERR command response not configured"])
+                 return
             await self.send(writer, response.splitlines())
 
-        elif payload in dir(self):
+        elif payload in dir(self) and callable(getattr(self, payload)):
             method = getattr(self, payload)
-            return await method()
+            await method()
+        else:
+            await self.send(writer, ["Content-Type: command/reply", f"Reply-Text: -ERR {payload.split()[0] if payload else 'empty'} command not found in Dialplan"])
 
-    async def start(self, host, port) -> Awaitable[None]:
-        self.is_running = True
-        handler = partial(self.handler, self, dial=True)
-        self.reader, self.writer = await open_connection(host, port)
-        self.worker = ensure_future(handler(self.reader, self.writer))
+
+    async def start(self, host_val, port_val) -> Awaitable[None]: # Renamed params to avoid conflict
+        if self.is_running:
+            conftest_logger.debug(f"Dialplan.start(): Already running. Skipping.")
+            return
+
+        self.is_running = True # Set before attempting connection
+        try:
+            conftest_logger.debug(f"Dialplan.start(): Attempting open_connection to {host_val}:{port_val}")
+            self.reader, self.writer = await asyncio.wait_for(
+                open_connection(host_val, port_val),
+                timeout=10.0
+            )
+            conftest_logger.debug(f"Dialplan.start(): open_connection SUCCEEDED. Reader: {self.reader}, Writer: {self.writer}.")
+        except AsyncioTimeoutError:
+            conftest_logger.error(f"Dialplan.start(): TIMEOUT during open_connection to {host_val}:{port_val}")
+            self.is_running = False
+            raise ConnectionRefusedError(f"Dialplan timed out connecting to {host_val}:{port_val}")
+        except ConnectionRefusedError as e_cr:
+            conftest_logger.error(f"Dialplan.start(): ConnectionRefusedError during open_connection to {host_val}:{port_val}: {e_cr}")
+            self.is_running = False
+            raise
+        except Exception as e_oc:
+            conftest_logger.error(f"Dialplan.start(): EXCEPTION during open_connection to {host_val}:{port_val}: {type(e_oc).__name__}: {e_oc}", exc_info=True)
+            self.is_running = False
+            raise
+
+        handler_coroutine = ESLMixin.handler(self, self.reader, self.writer, True)
+        self.worker = ensure_future(handler_coroutine)
+        conftest_logger.debug(f"Dialplan.start(): Worker task created: {self.worker}. ")
 
     async def stop(self) -> Awaitable[None]:
-        self.is_running = False
+        conftest_logger.debug(f"Dialplan.stop(): ENTER. is_running={self.is_running}")
+        current_is_running = self.is_running
+        self.is_running = False # Signal handler to stop first
+
+        if not current_is_running and not self.worker :
+            conftest_logger.debug(f"Dialplan.stop(): Already stopped or never fully started.")
+            return
 
         if self.worker:
-            self.worker.cancel()
+            if not self.worker.done():
+                self.worker.cancel()
+                try:
+                    await self.worker
+                    conftest_logger.debug(f"Dialplan.stop(): Awaited self.worker successfully after cancel.")
+                except CancelledError:
+                    conftest_logger.debug(f"Dialplan.stop(): self.worker successfully cancelled.")
+                except Exception as e_worker:
+                    conftest_logger.error(f"Dialplan.stop(): Exception from self.worker: {e_worker}", exc_info=True)
+            else:
+                try:
+                    exc = self.worker.exception()
+                    if exc:
+                         conftest_logger.warning(f"Dialplan.stop(): self.worker was already done with exception: {exc}")
+                except (CancelledError, asyncio.InvalidStateError):
+                    pass # Expected or already handled
+            self.worker = None
 
-        if not self.writer.is_closing():
-            self.writer.close()
-            await self.writer.wait_closed()
-
-        await sleep(0.00001)
+        if self.writer:
+            if not self.writer.is_closing():
+                self.writer.close()
+                try:
+                    await self.writer.wait_closed()
+                except Exception as e_wc:
+                    conftest_logger.warning(f"Dialplan.stop(): Exception during self.writer.wait_closed(): {e_wc}")
+            self.writer = None
+        
+        self.reader = None
 
 
 @pytest.fixture
@@ -896,5 +1087,7 @@ async def dialplan(connect, generic) -> Dialplan:
     instance.oncommand("linger", generic)
     instance.oncommand("connect", connect)
     instance.oncommand("myevents", generic)
-
-    return instance
+    yield instance
+    conftest_logger.debug("PYTEST FIXTURE dialplan - Resumed after YIELD. Ensuring dialplan is stopped.")
+    await instance.stop()
+    conftest_logger.debug("PYTEST FIXTURE dialplan - instance.stop() called. EXIT.")
