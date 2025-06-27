@@ -1,10 +1,11 @@
 ---
-title: Command line interface
-weight: 3
+title: Command-Line Interface
+weight: 40
 ---
-# Command Line Interface
 
-The Genesis CLI provides commands to run and manage your FreeSWITCH Event Socket applications. Below are the available commands and their usage.
+# Command-Line Interface
+
+The Genesis CLI provides commands to run and manage your FreeSWITCH ESL applications.
 
 ## Usage
 
@@ -14,13 +15,13 @@ genesis [OPTIONS] COMMAND [ARGS]...
 
 ## Options
 
-Option | Description
--- | --
---version | Show the version and exit.
+| Option    | Description              |
+|-----------|--------------------------|
+| --version | Show the version and exit. |
 
-## genesis consumer
+## `genesis consumer`
 
-Run your ESL events consumer.
+Run an ESL event consumer.
 
 ### Usage
 
@@ -30,13 +31,13 @@ genesis consumer [OPTIONS] PATH
 
 ### Options
 
-Option | Description | Default
--- | -- | --
---host TEXT | The host to connect on. | 127.0.0.1
---port INTEGER | The port to connect on. | 8021
---password TEXT | The password to authenticate on host. | ClueCon
---app TEXT | Variable that contains the Consumer app in the imported module or package. | None
---loglevel TEXT | The log level to use. | info
+| Option      | Description                                               | Default     |
+|-------------|-----------------------------------------------------------|-------------|
+| --host      | The host to connect to.                                   | `127.0.0.1` |
+| --port      | The port to connect to.                                   | `8021`      |
+| --password  | The password for authentication.                          | `ClueCon`   |
+| --app       | The variable containing the Consumer app in the module.   | `None`      |
+| --loglevel  | The logging level.                                        | `info`      |
 
 ### Example
 
@@ -44,9 +45,9 @@ Option | Description | Default
 genesis consumer /path/to/your/app --host 192.168.1.100 --port 8021 --password MySecretPassword --loglevel debug
 ```
 
-## genesis outbound
+## `genesis outbound`
 
-Run your outbound services.
+Run an outbound service.
 
 ### Usage
 
@@ -56,12 +57,12 @@ genesis outbound [OPTIONS] PATH
 
 ### Options
 
-Option | Description | Default
--- | -- | --
---host TEXT | The host to serve on. | 127.0.0.1
---port INTEGER | The port to serve on. | 9000
---app TEXT | Variable that contains the Outbound app in the imported module or package. | None
---loglevel TEXT | The log level to use. | info
+| Option      | Description                                               | Default     |
+|-------------|-----------------------------------------------------------|-------------|
+| --host      | The host to serve on.                                     | `127.0.0.1` |
+| --port      | The port to serve on.                                     | `9000`      |
+| --app       | The variable containing the Outbound app in the module.   | `None`      |
+| --loglevel  | The logging level.                                        | `info`      |
 
 ### Example
 

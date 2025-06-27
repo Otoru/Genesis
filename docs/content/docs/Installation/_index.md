@@ -1,15 +1,16 @@
 ---
-title: Install guide
-weight: 0
+title: Installation Guide
+weight: 20
 ---
-# Install Genesis
 
-First off all, we recommend using the latest version of Python.
+# Installation Guide
 
-Within the environment you want to use to work, use the following command to install Genesis:
+To start using Genesis, we recommend using the latest version of Python.
+
+Install Genesis in your environment using `pip`:
 
 ```bash
-pip install genesis 
+pip install genesis
 ```
 
-Genesis is now installed. Visit the [documentation homepage](/Genesis) to start exploring the available guides.
+With Genesis installed, you can now explore the available guides in the [documentation homepage](/Genesis) to learn how to use it.

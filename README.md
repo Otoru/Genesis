@@ -1,6 +1,4 @@
-# What is Genesis?
-
-Genesis is a python library designed to build applications (with asyncio) that work with freeswitch through ESL.
+# Genesis
 
 [![Tests badge](https://github.com/Otoru/Genesis/actions/workflows/tests.yml/badge.svg)](https://github.com/Otoru/Genesis/actions/workflows/tests.yml)
 [![Build badge](https://github.com/Otoru/Genesis/actions/workflows/pypi.yml/badge.svg)](https://github.com/Otoru/Genesis/actions/workflows/pypi.yml)
@@ -9,38 +7,85 @@ Genesis is a python library designed to build applications (with asyncio) that w
 [![Pypi python version badge](https://img.shields.io/pypi/pyversions/Genesis)](https://pypi.org/project/genesis/)
 [![Pypi wheel badge](https://img.shields.io/pypi/wheel/Genesis)](https://pypi.org/project/genesis/)
 
-## What is FreeSwitch?
+Genesis is a Python library designed to build asynchronous applications that interact with FreeSWITCH through the Event Socket Layer (ESL).
 
-FreeSWITCH is a free and open-source application server for real-time communication, WebRTC, telecommunications, video and Voice over Internet Protocol (VoIP). Multiplatform, it runs on Linux, Windows, macOS and FreeBSD. It is used to build PBX systems, IVR services, videoconferencing with chat and screen sharing, wholesale least-cost routing, Session Border Controller (SBC) and embedded communication appliances. It has full support for encryption, ZRTP, DTLS, SIPS. It can act as a gateway between PSTN, SIP, WebRTC, and many other communication protocols. Its core library, libfreeswitch, can be embedded into other projects. It is licensed under the Mozilla Public License (MPL), a free software license.
+## Features
 
-By [wikipedia](https://en.wikipedia.org/wiki/FreeSWITCH).
-
-## What is ESL?
-
-ESL is a way to communicate with FreeSwitch. See more details [here](https://freeswitch.org/confluence/display/FREESWITCH/Event+Socket+Library).
-
-## Why asyncio?
-
-Asynchronous programming is a type of parallel programming in which a unit of work is allowed to run separately from the primary application thread. When the work is complete, it notifies the main thread about completion or failure of the worker thread. There are numerous benefits to using it, such as improved application performance and enhanced responsiveness. We adopted this way of working, as integrating genesis with other applications is simpler, since you only need to deal with python's native asynchronous programming interface.
+- **Asynchronous by Design:** Built with `asyncio` for high-performance, non-blocking I/O.
+- **Inbound, Outbound, and Consumer Modes:** Supports all major ESL modes for comprehensive FreeSWITCH integration.
+- **Decorator-Based Event Handling:** A simple and intuitive way to handle FreeSWITCH events.
+- **Extensible and Customizable:** Easily extend and customize the library to fit your needs.
 
 ## Installation
 
-Install Genesis using pip:
+Install Genesis using `pip`:
 
 ```bash
 pip install genesis
 ```
 
-## Docs
+## Quickstart
+
+### Inbound Socket Mode
+
+```python
+import asyncio
+from genesis import Inbound
+
+async def uptime():
+    async with Inbound("127.0.0.1", 8021, "ClueCon") as client:
+        return await client.send("uptime")
+
+async def main():
+    response = await uptime()
+    print(response)
+
+asyncio.run(main())
+```
+
+### Consumer Mode
+
+```python
+import asyncio
+from genesis import Consumer
+
+app = Consumer("127.0.0.1", 8021, "ClueCon")
+
+@app.handle("HEARTBEAT")
+async def handler(event):
+    await asyncio.sleep(0.001)
+    print(event)
+
+asyncio.run(app.start())
+```
+
+### Outbound Socket Mode
+
+```python
+import asyncio
+from genesis import Outbound
+
+async def handler(session):
+    await session.answer()
+    await session.playback('ivr/ivr-welcome')
+    await session.hangup()
+
+app = Outbound("127.0.0.1", 5000, handler)
+
+asyncio.run(app.start())
+```
+
+## Documentation
 
 Full documentation is available on the [documentation website](https://otoru.github.io/Genesis/).
+
 To preview the docs locally, install [Hugo](https://gohugo.io) and run:
 
 ```bash
-hugo --source docs --serve
+hugo server --source docs --disableFastRender
 ```
 
-## Running tests
+## Running Tests
 
 Install development dependencies with [Poetry](https://python-poetry.org) and execute the test suite using [tox](https://tox.wiki):
 
@@ -49,14 +94,11 @@ poetry install
 tox
 ```
 
-## How to contribute?
+## How to Contribute
 
-If you are thinking of contributing in any way to the project, you will be very welcome. Whether it's improving existing documentation, suggesting new features or running existing bugs, it's only by working together that the project will grow.
+Contributions are welcome! Whether it's improving documentation, suggesting new features, or fixing bugs, your help is appreciated.
 
-Do not forget to see our [Contributing Guide][2] and our [Code of Conduct][3] to always be aligned with the ideas of the project.
-
-[2]: https://github.com/Otoru/Genesis/blob/master/CONTRIBUTING.md
-[3]: https://github.com/Otoru/Genesis/blob/master/CODE_OF_CONDUCT.md
+Please read our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) to get started.
 
 ## Contributors
 
@@ -78,3 +120,7 @@ Do not forget to see our [Contributing Guide][2] and our [Code of Conduct][3] to
     </td>
 </tr>
 </table>
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.

@@ -1,13 +1,14 @@
 ---
-title: 'ESL events structure'
-weight: 2
+title: ESL Event Structure
+weight: 30
 ---
-# ESL events structure
 
-An event message has two parts:
+# ESL Event Structure
 
-- A list of headers (`key: value` based structure).
-- A body (optional).
+An event message in the Event Socket Layer (ESL) consists of two parts:
+
+- A list of headers (a key-value structure).
+- An optional body.
 
 ## Example
 
@@ -33,9 +34,9 @@ Content-Length: 41
 +OK 7f4de4bc-17d7-11dd-b7a0-db4edd065621
 ```
 
-The first 17 lines are a set of headers and the last line is a representation of your body.
+The first 17 lines are the headers, and the last line is the body.
 
-In genesis, events are a subclass of `UserDict`. Since all headers can be accessed as keys of this dictionary and the event body, if it exists, is accessible through the `.body` property.
+In Genesis, events are represented as a subclass of `UserDict`. You can access all headers as dictionary keys, and the event body, if present, is available through the `.body` property.
 
 ```python
 event["Core-UUID"]
@@ -48,4 +49,4 @@ event.body
 # +OK 7f4de4bc-17d7-11dd-b7a0-db4edd065621
 ```
 
-For determinate if event has body, genesis read and parse all headers and observe if the `Content-Length` is present. If true, the next N sequential bytes received will be read (N being the header value) and this will be the value assigned to body.
+To determine if an event has a body, Genesis parses the headers and checks for the `Content-Length` header. If it is present, Genesis reads the specified number of bytes and assigns them to the `.body` property.

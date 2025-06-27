@@ -1,14 +1,15 @@
 ---
 title: Quickstart
-weight: 1
+weight: 10
 ---
+
 # Quickstart
 
-Genesis can be used in three main ways. Below we will briefly address each of them.
+Genesis can be used in three main ways. Below, we briefly cover each of them.
 
 ## Inbound Socket Mode
 
-An inbound socket app made with Genesis looks like this:
+An Inbound Socket application with Genesis looks like this:
 
 ```python
 import asyncio
@@ -25,17 +26,17 @@ async def main():
 asyncio.run(main())
 ```
 
-So what does this code do?
+**What does this code do?**
 
-- We create an async function with `uptime` name.
-- In it, we use the `Inbound` class as an asynchronous context manager to connect to the freeswitch.
-- The connection is made at address `127.0.0.1` on port `8021` and authentication is done with the `ClueCon` password.
+- We create an `async` function named `uptime`.
+- Inside it, we use the `Inbound` class as an asynchronous context manager to connect to FreeSWITCH.
+- The connection is established to `127.0.0.1` on port `8021` with the password `ClueCon`.
 - With the connection established, we send the `uptime` command to the server.
-- In the main function, we call this function to display the command return on the screen.
+- In the `main` function, we call `uptime` and print the response.
 
-## Incoming Event handler
+## Consumer Mode
 
-An event handler app made with Genesis looks like this:
+An event handler application with Genesis looks like this:
 
 ```python
 import asyncio
@@ -51,16 +52,16 @@ async def handler(event):
 asyncio.run(app.start())
 ```
 
-So what does this code do?
+**What does this code do?**
 
 - We create an application with the `Consumer` class.
-- The connection is established using the address `127.0.0.1` on port `8021` and authentication is done with the `ClueCon` password.
-- We use the `@app.handler` decorator to define a `handler` function and define that it will be used to handle all `HEARTBEAT` events that are received.
-- We start the consumer with the `app.start()` instruction.
+- The connection is established to `127.0.0.1` on port `8021` with the password `ClueCon`.
+- We use the `@app.handle` decorator to define a `handler` function that will process all received `HEARTBEAT` events.
+- We start the consumer with `app.start()`.
 
 ## Outbound Socket Mode
 
-An outbound socket app made with Genesis looks like this:
+An Outbound Socket application with Genesis looks like this:
 
 ```python
 import asyncio
@@ -76,18 +77,18 @@ app = Outbound("127.0.0.1", 5000, handler)
 asyncio.run(app.start())
 ```
 
-And the dialplan should have an entry similar to this:
+Your dialplan should have an entry similar to this:
 
 ```xml
-<extension name="out socket">
+<extension name="outbound-socket">
    <condition>
       <action application="socket" data="127.0.0.1:5000 async full"/>
    </condition>
 </extension>
 ```
 
-So what does this code do?
+**What does this code do?**
 
-- We define a `handler` function that will handle all sessions established with the application.
-- We create an application that will listen on address `127.0.0.1`, on port `5000` and will use the `handler` function to handle connections.
-- We start the application with the `app.start()` instruction.
+- We define a `handler` function that will process all sessions established with the application.
+- We create an application that listens on `127.0.0.1` at port `5000` and uses the `handler` function to process connections.
+- We start the application with `app.start()`.

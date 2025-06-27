@@ -1,22 +1,25 @@
 ---
-title: Tools and tricks
-weight: 4
+title: Tools and Tricks
+weight: 50
 ---
-# Tools
 
-Here we will list some methods that may be useful during the development of a Genesis project.
+# Tools and Tricks
 
-## Filtrate
+Here we list some useful tools to streamline your development process with Genesis.
 
-When added to a function that will be used as a handler for FreeSwitch events, it ensures that this function will only process events that have the entered **key** and that have the **value** associated with that key.
+## `filtrate`
 
-| **Argument** | **Type** | **Required** | **Default** |
-|--------------|----------|--------------|-------------|
-| key          | str      | True         | N/A         |
-| value        | str      | False        | N/A         |
-| regex        | bool     | False        | False       |
+The `filtrate` decorator allows you to filter FreeSWITCH events based on a key-value pair. A handler decorated with `filtrate` will only execute if the specified `key` exists in the event and, optionally, if its `value` matches.
 
-### Key only
+| Argument | Type | Required | Default |
+|----------|------|----------|---------|
+| `key`    | str  | Yes      | N/A     |
+| `value`  | str  | No       | N/A     |
+| `regex`  | bool | No       | `False` |
+
+### Filter by Key
+
+This example processes any `sofia::register` event that contains the `from-user` key.
 
 ```python
 @app.handle('sofia::register')
@@ -25,10 +28,12 @@ def register(event):
     domain = event['from-host']
     username = event['from-user']
     date = event['Event-Date-Local']
-    print(f'[{date}] {username}@{domain} - Registred.')
+    print(f'[{date}] {username}@{domain} - Registered.')
 ```
 
-### With key and value
+### Filter by Key and Value
+
+This example processes `sofia::register` events only if the `from-user` key has a value of `1000`.
 
 ```python
 @app.handle('sofia::register')
@@ -37,10 +42,12 @@ def register(event):
     domain = event['from-host']
     username = event['from-user']
     date = event['Event-Date-Local']
-    print(f'[{date}] {username}@{domain} - Registred.')
+    print(f'[{date}] {username}@{domain} - Registered.')
 ```
 
-### With key and regex in value
+### Filter by Key and Regex Value
+
+This example uses a regular expression to process `sofia::register` events where the `from-user` value is a 4-digit number starting with `1`.
 
 ```python
 @app.handle('sofia::register')
@@ -49,5 +56,5 @@ def register(event):
     domain = event['from-host']
     username = event['from-user']
     date = event['Event-Date-Local']
-    print(f'[{date}] {username}@{domain} - Registred.')
+    print(f'[{date}] {username}@{domain} - Registered.')
 ```
