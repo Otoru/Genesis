@@ -7,11 +7,13 @@ ESL implementation used for incoming connections on freeswitch.
 from __future__ import annotations
 
 from asyncio import open_connection, TimeoutError, wait_for
-from typing import Awaitable
+from typing import Optional
 
 from genesis.exceptions import ConnectionTimeoutError, AuthenticationError
 from genesis.protocol import Protocol
 from genesis.logger import logger
+from genesis.bgapi import BackgroundAPI
+from genesis.command import CommandResult
 
 
 class Inbound(Protocol):
@@ -38,6 +40,7 @@ class Inbound(Protocol):
         self.timeout = timeout
         self.host = host
         self.port = port
+        self.bgapi = BackgroundAPI(self)
 
     async def __aenter__(self) -> Inbound:
         """Interface used to implement a context manager."""
@@ -69,3 +72,16 @@ class Inbound(Protocol):
 
         await super().start()
         await self.authenticate()
+        
+    async def bgapi_execute(self, cmd: str, job_uuid: Optional[str] = None):
+        """
+        Execute a background API command.
+        
+        Args:
+            cmd: The API command to execute (without 'bgapi' prefix)
+            job_uuid: Optional custom Job-UUID. If not provided, one will be generated
+            
+        Returns:
+            BackgroundJobResult: An object that can be awaited for completion
+        """
+        return await self.bgapi.execute(cmd, job_uuid)
