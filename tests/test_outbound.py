@@ -6,7 +6,7 @@ try:
 except ImportError:
     from mock import AsyncMock
 
-from genesis import Outbound, Session
+from genesis import Outbound, Session, CommandResult, ESLEvent
 
 
 async def test_outbound_session_has_context(host, port, dialplan):
@@ -135,8 +135,9 @@ async def test_outbound_session_has_context(host, port, dialplan):
 async def test_outbound_session_send_answer_command(
     host, port, dialplan, monkeypatch, generic
 ):
-    spider = AsyncMock()
-    spider.return_value = generic
+    mock_result = CommandResult(ESLEvent({"Reply-Text": "Reply generic command"}))
+    mock_result.set_complete(mock_result.initial_event)
+    spider = AsyncMock(return_value=mock_result)
 
     semaphore = Event()
     monkeypatch.setattr(Session, "sendmsg", spider)
@@ -162,8 +163,9 @@ async def test_outbound_session_send_answer_command(
 async def test_outbound_session_send_park_command(
     host, port, dialplan, monkeypatch, generic
 ):
-    spider = AsyncMock()
-    spider.return_value = generic
+    mock_result = CommandResult(ESLEvent({"Reply-Text": "Reply generic command"}))
+    mock_result.set_complete(mock_result.initial_event)
+    spider = AsyncMock(return_value=mock_result)
 
     semaphore = Event()
     monkeypatch.setattr(Session, "sendmsg", spider)
@@ -190,8 +192,9 @@ async def test_outbound_session_send_park_command(
 async def test_outbound_session_send_hangup_command(
     host, port, dialplan, monkeypatch, generic
 ):
-    spider = AsyncMock()
-    spider.return_value = generic
+    mock_result = CommandResult(ESLEvent({"Reply-Text": "Reply generic command"}))
+    mock_result.set_complete(mock_result.initial_event)
+    spider = AsyncMock(return_value=mock_result)
 
     semaphore = Event()
     monkeypatch.setattr(Session, "sendmsg", spider)
@@ -218,8 +221,9 @@ async def test_outbound_session_sendmsg_parameters(
     host, port, dialplan, monkeypatch, generic
 ):
     """Test different parameter combinations for sendmsg."""
-    spider = AsyncMock()
-    spider.return_value = generic
+    mock_result = CommandResult(ESLEvent({"Reply-Text": "Reply generic command"}))
+    mock_result.set_complete(mock_result.initial_event)
+    spider = AsyncMock(return_value=mock_result)
     monkeypatch.setattr(Session, "sendmsg", spider)
 
     # Add an Event to track completion
@@ -240,11 +244,6 @@ async def test_outbound_session_sendmsg_parameters(
             "args": ("execute", "playback", "/tmp/test.wav"),
             "kwargs": {"event_uuid": "test-event-5678"},
             "desc": "with event_uuid",
-        },
-        {
-            "args": ("execute", "playback", "/tmp/test.wav"),
-            "kwargs": {"block": True},
-            "desc": "with block",
         },
         {
             "args": ("execute", "playback", "/tmp/test.wav"),

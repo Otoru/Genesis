@@ -14,13 +14,18 @@ from asyncio import (
     Event,
     Queue,
     Task,
+    CancelledError,
+    InvalidStateError,
+    gather,
 )
+import asyncio
 from typing import List, Dict, Optional, Callable, Coroutine, Any, Union
 from abc import ABC
 import logging
 
 from genesis.exceptions import UnconnectedError, ConnectionError
-from genesis.parser import parse_headers, ESLEvent
+from genesis.events import ESLEvent
+from genesis.parser import parse_headers
 from genesis.logger import logger, TRACE_LEVEL_NUM
 
 
@@ -55,19 +60,69 @@ class Protocol(ABC):
 
     async def stop(self) -> None:
         """Terminates connection to a freeswitch."""
-        if self.writer and not self.writer.is_closing():
-            logger.debug("Closer stream writer.")
-            self.writer.close()
-
         self.is_connected = False
 
-        if self.producer and not self.producer.cancelled():
-            logger.debug("Cancel event producer task.")
-            self.producer.cancel()
+        if self.writer and not self.writer.is_closing():
+            logger.debug("Close stream writer.")
+            self.writer.close()
+            try:
+                await self.writer.wait_closed() # Ensure writer is closed before proceeding
+            except Exception as e:
+                logger.warning(f"Exception during writer.wait_closed(): {e}")
 
-        if self.consumer and not self.consumer.cancelled():
-            logger.debug("Cancel event consumer task.")
-            self.consumer.cancel()
+
+        tasks_to_await = []
+        if self.producer:
+            if not self.producer.done():
+                logger.debug("Cancel event producer task.")
+                self.producer.cancel()
+                tasks_to_await.append(self.producer)
+            else:
+                # If already done, check for exceptions
+                try:
+                    exc = self.producer.exception()
+                    if exc:
+                        logger.warning(f"Producer task was already done with exception: {exc}")
+                except CancelledError:
+                    logger.debug("Producer task was already cancelled and done.")
+                except InvalidStateError: # pragma: no cover
+                    logger.debug("Producer task was done but in InvalidState (e.g. cancelled but not awaited).")
+
+
+        if self.consumer:
+            if not self.consumer.done():
+                logger.debug("Cancel event consumer task.")
+                self.consumer.cancel()
+                tasks_to_await.append(self.consumer)
+            else:
+                try:
+                    exc = self.consumer.exception()
+                    if exc:
+                        logger.warning(f"Consumer task was already done with exception: {exc}")
+                except CancelledError:
+                    logger.debug("Consumer task was already cancelled and done.")
+                except InvalidStateError: # pragma: no cover
+                    logger.debug("Consumer task was done but in InvalidState (e.g. cancelled but not awaited).")
+
+        if tasks_to_await:
+            logger.debug(f"Awaiting {len(tasks_to_await)} cancelled tasks.")
+            # Gather results, allowing CancelledError to be raised and caught
+            results = await gather(*tasks_to_await, return_exceptions=True)
+            for i, result in enumerate(results):
+                task_name = "Producer" if tasks_to_await[i] == self.producer else "Consumer"
+                if isinstance(result, CancelledError):
+                    logger.debug(f"{task_name} task successfully cancelled and awaited.")
+                elif isinstance(result, Exception):
+                    # Log the full exception info for better debugging
+                    logger.error(f"{task_name} task raised an exception during/after cancellation: {result}", exc_info=True)
+                else:
+                    logger.debug(f"{task_name} task completed after cancellation signal (returned: {result}).")
+        
+        # Nullify to prevent reuse and help GC
+        self.producer = None
+        self.consumer = None
+        self.writer = None
+        self.reader = None
 
     async def handler(self) -> None:
         """Defines intelligence to treat received events."""
@@ -78,9 +133,24 @@ class Protocol(ABC):
             while self.is_connected:
                 try:
                     content = await self.reader.readline()
-                    buffer += content.decode("utf-8")
+                    if not content: # EOF, connection closed by peer
+                        logger.debug("PROTOCOL.HANDLER: EOF received from reader.readline(). Peer closed connection.")
+                        self.is_connected = False
+                        break
+                    buffer += content.decode("utf-8", errors="ignore")
+                except CancelledError:
+                    logger.debug("PROTOCOL.HANDLER: Task cancelled during reader.readline().")
+                    self.is_connected = False
+                    raise
+                except ConnectionResetError:
+                    logger.warning("PROTOCOL.HANDLER: Connection reset by peer during reader.readline().")
+                    self.is_connected = False
+                    break
                 except Exception as e:
-                    logger.error(f"Error reading from stream. {str(e)}")
+                    if self.is_connected: # Only log as error if we thought we were connected
+                        logger.error(f"PROTOCOL.HANDLER: Error reading from stream: {str(e)}", exc_info=True)
+                    else: # If not connected, this might be an expected error during shutdown
+                        logger.debug(f"PROTOCOL.HANDLER: Exception during readline, but not connected: {str(e)}")
                     self.is_connected = False
                     break
 
@@ -90,9 +160,11 @@ class Protocol(ABC):
                     break
 
             if not request or not self.is_connected:
+                logger.debug(f"PROTOCOL.HANDLER: Exiting handler loop. Request: {'present' if request else 'absent'}, is_connected: {self.is_connected}")
                 break
 
             event = parse_headers(request)
+            logger.trace(f"PROTOCOL.HANDLER: Parsed event: {event.get('Event-Name')}, raw: {request[:200]}...")
 
             if "Content-Length" in event:
                 # Get the total length from the first Content-Length header
@@ -100,75 +172,111 @@ class Protocol(ABC):
                 logger.trace(f"Total content length: {length} bytes")
 
                 # Read the complete data
-                data = await self.reader.readexactly(length)
-                logger.trace(f"Received complete data: {data}")
-                complete_content = data.decode("utf-8")
-                contentType = event.get("Content-Type", None)
+                try:
+                    data = await self.reader.readexactly(length)
+                    logger.trace(f"Received complete data: {data}")
+                    complete_content = data.decode("utf-8", errors="ignore")
+                    contentType = event.get("Content-Type", None)
 
-                if contentType:
-                    logger.trace(f"Check content type of event: {event}")
+                    if contentType:
+                        logger.trace(f"Check content type of event: {event}")
 
-                    if contentType not in [
-                        "api/response",
-                        "text/rude-rejection",
-                        "log/data",
-                    ]:
-                        # Try to split headers and body
-                        if "\n\n" in complete_content:
-                            headers_part, body = complete_content.split("\n\n", 1)
+                        if contentType not in [
+                            "api/response",
+                            "text/rude-rejection",
+                            "log/data",
+                        ]:
+                            # Try to split headers and body
+                            if "\n\n" in complete_content:
+                                headers_part, body = complete_content.split("\n\n", 1)
 
-                            # Here we check for multiple events in one message (can happen if event-lock is set)
-                            event_parts = []
+                                # Here we check for multiple events in one message (can happen if event-lock is set)
+                                event_parts = []
 
-                            if "event-lock: true" in headers_part.lower():
-                                # Split the string on "Event-Name: "
-                                parts = headers_part.split("\nEvent-Name: ")
+                                if "event-lock: true" in headers_part.lower():
+                                    # Split the string on "Event-Name: "
+                                    parts = headers_part.split("\nEvent-Name: ")
 
-                                if len(parts) > 1:
-                                    event_parts = [parts[0]]
+                                    if len(parts) > 1:
+                                        event_parts = [parts[0]]
 
-                                    for part in parts[1:]:
-                                        event_parts.append(f"Event-Name: {part}")
+                                        for part in parts[1:]:
+                                            event_parts.append(f"Event-Name: {part}")
 
-                                    logger.debug(
-                                        f"Split locked event into {len(event_parts)} separate events"
-                                    )
-                            else:
-                                event_parts = [headers_part]
-
-                            # Process each event part
-                            for idx, event_str in enumerate(event_parts):
-                                if idx == 0:
-                                    # First event is the original event
-                                    additional_headers = parse_headers(event_str)
-                                    event.update(additional_headers)
-                                    event.body = body
-                                    await self.events.put(event)
+                                        logger.debug(
+                                            f"Split locked event into {len(event_parts)} separate events"
+                                        )
                                 else:
-                                    # More events are new events
-                                    new_event = parse_headers(event_str)
-                                    # Copy some headers from the original event
-                                    for key in ["Content-Length", "Content-Type"]:
-                                        if key in event:
-                                            new_event[key] = event[key]
-                                    new_event.body = body
-                                    await self.events.put(new_event)
-                            continue  # Skip the final event.put
+                                    event_parts = [headers_part]
 
+                                # Process each event part
+                                for idx, event_str in enumerate(event_parts):
+                                    if idx == 0:
+                                        # First event is the original event
+                                        additional_headers = parse_headers(event_str)
+                                        event.update(additional_headers)
+                                        event.body = body
+                                        await self.events.put(event)
+                                    else:
+                                        # More events are new events
+                                        new_event = parse_headers(event_str)
+                                        # Copy some headers from the original event
+                                        for key in ["Content-Length", "Content-Type"]:
+                                            if key in event:
+                                                new_event[key] = event[key]
+                                        new_event.body = body
+                                        await self.events.put(new_event)
+                                continue  # Skip the final event.put
+
+                            else:
+                                # If no clear header/body separation, treat everything as body
+                                event.body = complete_content
                         else:
-                            # If no clear header/body separation, treat everything as body
                             event.body = complete_content
                     else:
                         event.body = complete_content
-                else:
-                    event.body = complete_content
-
-            await self.events.put(event)
+                except CancelledError:
+                    logger.debug("PROTOCOL.HANDLER: Task cancelled during content processing.")
+                    self.is_connected = False
+                    raise
+                except Exception as e:
+                    if self.is_connected:
+                        logger.error(f"PROTOCOL.HANDLER: Error processing content for event: {str(e)}", exc_info=True)
+                    else:
+                        logger.debug(f"PROTOCOL.HANDLER: Exception during content processing, but not connected: {str(e)}")
+                    self.is_connected = False
+                    break # Exit main handler loop
+            
+            logger.trace(f"PROTOCOL.HANDLER: Putting event on queue: {event.get('Event-Name')}. Event data: {event}")
+            try:
+                await self.events.put(event)
+            except CancelledError:
+                logger.debug("PROTOCOL.HANDLER: Task cancelled during events.put().")
+                self.is_connected = False
+                raise
+        logger.debug("PROTOCOL.HANDLER: Exited main while loop.")
 
     async def consume(self) -> None:
         """Arm all event processors."""
         while self.is_connected:
-            event = await self.events.get()
+            try:
+                # Add a timeout to events.get() to make it responsive to cancellation
+                event = await asyncio.wait_for(self.events.get(), timeout=0.1)
+                logger.trace(f"PROTOCOL.CONSUMER: Got event from queue: {event.get('Event-Name')}. Event data: {event}")
+            except asyncio.TimeoutError:
+                # This is expected if no events are incoming, allows checking self.is_connected
+                continue 
+            except CancelledError:
+                logger.debug("PROTOCOL.CONSUMER: Task cancelled during events.get().")
+                self.is_connected = False
+                raise
+            except Exception as e: # Should not happen with Queue.get unless queue is broken
+                if self.is_connected:
+                    logger.error(f"PROTOCOL.CONSUMER: Error getting event from queue: {str(e)}", exc_info=True)
+                else:
+                    logger.debug(f"PROTOCOL.CONSUMER: Exception during events.get(), but not connected: {str(e)}")
+                self.is_connected = False
+                break
 
             try:
                 if logger.isEnabledFor(TRACE_LEVEL_NUM):
@@ -248,11 +356,15 @@ class Protocol(ABC):
                 handlers = specific + generic
 
                 if handlers:
-                    for handler in handlers:
-                        if iscoroutinefunction(handler):
-                            create_task(handler(event))
-                        else:
-                            create_task(to_thread(handler, event))
+                    for handler_func in handlers:
+                        try:
+                            if iscoroutinefunction(handler_func):
+                                create_task(handler_func(event))
+                            else:
+                                create_task(to_thread(handler_func, event))
+                        except Exception as e_handler_task:
+                            logger.error(f"Error creating task for handler {handler_func}: {e_handler_task}", exc_info=True)
+        logger.debug("PROTOCOL.CONSUMER: Exited main while loop.")
 
     def on(
         self,
@@ -277,13 +389,21 @@ class Protocol(ABC):
         if key in self.handlers and handler in self.handlers[key]:
             self.handlers.setdefault(key, list()).remove(handler)
 
-    async def send(self, cmd: str) -> ESLEvent:
-        """Method used to send commands to or freeswitch."""
+    async def send(self, cmd: str, reply_timeout: Optional[Union[float, int]] = None) -> ESLEvent:
+        """Method used to send commands to freeswitch."""
+        # TODO: Later we should set a fixed reply_timeout, but only after we migrated all api commands to bgapi
         if not self.is_connected:
-            raise UnconnectedError()
+            # Check if writer is None or closing before raising UnconnectedError
+            # This can happen if stop() was called and nulled self.writer
+            if not self.writer or self.writer.is_closing():
+                 logger.warning(f"Attempted to send command '{cmd[:30]}...' but not connected and writer is closed/None.")
+                 raise UnconnectedError("Not connected and writer is unavailable.")
+            # If writer exists but is_connected is false, it's still an issue
+            raise UnconnectedError(f"Attempted to send command '{cmd[:30]}...' but not connected.")
 
-        if self.writer.is_closing():
-            raise ConnectionError()
+
+        if self.writer.is_closing(): # Should be caught by the above if is_connected is also false
+            raise ConnectionError(f"Attempted to send command '{cmd[:30]}...' but writer is closing.")
 
         logger.debug(f"Send command to freeswitch: '{cmd}'.")
         lines = cmd.splitlines()
@@ -294,5 +414,17 @@ class Protocol(ABC):
         self.writer.write("\n".encode("utf-8"))
         await self.writer.drain()
 
-        response = await self.commands.get()
+        # Add timeout to commands.get() to prevent indefinite blocking if consumer blocks/dies
+        try:
+            if reply_timeout is not None:
+                response = await asyncio.wait_for(self.commands.get(), timeout=reply_timeout)
+            else:
+                response = await self.commands.get() # Wait indefinitely
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout ({reply_timeout}s) waiting for command reply to '{cmd[:30]}...'. Consumer might be stuck or connection lost.")
+            # Create a synthetic error event or raise a specific exception
+            raise ConnectionError(f"Timeout waiting for reply to command: {cmd[:30]}")
+        except CancelledError:
+            logger.warning(f"Send command '{cmd[:30]}...' cancelled while waiting for reply.")
+            raise # Propagate cancellation
         return response
