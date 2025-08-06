@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "genesis"
-version = "0.9.4"
+version = "0.9.5"
 description = "Implementation of FreeSWITCH Event Socket protocol with asyncio"
 authors = ["Vitor <vitor.hov@gmail.com>"]
 license = "MIT"
