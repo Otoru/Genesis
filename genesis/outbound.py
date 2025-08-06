@@ -99,7 +99,7 @@ class Session(Protocol):
         handlers["CHANNEL_HANGUP_COMPLETE"] = channel_hangup_complete_handler
 
         for key, value in handlers.items():
-            self.on(key, value)
+            self.on(key, partial(value, self))
 
         logger.debug(f"Register event handler for Application-UUID: {event_uuid}")
 
