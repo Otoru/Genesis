@@ -78,6 +78,11 @@ class Protocol(ABC):
             while self.is_connected:
                 try:
                     content = await self.reader.readline()
+
+                    if not content:
+                        self.is_connected = False
+                        break
+                    
                     buffer += content.decode("utf-8")
                 except Exception as e:
                     logger.error(f"Error reading from stream. {str(e)}")
