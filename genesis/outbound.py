@@ -364,7 +364,11 @@ class Outbound:
             },
         ):
             
-            active_connections_counter.add(1, attributes={"type": "outbound"})
+            try:
+                active_connections_counter.add(1, attributes={"type": "outbound"})
+            except Exception:
+                pass
+
             try:
                 async with Session(reader, writer) as session:
                     logger.debug("Send command to start handle a call")
@@ -382,4 +386,7 @@ class Outbound:
                     logger.debug("Start server session handler")
                     await server.app(session)
             finally:
-                active_connections_counter.add(-1, attributes={"type": "outbound"})
+                try:
+                    active_connections_counter.add(-1, attributes={"type": "outbound"})
+                except Exception:
+                    pass

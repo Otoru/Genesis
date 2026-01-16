@@ -77,25 +77,42 @@ class Inbound(Protocol):
     async def start(self) -> None:
         """Initiates an authenticated connection to a freeswitch server."""
         try:
-            with tracer.start_as_current_span(
-                "inbound_connect",
-                attributes={
-                    "net.peer.name": self.host,
-                    "net.peer.port": self.port,
-                },
-            ):
+            try:
+                with tracer.start_as_current_span(
+                    "inbound_connect",
+                    attributes={
+                        "net.peer.name": self.host,
+                        "net.peer.port": self.port,
+                    },
+                ):
+                    promise = open_connection(self.host, self.port)
+                    self.reader, self.writer = await wait_for(promise, self.timeout)
+            except Exception as tracer_error:
+                # OTel not initialized - connect without tracing
+                if "tracer" not in str(tracer_error).lower():
+                    raise
                 promise = open_connection(self.host, self.port)
                 self.reader, self.writer = await wait_for(promise, self.timeout)
         except TimeoutError:
             logger.debug("A timeout occurred when trying to connect to the freeswitch.")
-            connection_errors_counter.add(1, attributes={"error": "timeout", "type": "inbound"})
+            try:
+                connection_errors_counter.add(1, attributes={"error": "timeout", "type": "inbound"})
+            except Exception:
+                pass
             raise ConnectionTimeoutError()
 
         await super().start()
-        active_connections_counter.add(1, attributes={"type": "inbound"})
+        try:
+            active_connections_counter.add(1, attributes={"type": "inbound"})
+        except Exception as e:
+            logger.error(f"OTel error in start: {e}")
+            pass
         await self.authenticate()
 
     async def stop(self) -> None:
         """Terminates the connection."""
         await super().stop()
-        active_connections_counter.add(-1, attributes={"type": "inbound"})
+        try:
+            active_connections_counter.add(-1, attributes={"type": "inbound"})
+        except Exception:
+            pass
