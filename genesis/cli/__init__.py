@@ -6,13 +6,20 @@ This module contains the CLI commands for Genesis.
 """
 
 import importlib.metadata
+import os
 from typing import Annotated, Union
 
 import typer
 from rich import print
+from opentelemetry import metrics
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
+from prometheus_client import start_http_server
 
 from genesis.cli.consumer import consumer
 from genesis.cli.outbound import outbound
+from genesis.logger import reconfigure_logger
 
 
 app = typer.Typer(rich_markup_mode="rich")
@@ -34,7 +41,35 @@ def callback(
         Union[bool, None],
         typer.Option("--version", help="Show the version and exit.", callback=version),
     ] = None,
+    json: Annotated[
+        bool,
+        typer.Option("--json", help="Output logs in JSON format."),
+    ] = False,
 ) -> None:
+    reconfigure_logger(json)
+    
+    # Configure and start Prometheus Metrics
+    try:
+        metrics_port = int(os.getenv("GENESIS_METRICS_PORT", "8000"))
+        start_http_server(metrics_port)
+        
+        metric_reader = PrometheusMetricReader()
+        provider = MeterProvider(
+            resource=Resource.create({"service.name": "genesis"}),
+            metric_readers=[metric_reader],
+        )
+        metrics.set_meter_provider(provider)
+        # We don't print here to avoid polluting stdout unless debug/json? 
+        # But user wants to know it's running? 
+        # Maybe log it?
+        # logger.debug is hard to reach here without importing logger.
+        print(f"[bold green]Prometheus metrics server started on port {metrics_port}[/bold green]")
+    except Exception as e:
+        # If port is in use or other error, we should probably warn but not crash?
+        # Or crash if it's critical.
+        # User said "expose... by default". Failing silently is bad.
+        print(f"[yellow]Warning: Failed to start Prometheus metrics server on port {metrics_port}: {e}[/yellow]")
+    
     """
     Genesis - [blue]FreeSWITCH Event Socket protocol[/blue] implementation with [bold]asyncio[/bold].
 
