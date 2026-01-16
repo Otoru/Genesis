@@ -18,6 +18,16 @@ import socket
 from genesis.protocol import Protocol
 from genesis.parser import ESLEvent
 from genesis.logger import logger
+from opentelemetry import trace, metrics
+
+tracer = trace.get_tracer(__name__)
+meter = metrics.get_meter(__name__)
+
+active_connections_counter = meter.create_up_down_counter(
+    "genesis.connections.active",
+    description="Number of active connections",
+    unit="1",
+)
 
 
 class Session(Protocol):
@@ -346,18 +356,37 @@ class Outbound:
         server: Outbound, reader: StreamReader, writer: StreamWriter
     ) -> None:
         """Method used to process new connections."""
-        async with Session(reader, writer) as session:
-            logger.debug("Send command to start handle a call")
-            session.context = await session.send("connect")
+        with tracer.start_as_current_span(
+            "outbound_handle_connection",
+            attributes={
+                "net.peer.name": server.host,
+                "net.peer.port": server.port,
+            },
+        ):
+            
+            try:
+                active_connections_counter.add(1, attributes={"type": "outbound"})
+            except Exception:
+                pass
 
-            if server.myevents:
-                logger.debug("Send command to receive all call events")
-                await session.send("myevents")
+            try:
+                async with Session(reader, writer) as session:
+                    logger.debug("Send command to start handle a call")
+                    session.context = await session.send("connect")
 
-            if server.linger:
-                logger.debug("Send linger command to freeswitch")
-                await session.send("linger")
-                session.is_lingering = True
+                    if server.myevents:
+                        logger.debug("Send command to receive all call events")
+                        await session.send("myevents")
 
-            logger.debug("Start server session handler")
-            await server.app(session)
+                    if server.linger:
+                        logger.debug("Send linger command to freeswitch")
+                        await session.send("linger")
+                        session.is_lingering = True
+
+                    logger.debug("Start server session handler")
+                    await server.app(session)
+            finally:
+                try:
+                    active_connections_counter.add(-1, attributes={"type": "outbound"})
+                except Exception:
+                    pass

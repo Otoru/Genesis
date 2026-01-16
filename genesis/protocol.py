@@ -15,13 +15,42 @@ from asyncio import (
     Queue,
     Task,
 )
+
 from typing import List, Dict, Optional, Callable, Coroutine, Any, Union
 from abc import ABC
 import logging
 
-from genesis.exceptions import UnconnectedError, ConnectionError
-from genesis.parser import parse_headers, ESLEvent
+import time
+from opentelemetry import trace, metrics
+from rich.console import Console
+
+from genesis.exceptions import ConnectionError, UnconnectedError
 from genesis.logger import logger, TRACE_LEVEL_NUM
+from genesis.parser import ESLEvent, parse_headers
+
+tracer = trace.get_tracer(__name__)
+meter = metrics.get_meter(__name__)
+
+commands_sent_counter = meter.create_counter(
+    "genesis.commands.sent",
+    description="Number of ESL commands sent",
+    unit="1",
+)
+events_received_counter = meter.create_counter(
+    "genesis.events.received",
+    description="Number of ESL events received",
+    unit="1",
+)
+command_duration_histogram = meter.create_histogram(
+    "genesis.commands.duration",
+    description="Duration of ESL commands execution",
+    unit="s",
+)
+command_errors_counter = meter.create_counter(
+    "genesis.commands.errors",
+    description="Number of failed ESL commands",
+    unit="1",
+)
 
 
 class Protocol(ABC):
@@ -176,88 +205,150 @@ class Protocol(ABC):
             event = await self.events.get()
 
             try:
-                if logger.isEnabledFor(TRACE_LEVEL_NUM):
-                    logger.trace(f"Received an event: '{event}'.")
+                # OTel Tracing
+                attributes = {}
+                for key, value in event.items():
+                    if key == "Event-Name":
+                        attr_name = "event.name"
+                    elif key == "Unique-ID":
+                        attr_name = "event.uuid"
+                    elif key == "Content-Type":
+                        attr_name = "event.content_type"
+                    else:
+                        slug = key.lower().replace("-", "_")
+                        attr_name = f"event.header.{slug}"
+                    
+                    if isinstance(value, (str, int, float, bool, list, tuple)):
+                        attributes[attr_name] = value
 
-                else:
-                    if logger.isEnabledFor(logging.DEBUG):
-                        name = event.get("Event-Name", None)
-                        uuid = event.get("Unique-ID", None)
+                try:
+                    with tracer.start_as_current_span("process_event", attributes=attributes) as span:
+                        for header_name, header_value in event.items():
+                            # Encode headers if necessary or ensure string
+                            attribute_key = header_name.lower().replace("-", "_")
+                            span.set_attribute(f"event.header.{attribute_key}", str(header_value))
+                        
+                        
+                        event_name = event.get("Event-Name", "UNKNOWN")
+                        content_type = event.get("Content-Type", "UNKNOWN")
+                        metric_attributes = {
+                            "event_name": event_name,
+                            "content_type": content_type,
+                        }
+                        
+                        
+                        if "Event-Subclass" in event:
+                            metric_attributes["event_subclass"] = event["Event-Subclass"]
+                        if "Call-Direction" in event:
+                            metric_attributes["direction"] = event["Call-Direction"]
+                        if "Channel-State" in event:
+                            metric_attributes["channel_state"] = event["Channel-State"]
+                        if "Answer-State" in event:
+                            metric_attributes["answer_state"] = event["Answer-State"]
+                        if "Hangup-Cause" in event:
+                            metric_attributes["hangup_cause"] = event["Hangup-Cause"]
+                except Exception:
+                    # OTel not initialized or error in tracing - continue without tracing
+                    event_name = event.get("Event-Name", "UNKNOWN")
+                    content_type = event.get("Content-Type", "UNKNOWN")
+                    metric_attributes = {
+                        "event_name": event_name,
+                        "content_type": content_type,
+                    }
+                    
+                try:
+                    events_received_counter.add(1, attributes=metric_attributes)
+                except Exception:
+                    pass
 
-                        if uuid:
-                            logger.debug(
-                                f"Received an event: '{name}' for call '{uuid}'. "
-                            )
+                # LOGGING
+                try:
+                    if logger.isEnabledFor(TRACE_LEVEL_NUM):
+                        logger.trace(f"Received an event: '{event}'.")
 
-                            if name == "CHANNEL_EXECUTE_COMPLETE":
-                                application = event.get("Application")
-                                response = event.get("Application-Response")
+                    else:
+                        if logger.isEnabledFor(logging.DEBUG):
+                            name = event.get("Event-Name", None)
+                            uuid = event.get("Unique-ID", None)
 
+                            if uuid:
                                 logger.debug(
-                                    f"Application: '{application}' - Response: '{response}'."
+                                    f"Received an event: '{name}' for call '{uuid}'. "
                                 )
 
-                        else:
-                            if name:
-                                logger.debug(f"Received an event: '{name}'.")
+                                if name == "CHANNEL_EXECUTE_COMPLETE":
+                                    application = event.get("Application")
+                                    response = event.get("Application-Response")
 
-                            elif "Content-Type" in event and event["Content-Type"] in [
-                                "command/reply",
-                                "auth/request",
-                            ]:
-                                reply = event.get("Reply-Text", None)
-
-                                if reply and event["Content-Type"] == "command/reply":
                                     logger.debug(
-                                        f"Received an command reply: '{reply}'."
+                                        f"Application: '{application}' - Response: '{response}'."
                                     )
 
-                                if reply and event["Content-Type"] == "auth/request":
-                                    logger.debug(
-                                        f"Received an authentication reply: '{event}'."
-                                    )
+                            else:
+                                if name:
+                                    logger.debug(f"Received an event: '{name}'.")
 
-            except Exception as e:
-                logger.error(f"Error logging event: {str(e)} - Event: {event}")
+                                elif "Content-Type" in event and event["Content-Type"] in [
+                                    "command/reply",
+                                    "auth/request",
+                                ]:
+                                    reply = event.get("Reply-Text", None)
 
-            if "Content-Type" in event and event["Content-Type"] == "auth/request":
-                self.authentication_event.set()
+                                    if reply and event["Content-Type"] == "command/reply":
+                                        logger.debug(
+                                            f"Received an command reply: '{reply}'."
+                                        )
 
-            elif "Content-Type" in event and event["Content-Type"] == "command/reply":
-                await self.commands.put(event)
+                                    if reply and event["Content-Type"] == "auth/request":
+                                        logger.debug(
+                                            f"Received an authentication reply: '{event}'."
+                                        )
 
-            elif "Content-Type" in event and event["Content-Type"] == "api/response":
-                await self.commands.put(event)
+                except Exception as e:
+                    logger.error(f"Error logging event: {str(e)} - Event: {event}")
 
-            elif "Content-Type" in event and event["Content-Type"] in [
-                "text/rude-rejection",
-                "text/disconnect-notice",
-            ]:
-                if not (
-                    "Content-Disposition" in event
-                    and event["Content-Disposition"] == "linger"
-                ):
-                    await self.stop()
+                if "Content-Type" in event and event["Content-Type"] == "auth/request":
+                    self.authentication_event.set()
 
-            identifier = event.get("Event-Name", None)
+                elif "Content-Type" in event and event["Content-Type"] == "command/reply":
+                     await self.commands.put(event)
 
-            if identifier == "CUSTOM":
-                name = event.get("Event-Subclass", None)
-            else:
-                name = identifier
+                elif "Content-Type" in event and event["Content-Type"] == "api/response":
+                     await self.commands.put(event)
 
-            if name:
-                logger.trace(f"Get all handlers for '{name}'.")
-                specific = self.handlers.get(name, [])
-                generic = self.handlers.get("*", list())
-                handlers = specific + generic
+                elif "Content-Type" in event and event["Content-Type"] in [
+                    "text/rude-rejection",
+                    "text/disconnect-notice",
+                ]:
+                    if not (
+                        "Content-Disposition" in event
+                        and event["Content-Disposition"] == "linger"
+                    ):
+                        await self.stop()
 
-                if handlers:
-                    for handler in handlers:
-                        if iscoroutinefunction(handler):
-                            create_task(handler(event))
-                        else:
-                            create_task(to_thread(handler, event))
+                identifier = event.get("Event-Name", None)
+
+                if identifier == "CUSTOM":
+                    name = event.get("Event-Subclass", None)
+                else:
+                    name = identifier
+
+                if name:
+                    logger.trace(f"Get all handlers for '{name}'.")
+                    specific = self.handlers.get(name, [])
+                    generic = self.handlers.get("*", list())
+                    handlers = specific + generic
+
+                    if handlers:
+                        for handler in handlers:
+                            if iscoroutinefunction(handler):
+                                create_task(handler(event))
+                            else:
+                                create_task(to_thread(handler, event))
+
+            except Exception as outer_e:
+                logger.error(f"Error in consumer loop: {outer_e}", exc_info=True)
+                # Continue loop to avoid freezing connection
 
     def on(
         self,
@@ -290,14 +381,81 @@ class Protocol(ABC):
         if self.writer.is_closing():
             raise ConnectionError()
 
-        logger.debug(f"Send command to freeswitch: '{cmd}'.")
-        lines = cmd.splitlines()
 
-        for line in lines:
-            self.writer.write((line + "\n").encode("utf-8"))
+        start_time = time.perf_counter()
+        try:
+            with tracer.start_as_current_span("send_command") as span:
+                span.set_attribute("command.name", cmd)
+                if "Event-UUID" in self.events:
+                    span.set_attribute("command.uuid", self.events["Event-UUID"])
 
-        self.writer.write("\n".encode("utf-8"))
-        await self.writer.drain()
+                logger.debug(f"Send command: {cmd}")
+                try:
+                    command_name = cmd.split()[0]
+                    commands_sent_counter.add(1, attributes={"command": command_name})
+                except Exception:
+                    pass
 
-        response = await self.commands.get()
-        return response
+                try:
+                    self.writer.write(f"{cmd}\n\n".encode())
+                    await self.writer.drain()
+                    result = await self.commands.get()
+                    
+                    reply = result.get("Reply-Text", "")
+                    if reply.startswith("-ERR"):
+                        try:
+                            command_errors_counter.add(1, attributes={"command": command_name, "error": "protocol_error"})
+                        except Exception:
+                            pass
+                    
+                    reply_text = result.get("Reply-Text")
+                    if reply_text:
+                        span.set_attribute("command.reply", reply_text)
+
+                    return result
+                except Exception as e:
+                    try:
+                        command_errors_counter.add(1, attributes={"command": command_name, "error": type(e).__name__})
+                    except Exception:
+                        pass
+                    raise
+                finally:
+                    try:
+                        duration = time.perf_counter() - start_time
+                        command_duration_histogram.record(duration, attributes={"command": command_name})
+                    except Exception:
+                        pass
+        except Exception:
+            # OTel not initialized - run without tracing
+            logger.debug(f"Send command: {cmd}")
+            try:
+                command_name = cmd.split()[0]
+                commands_sent_counter.add(1, attributes={"command": command_name})
+            except Exception:
+                pass
+
+            try:
+                self.writer.write(f"{cmd}\n\n".encode())
+                await self.writer.drain()
+                result = await self.commands.get()
+                
+                reply = result.get("Reply-Text", "")
+                if reply.startswith("-ERR"):
+                    try:
+                        command_errors_counter.add(1, attributes={"command": command_name, "error": "protocol_error"})
+                    except Exception:
+                        pass
+                
+                return result
+            except Exception as e:
+                try:
+                    command_errors_counter.add(1, attributes={"command": command_name, "error": type(e).__name__})
+                except Exception:
+                    pass
+                raise
+            finally:
+                try:
+                    duration = time.perf_counter() - start_time
+                    command_duration_histogram.record(duration, attributes={"command": command_name})
+                except Exception:
+                    pass

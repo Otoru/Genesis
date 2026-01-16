@@ -26,6 +26,8 @@ python = ">=3.10,<4.0"
 rich = "^13.7.1"
 typer = "^0.12.3"
 watchdog = "^4.0.2"
+opentelemetry-api = "^1.39.1"
+opentelemetry-exporter-prometheus = "^0.60b1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.4"
@@ -34,6 +36,7 @@ pytest-asyncio = "^0.18.2"
 pytest-cov = "^3.0.0"
 tox = "^3.24.5"
 mock = "^4.0.3"
+opentelemetry-sdk = "^1.39.1"
 
 [tool.poetry.scripts]
 genesis = "genesis.cli:app"

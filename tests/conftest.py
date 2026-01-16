@@ -679,6 +679,8 @@ class ESLMixin(ABC):
             while server.is_running and not writer.is_closing():
                 try:
                     content = await reader.read(1)
+                    if not content:
+                        break
 
                 except:
                     server.is_running = False
@@ -833,7 +835,7 @@ def event_loop(request: pytest.FixtureRequest):
 
 @pytest.fixture(scope="session")
 async def host() -> Callable[[], str]:
-    return lambda: socket.gethostbyname(socket.gethostname())
+    return lambda: "127.0.0.1"
 
 
 @pytest.fixture(scope="session")

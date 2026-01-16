@@ -12,6 +12,21 @@ from typing import Awaitable
 from genesis.exceptions import ConnectionTimeoutError, AuthenticationError
 from genesis.protocol import Protocol
 from genesis.logger import logger
+from opentelemetry import trace, metrics
+
+tracer = trace.get_tracer(__name__)
+meter = metrics.get_meter(__name__)
+
+active_connections_counter = meter.create_up_down_counter(
+    "genesis.connections.active",
+    description="Number of active connections",
+    unit="1",
+)
+connection_errors_counter = meter.create_counter(
+    "genesis.connections.errors",
+    description="Number of connection errors",
+    unit="1",
+)
 
 
 class Inbound(Protocol):
@@ -56,16 +71,48 @@ class Inbound(Protocol):
 
         if response["Reply-Text"] != "+OK accepted":
             logger.debug("Freeswitch said the passed password is incorrect.")
+            connection_errors_counter.add(1, attributes={"error": "authentication_failed", "type": "inbound"})
             raise AuthenticationError("Invalid password")
 
     async def start(self) -> None:
         """Initiates an authenticated connection to a freeswitch server."""
         try:
-            promise = open_connection(self.host, self.port)
-            self.reader, self.writer = await wait_for(promise, self.timeout)
+            try:
+                with tracer.start_as_current_span(
+                    "inbound_connect",
+                    attributes={
+                        "net.peer.name": self.host,
+                        "net.peer.port": self.port,
+                    },
+                ):
+                    promise = open_connection(self.host, self.port)
+                    self.reader, self.writer = await wait_for(promise, self.timeout)
+            except Exception as tracer_error:
+                # OTel not initialized - connect without tracing
+                if "tracer" not in str(tracer_error).lower():
+                    raise
+                promise = open_connection(self.host, self.port)
+                self.reader, self.writer = await wait_for(promise, self.timeout)
         except TimeoutError:
             logger.debug("A timeout occurred when trying to connect to the freeswitch.")
+            try:
+                connection_errors_counter.add(1, attributes={"error": "timeout", "type": "inbound"})
+            except Exception:
+                pass
             raise ConnectionTimeoutError()
 
         await super().start()
+        try:
+            active_connections_counter.add(1, attributes={"type": "inbound"})
+        except Exception as e:
+            logger.error(f"OTel error in start: {e}")
+            pass
         await self.authenticate()
+
+    async def stop(self) -> None:
+        """Terminates the connection."""
+        await super().stop()
+        try:
+            active_connections_counter.add(-1, attributes={"type": "inbound"})
+        except Exception:
+            pass
