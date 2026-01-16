@@ -14,6 +14,7 @@ Genesis is a Python library designed to build asynchronous applications that int
 - **Asynchronous by Design:** Built with `asyncio` for high-performance, non-blocking I/O.
 - **Inbound, Outbound, and Consumer Modes:** Supports all major ESL modes for comprehensive FreeSWITCH integration.
 - **Decorator-Based Event Handling:** A simple and intuitive way to handle FreeSWITCH events.
+- **OpenTelemetry Support:** Built-in instrumentation for tracing connections and commands.
 - **Extensible and Customizable:** Easily extend and customize the library to fit your needs.
 
 ## Installation
