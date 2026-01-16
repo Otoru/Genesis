@@ -56,21 +56,16 @@ class CorrelationIdFilter(logging.Filter):
     def filter(self, record):
         span = trace.get_current_span()
         if span == trace.INVALID_SPAN:
-            # Optionally don't clutter logs if no trace
             return True
         
         ctx = span.get_span_context()
         trace_id = trace.format_trace_id(ctx.trace_id)
         span_id = trace.format_span_id(ctx.span_id)
         
-        # Set attributes for JSONFormatter
         record.otelTraceID = trace_id
         record.otelSpanID = span_id
-        
-        # Append to the message for Text/Rich logging
-        # We need to handle if msg is not a string (rare but possible)
+
         if isinstance(record.msg, str):
-            # Use parentheses to avoid Rich markup collision
             record.msg = f"{record.msg} (trace_id={trace_id} span_id={span_id})"
             
         return True
@@ -82,7 +77,6 @@ class JSONFormatter(logging.Formatter):
     """
 
     def format(self, record):
-        # Create a dictionary with log record attributes
         log_record = {
             "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
             "level": record.levelname,
@@ -90,12 +84,9 @@ class JSONFormatter(logging.Formatter):
             "logger": record.name,
         }
         
-        # Add exception info if present
         if record.exc_info:
             log_record["exception"] = self.formatException(record.exc_info)
             
-        # Add extra fields (trace_id, span_id) if available (set by CorrelationIdFilter)
-        # Note: CorrelationIdFilter might have set them on the record options
         if hasattr(record, "otelTraceID") and record.otelTraceID != "0":
             log_record["trace_id"] = record.otelTraceID
         if hasattr(record, "otelSpanID") and record.otelSpanID != "0":
@@ -113,7 +104,6 @@ def reconfigure_logger(use_json: bool = False) -> None:
     """
     logger = logging.getLogger(__name__)
     
-    # Remove existing handlers to avoid duplicates
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)
         
@@ -121,7 +111,6 @@ def reconfigure_logger(use_json: bool = False) -> None:
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(JSONFormatter())
     else:
-        # Re-add RichHandler (same config as setup_logger)
         handler = RichHandler(
             rich_tracebacks=True,
             tracebacks_show_locals=True,
@@ -132,7 +121,7 @@ def reconfigure_logger(use_json: bool = False) -> None:
         )
         handler.setFormatter(logging.Formatter("%(message)s"))
     
-    # Always add the filter
+    
     handler.addFilter(CorrelationIdFilter())
     
     logger.addHandler(handler)
@@ -150,7 +139,6 @@ def setup_logger(name: str = __name__) -> logging.Logger:
     """
     logger = logging.getLogger(name)
 
-    # Prevent duplicate handlers
     if logger.handlers:
         return logger
 
@@ -163,14 +151,13 @@ def setup_logger(name: str = __name__) -> logging.Logger:
         omit_repeated_times=False,
     )
     
-    # Add OpenTelemetry correlation filter
+    
     handler.addFilter(CorrelationIdFilter())
 
-    # Update formatter to include trace/span IDs
     formatter = logging.Formatter("%(message)s")
     handler.setFormatter(formatter)
 
-    # Get log level from environment variable
+    
     log_level = get_log_level()
     logger.setLevel(log_level)
     logger.addHandler(handler)
@@ -180,5 +167,4 @@ def setup_logger(name: str = __name__) -> logging.Logger:
     return logger
 
 
-# Create default logger
 logger = setup_logger(__name__)
