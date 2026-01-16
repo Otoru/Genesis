@@ -363,7 +363,7 @@ class Outbound:
                 "net.peer.port": server.port,
             },
         ):
-            # Record active connection
+            
             active_connections_counter.add(1, attributes={"type": "outbound"})
             try:
                 async with Session(reader, writer) as session:

@@ -48,7 +48,7 @@ def callback(
 ) -> None:
     reconfigure_logger(json)
     
-    # Configure and start Prometheus Metrics
+    
     try:
         metrics_port = int(os.getenv("GENESIS_METRICS_PORT", "8000"))
         start_http_server(metrics_port)
@@ -59,15 +59,10 @@ def callback(
             metric_readers=[metric_reader],
         )
         metrics.set_meter_provider(provider)
-        # We don't print here to avoid polluting stdout unless debug/json? 
-        # But user wants to know it's running? 
-        # Maybe log it?
-        # logger.debug is hard to reach here without importing logger.
+        
         print(f"[bold green]Prometheus metrics server started on port {metrics_port}[/bold green]")
     except Exception as e:
-        # If port is in use or other error, we should probably warn but not crash?
-        # Or crash if it's critical.
-        # User said "expose... by default". Failing silently is bad.
+        
         print(f"[yellow]Warning: Failed to start Prometheus metrics server on port {metrics_port}: {e}[/yellow]")
     
     """

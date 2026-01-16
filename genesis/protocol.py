@@ -27,11 +27,9 @@ from genesis.exceptions import ConnectionError, UnconnectedError
 from genesis.logger import logger, TRACE_LEVEL_NUM
 from genesis.parser import ESLEvent, parse_headers
 
-# OpenTelemetry Setup
 tracer = trace.get_tracer(__name__)
 meter = metrics.get_meter(__name__)
 
-# Metrics Instruments
 commands_sent_counter = meter.create_counter(
     "genesis.commands.sent",
     description="Number of ESL commands sent",
@@ -221,13 +219,11 @@ class Protocol(ABC):
                     attributes[attr_name] = value
 
             with tracer.start_as_current_span("process_event", attributes=attributes) as span:
-                # Flatten all event headers into the span attributes
                 for header_name, header_value in event.items():
-                    # Sanitize header name to be snake_case and dot.separated
                     attribute_key = header_name.lower().replace("-", "_")
                     span.set_attribute(f"event.header.{attribute_key}", header_value)
                 
-                # Record Metric
+                
                 event_name = event.get("Event-Name", "UNKNOWN")
                 content_type = event.get("Content-Type", "UNKNOWN")
                 metric_attributes = {
@@ -235,7 +231,7 @@ class Protocol(ABC):
                     "content_type": content_type,
                 }
                 
-                # Add optional tags if present
+                
                 if "Event-Subclass" in event:
                     metric_attributes["event_subclass"] = event["Event-Subclass"]
                 if "Call-Direction" in event:
@@ -371,7 +367,6 @@ class Protocol(ABC):
                 span.set_attribute("command.uuid", self.events["Event-UUID"])
 
             logger.debug(f"Send command: {cmd}")
-            # Record metric
             command_name = cmd.split()[0]
             commands_sent_counter.add(1, attributes={"command": command_name})
 
@@ -387,7 +382,7 @@ class Protocol(ABC):
                 self.transport.write(f"{cmd}\n\n".encode())
                 result = await future
                 
-                # Check for protocol errors
+                
                 reply = result.get("Reply-Text", "")
                 if reply.startswith("-ERR"):
                     command_errors_counter.add(1, attributes={"command": command_name, "error": "protocol_error"})
