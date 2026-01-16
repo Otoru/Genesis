@@ -5,9 +5,7 @@ import logging
 import asyncio
 
 import typer
-from rich import print
-from rich.panel import Panel
-from rich.padding import Padding
+
 
 from genesis.cli import watcher
 from genesis.logger import logger
@@ -56,14 +54,6 @@ def _run(
 ) -> None:
     try:
         import_string = get_import_string(Consumer, path=path, app_name=app)
-
-        panel = Panel(
-            f"[dim]ESL dial address:[/dim] [link]esl://{host}:{port}[/link]",
-            title="Genesis Consumer app",
-            expand=False,
-            padding=(1, 2),
-            style="black on yellow" if reload else "green",
-        )
 
         logger.info(f"Consumer started - Host: {host}, Port: {port}")
 
