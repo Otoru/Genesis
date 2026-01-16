@@ -111,7 +111,7 @@ def get_import_string(
         ),
         1,
     )
-    print(panel)
+    logger.info(f"Module structure: {' -> '.join(p.name for p in module_paths)}")
 
     module_import_str = ".".join(p.stem for p in module_paths)
 
@@ -135,8 +135,7 @@ def get_import_string(
         1,
     )
 
-    logger.info(f"Found importable {cls.__name__} app")
-    print(import_panel)
+    logger.info(f"Importable app: from {module_import_str} import {use_app_name}")
 
     import_string = f"{module_import_str}:{use_app_name}"
     logger.info(f"Using import string [b green]{import_string}[/b green]")

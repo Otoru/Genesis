@@ -31,7 +31,7 @@ def version(show: bool) -> None:
     """Show the version and exit."""
     if show:
         version = importlib.metadata.version("genesis")
-        print(f"Genesis version: [green]{version}[/green]")
+        logger.info(f"Genesis version: {version}")
         raise typer.Exit()
 
 
@@ -60,10 +60,10 @@ def callback(
         )
         metrics.set_meter_provider(provider)
         
-        print(f"[bold green]Prometheus metrics server started on port {metrics_port}[/bold green]")
+        logger.info(f"Prometheus metrics server started on port {metrics_port}")
     except Exception as e:
         
-        print(f"[yellow]Warning: Failed to start Prometheus metrics server on port {metrics_port}: {e}[/yellow]")
+        logger.warning(f"Failed to start Prometheus metrics server on port {metrics_port}: {e}")
     
     """
     Genesis - [blue]FreeSWITCH Event Socket protocol[/blue] implementation with [bold]asyncio[/bold].

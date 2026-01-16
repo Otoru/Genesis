@@ -65,7 +65,7 @@ def _run(
             style="black on yellow" if reload else "green",
         )
 
-        print(Padding(panel, 1))
+        logger.info(f"Consumer started - Host: {host}, Port: {port}")
 
         module_str, attr_str = import_string.split(":")
         module = importlib.import_module(module_str)
