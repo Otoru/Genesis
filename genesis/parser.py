@@ -23,7 +23,7 @@ class ESLEvent(UserDict):
             else:
                 val = unquote(raw, encoding="UTF-8")
             self.data[key] = val
-        
+
         return super().__getitem__(key)
 
     def __contains__(self, key):
@@ -51,14 +51,18 @@ class ESLEvent(UserDict):
         super().__delitem__(key)
 
     def set_raw_header(self, key, value):
-        # Used for multiline headers where we want to update the entry with the accumulated value
-        # This invalidates any cached decoded value
+        """
+        Used for multiline headers where we want to update the entry with the accumulated value.
+        This invalidates any cached decoded value.
+        """
         if key in self.data:
             del self.data[key]
         self._raw_data[key] = value
 
     def add_raw_header(self, key, value):
-        # We assume 'key' is already unquoted by the parser
+        """
+        We assume 'key' is already unquoted by the parser.
+        """
         if key in self.data:
             # Already decoded or added as clean
             current = self.data[key]
