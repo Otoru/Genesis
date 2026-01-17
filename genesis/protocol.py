@@ -111,7 +111,7 @@ class Protocol(ABC):
                     if not content:
                         self.is_connected = False
                         break
-                    
+
                     buffer += content.decode("utf-8")
                 except Exception as e:
                     logger.error(f"Error reading from stream. {str(e)}")
@@ -217,28 +217,32 @@ class Protocol(ABC):
                     else:
                         slug = key.lower().replace("-", "_")
                         attr_name = f"event.header.{slug}"
-                    
+
                     if isinstance(value, (str, int, float, bool, list, tuple)):
                         attributes[attr_name] = value
 
                 try:
-                    with tracer.start_as_current_span("process_event", attributes=attributes) as span:
+                    with tracer.start_as_current_span(
+                        "process_event", attributes=attributes
+                    ) as span:
                         for header_name, header_value in event.items():
                             # Encode headers if necessary or ensure string
                             attribute_key = header_name.lower().replace("-", "_")
-                            span.set_attribute(f"event.header.{attribute_key}", str(header_value))
-                        
-                        
+                            span.set_attribute(
+                                f"event.header.{attribute_key}", str(header_value)
+                            )
+
                         event_name = event.get("Event-Name", "UNKNOWN")
                         content_type = event.get("Content-Type", "UNKNOWN")
                         metric_attributes = {
                             "event_name": event_name,
                             "content_type": content_type,
                         }
-                        
-                        
+
                         if "Event-Subclass" in event:
-                            metric_attributes["event_subclass"] = event["Event-Subclass"]
+                            metric_attributes["event_subclass"] = event[
+                                "Event-Subclass"
+                            ]
                         if "Call-Direction" in event:
                             metric_attributes["direction"] = event["Call-Direction"]
                         if "Channel-State" in event:
@@ -255,7 +259,7 @@ class Protocol(ABC):
                         "event_name": event_name,
                         "content_type": content_type,
                     }
-                    
+
                 try:
                     events_received_counter.add(1, attributes=metric_attributes)
                 except Exception:
@@ -288,18 +292,26 @@ class Protocol(ABC):
                                 if name:
                                     logger.debug(f"Received an event: '{name}'.")
 
-                                elif "Content-Type" in event and event["Content-Type"] in [
+                                elif "Content-Type" in event and event[
+                                    "Content-Type"
+                                ] in [
                                     "command/reply",
                                     "auth/request",
                                 ]:
                                     reply = event.get("Reply-Text", None)
 
-                                    if reply and event["Content-Type"] == "command/reply":
+                                    if (
+                                        reply
+                                        and event["Content-Type"] == "command/reply"
+                                    ):
                                         logger.debug(
                                             f"Received an command reply: '{reply}'."
                                         )
 
-                                    if reply and event["Content-Type"] == "auth/request":
+                                    if (
+                                        reply
+                                        and event["Content-Type"] == "auth/request"
+                                    ):
                                         logger.debug(
                                             f"Received an authentication reply: '{event}'."
                                         )
@@ -310,11 +322,15 @@ class Protocol(ABC):
                 if "Content-Type" in event and event["Content-Type"] == "auth/request":
                     self.authentication_event.set()
 
-                elif "Content-Type" in event and event["Content-Type"] == "command/reply":
-                     await self.commands.put(event)
+                elif (
+                    "Content-Type" in event and event["Content-Type"] == "command/reply"
+                ):
+                    await self.commands.put(event)
 
-                elif "Content-Type" in event and event["Content-Type"] == "api/response":
-                     await self.commands.put(event)
+                elif (
+                    "Content-Type" in event and event["Content-Type"] == "api/response"
+                ):
+                    await self.commands.put(event)
 
                 elif "Content-Type" in event and event["Content-Type"] in [
                     "text/rude-rejection",
@@ -381,7 +397,6 @@ class Protocol(ABC):
         if self.writer.is_closing():
             raise ConnectionError()
 
-
         start_time = time.perf_counter()
         try:
             with tracer.start_as_current_span("send_command") as span:
@@ -400,14 +415,20 @@ class Protocol(ABC):
                     self.writer.write(f"{cmd}\n\n".encode())
                     await self.writer.drain()
                     result = await self.commands.get()
-                    
+
                     reply = result.get("Reply-Text", "")
                     if reply.startswith("-ERR"):
                         try:
-                            command_errors_counter.add(1, attributes={"command": command_name, "error": "protocol_error"})
+                            command_errors_counter.add(
+                                1,
+                                attributes={
+                                    "command": command_name,
+                                    "error": "protocol_error",
+                                },
+                            )
                         except Exception:
                             pass
-                    
+
                     reply_text = result.get("Reply-Text")
                     if reply_text:
                         span.set_attribute("command.reply", reply_text)
@@ -415,14 +436,22 @@ class Protocol(ABC):
                     return result
                 except Exception as e:
                     try:
-                        command_errors_counter.add(1, attributes={"command": command_name, "error": type(e).__name__})
+                        command_errors_counter.add(
+                            1,
+                            attributes={
+                                "command": command_name,
+                                "error": type(e).__name__,
+                            },
+                        )
                     except Exception:
                         pass
                     raise
                 finally:
                     try:
                         duration = time.perf_counter() - start_time
-                        command_duration_histogram.record(duration, attributes={"command": command_name})
+                        command_duration_histogram.record(
+                            duration, attributes={"command": command_name}
+                        )
                     except Exception:
                         pass
         except Exception:
@@ -438,24 +467,35 @@ class Protocol(ABC):
                 self.writer.write(f"{cmd}\n\n".encode())
                 await self.writer.drain()
                 result = await self.commands.get()
-                
+
                 reply = result.get("Reply-Text", "")
                 if reply.startswith("-ERR"):
                     try:
-                        command_errors_counter.add(1, attributes={"command": command_name, "error": "protocol_error"})
+                        command_errors_counter.add(
+                            1,
+                            attributes={
+                                "command": command_name,
+                                "error": "protocol_error",
+                            },
+                        )
                     except Exception:
                         pass
-                
+
                 return result
             except Exception as e:
                 try:
-                    command_errors_counter.add(1, attributes={"command": command_name, "error": type(e).__name__})
+                    command_errors_counter.add(
+                        1,
+                        attributes={"command": command_name, "error": type(e).__name__},
+                    )
                 except Exception:
                     pass
                 raise
             finally:
                 try:
                     duration = time.perf_counter() - start_time
-                    command_duration_histogram.record(duration, attributes={"command": command_name})
+                    command_duration_histogram.record(
+                        duration, attributes={"command": command_name}
+                    )
                 except Exception:
                     pass

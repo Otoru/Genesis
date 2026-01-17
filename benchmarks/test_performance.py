@@ -23,5 +23,6 @@ LARGE_PAYLOAD = dedent(
     """
 )
 
+
 def test_parse_headers_performance(benchmark):
     benchmark(parse_headers, LARGE_PAYLOAD)

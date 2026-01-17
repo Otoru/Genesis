@@ -19,14 +19,22 @@ This workflow ensures that all tests pass and dependencies are installed before 
    poetry install
    ```
 
-3. **Run Tests**
+3. **Run Linter (Black)**
+   // turbo
+   Ensure code formatting compliance.
+   ```bash
+   poetry run black . --check
+   ```
+   *If this fails, run `poetry run black .` to automatically fix formatting.*
+
+4. **Run Tests**
    // turbo
    Run the test suite.
    ```bash
    poetry run py.test
    ```
 
-4. **Handle Failures**
+5. **Handle Failures**
    If the tests fail, analyze the output.
    - If it looks like a missing dependency error, run `poetry install` again or add the missing package with `poetry add <package>`.
-   - If it is a code error, fix the code and re-run step 3.
+   - If it is a code error, fix the code and re-run step 4.

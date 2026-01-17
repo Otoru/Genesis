@@ -71,7 +71,9 @@ class Inbound(Protocol):
 
         if response["Reply-Text"] != "+OK accepted":
             logger.debug("Freeswitch said the passed password is incorrect.")
-            connection_errors_counter.add(1, attributes={"error": "authentication_failed", "type": "inbound"})
+            connection_errors_counter.add(
+                1, attributes={"error": "authentication_failed", "type": "inbound"}
+            )
             raise AuthenticationError("Invalid password")
 
     async def start(self) -> None:
@@ -88,7 +90,6 @@ class Inbound(Protocol):
                     promise = open_connection(self.host, self.port)
                     self.reader, self.writer = await wait_for(promise, self.timeout)
             except Exception as tracer_error:
-                # OTel not initialized - connect without tracing
                 if "tracer" not in str(tracer_error).lower():
                     raise
                 promise = open_connection(self.host, self.port)
@@ -96,7 +97,9 @@ class Inbound(Protocol):
         except TimeoutError:
             logger.debug("A timeout occurred when trying to connect to the freeswitch.")
             try:
-                connection_errors_counter.add(1, attributes={"error": "timeout", "type": "inbound"})
+                connection_errors_counter.add(
+                    1, attributes={"error": "timeout", "type": "inbound"}
+                )
             except Exception:
                 pass
             raise ConnectionTimeoutError()
