@@ -386,9 +386,6 @@ class Protocol(ABC):
         try:
             with tracer.start_as_current_span("send_command") as span:
                 span.set_attribute("command.name", cmd)
-                if "Event-UUID" in self.events:
-                    span.set_attribute("command.uuid", self.events["Event-UUID"])
-
                 logger.debug(f"Send command: {cmd}")
                 try:
                     command_name = cmd.split()[0]
