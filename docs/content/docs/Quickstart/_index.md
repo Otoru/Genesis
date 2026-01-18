@@ -72,7 +72,7 @@ async def handler(session):
     await session.playback('ivr/ivr-welcome')
     await session.hangup()
 
-app = Outbound("127.0.0.1", 5000, handler)
+app = Outbound(handler, "127.0.0.1", 5000)
 
 asyncio.run(app.start())
 ```
