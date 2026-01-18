@@ -4,7 +4,6 @@ from typing import Union
 from pathlib import Path
 
 
-
 from genesis.logger import logger
 from genesis.cli.exceptions import CLIExcpetion
 

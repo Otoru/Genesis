@@ -363,7 +363,7 @@ class Outbound:
                 "net.peer.port": server.port,
             },
         ):
-            
+
             try:
                 active_connections_counter.add(1, attributes={"type": "outbound"})
             except Exception:
