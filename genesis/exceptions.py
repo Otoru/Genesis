@@ -6,7 +6,10 @@ Grouping of all errors that can occur in genesis.
 """
 
 
-class ConnectionError(ConnectionError):
+import builtins
+
+
+class ConnectionError(builtins.ConnectionError):
     """exception created to group all connection errors."""
 
     ...

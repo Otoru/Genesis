@@ -11,15 +11,16 @@ from genesis.cli import watcher
 from genesis.logger import logger
 from genesis.consumer import Consumer
 from genesis.cli.exceptions import CLIExcpetion
-from genesis.cli.utils import complete_log_levels
+from genesis.cli.utils import complete_log_levels, get_log_level_map
 from genesis.cli.discover import get_import_string
+from genesis.types import WatcherProtocol
 
 consumer = typer.Typer(rich_markup_mode="rich")
 
 
 async def _run_with_reload(app: Consumer, path: Path) -> None:
     loop = asyncio.get_running_loop()
-    queue = asyncio.Queue()
+    queue: asyncio.Queue = asyncio.Queue()
 
     async def consume(queue: asyncio.Queue) -> None:
         await app.start()
@@ -30,7 +31,7 @@ async def _run_with_reload(app: Consumer, path: Path) -> None:
                 logger.info("App stopped, restarting...")
                 await app.start()
 
-    observer = watcher.factory(path, queue, loop)
+    observer: WatcherProtocol = watcher.factory(path, queue, loop)
 
     observer.start()
     asyncio.run_coroutine_threadsafe(queue.put(None), loop)
@@ -44,7 +45,7 @@ async def _run_with_reload(app: Consumer, path: Path) -> None:
 
 
 def _run(
-    path: Union[Path, None] = None,
+    path: Path,
     host: str = "127.0.0.1",
     port: int = 8021,
     reload: bool = True,
@@ -59,20 +60,20 @@ def _run(
 
         module_str, attr_str = import_string.split(":")
         module = importlib.import_module(module_str)
-        app: Consumer = getattr(module, attr_str)
+        consumer_app: Consumer = getattr(module, attr_str)
 
-        app.host = host
-        app.port = port
-        app.password = password
+        consumer_app.host = host
+        consumer_app.port = port
+        consumer_app.password = password
 
         logger.info(f"Setting log level to [bold]{loglevel.upper()}[/bold]")
-        levels = logging.getLevelNamesMapping()
+        levels = get_log_level_map()
         logger.setLevel(levels.get(loglevel.upper(), logging.INFO))
 
         if reload:
-            asyncio.run(_run_with_reload(app, path))
+            asyncio.run(_run_with_reload(consumer_app, path))
         else:
-            asyncio.run(app.start())
+            asyncio.run(consumer_app.start())
 
     except CLIExcpetion as e:
         logger.error(e)
@@ -116,10 +117,10 @@ def dev(
             envvar="ESL_LOG_LEVEL",
             show_default=True,
             case_sensitive=False,
-            autocompletion=complete_log_levels,
+            shell_complete=complete_log_levels,
         ),
     ] = "info",
-):
+) -> None:
     """
     Run a [bold]Consumer[/bold] genesis app in [yellow]development[/yellow] mode. 🧪
 
@@ -177,10 +178,10 @@ def run(
             envvar="ESL_LOG_LEVEL",
             show_default=True,
             case_sensitive=False,
-            autocompletion=complete_log_levels,
+            shell_complete=complete_log_levels,
         ),
     ] = "info",
-):
+) -> None:
     """
     Run a [bold]Consumer[/bold] genesis app in [green]production[/green] mode. 🚀
 

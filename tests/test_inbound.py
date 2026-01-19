@@ -120,7 +120,7 @@ async def test_to_remove_event_handler():
     assert handler not in client.handlers["MESSAGE"], "The handler has not been removed"
 
 
-async def test_inbound_client_send_command(freeswitch):
+async def test_inbound_client_connection_error_after_connect(freeswitch):
     async with freeswitch:
         async with Inbound(*freeswitch.address) as client:
             with pytest.raises(ConnectionError):

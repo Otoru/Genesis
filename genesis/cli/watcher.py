@@ -1,10 +1,13 @@
+from __future__ import annotations
 import asyncio
 import fnmatch
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
+
+from genesis.types import WatcherProtocol
 
 
 class EventHandler(FileSystemEventHandler):
@@ -16,7 +19,7 @@ class EventHandler(FileSystemEventHandler):
     """
 
     def __init__(
-        self, queue: asyncio.Queue, loop: asyncio.BaseEventLoop, *args, **kwargs
+        self, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop, *args, **kwargs
     ):
         self._loop = loop
         self._queue = queue
@@ -36,25 +39,25 @@ class EventIterator(object):
     """
 
     def __init__(
-        self, queue: asyncio.Queue, loop: Optional[asyncio.BaseEventLoop] = None
-    ):
+        self, queue: asyncio.Queue, loop: Optional[asyncio.AbstractEventLoop] = None
+    ) -> None:
         self.queue = queue
 
-    def __aiter__(self):
+    def __aiter__(self) -> EventIterator:
         return self
 
-    async def __anext__(self):
+    async def __anext__(self) -> Optional[FileSystemEvent]:
         item = await self.queue.get()
         if item is not None:
-            return item
-
+            return cast(FileSystemEvent, item)
+        return None
 
 def factory(
     path: Path,
     queue: asyncio.Queue,
-    loop: asyncio.BaseEventLoop,
+    loop: asyncio.AbstractEventLoop,
     recursive: bool = True,
-) -> Observer:
+) -> WatcherProtocol:
     """This function creates an observer instance and returns it."""
     handler = EventHandler(queue, loop)
 

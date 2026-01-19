@@ -19,7 +19,7 @@ from prometheus_client import start_http_server
 
 from genesis.cli.consumer import consumer
 from genesis.cli.outbound import outbound
-from genesis.logger import reconfigure_logger
+from genesis.logger import reconfigure_logger, logger
 
 
 app = typer.Typer(rich_markup_mode="rich")

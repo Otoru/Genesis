@@ -16,7 +16,7 @@ from asyncio import (
     Task,
 )
 
-from typing import List, Dict, Optional, Callable, Coroutine, Any, Union
+from typing import List, Dict, Optional, Callable, Coroutine, Any, Union, cast
 from abc import ABC
 import logging
 
@@ -55,8 +55,8 @@ command_errors_counter = meter.create_counter(
 
 class Protocol(ABC):
     def __init__(self):
-        self.events = Queue()
-        self.commands = Queue()
+        self.events: Queue[ESLEvent] = Queue()
+        self.commands: Queue[ESLEvent] = Queue()
         self.is_connected = False
         self.is_lingering = False
         self.authentication_event = Event()
@@ -101,6 +101,8 @@ class Protocol(ABC):
     async def handler(self) -> None:
         """Defines intelligence to treat received events."""
         while self.is_connected:
+            if self.reader is None:
+                break
             request = None
             buffer = ""
 
@@ -135,7 +137,7 @@ class Protocol(ABC):
 
                 # Read the complete data
                 data = await self.reader.readexactly(length)
-                logger.trace(f"Received complete data: {data}")
+                logger.trace(f"Received complete data: {data!r}")
                 complete_content = data.decode("utf-8")
                 contentType = event.get("Content-Type", None)
 
@@ -369,9 +371,7 @@ class Protocol(ABC):
     def on(
         self,
         key: str,
-        handler: Union[
-            Callable[[ESLEvent], None], Callable[[ESLEvent], Coroutine[Any, Any, None]]
-        ],
+        handler: Any,
     ) -> None:
         """Associate a handler with an event key."""
         logger.debug(f"Register handler to '{key}' event.")
@@ -380,9 +380,7 @@ class Protocol(ABC):
     def remove(
         self,
         key: str,
-        handler: Union[
-            Callable[[ESLEvent], None], Callable[[ESLEvent], Coroutine[Any, Any, None]]
-        ],
+        handler: Any,
     ) -> None:
         """Removes the HANDLER from the list of handlers for the given event KEY name."""
         logger.debug(f"Remove handler to '{key}' event.")
@@ -391,7 +389,7 @@ class Protocol(ABC):
 
     async def send(self, cmd: str) -> ESLEvent:
         """Method used to send commands to or freeswitch."""
-        if not self.is_connected:
+        if not self.is_connected or self.writer is None:
             raise UnconnectedError()
 
         if self.writer.is_closing():

@@ -9,7 +9,7 @@ from genesis.cli.exceptions import CLIExcpetion
 
 
 def get_app_name(
-    cls: object, module_import_str: str, app_name: Union[str, None] = None
+    cls: type, module_import_str: str, app_name: Union[str, None] = None
 ) -> str:
     """Get the app name from the module."""
     try:
@@ -45,7 +45,7 @@ def get_app_name(
 
 
 def get_import_string(
-    cls: object, path: Union[Path, None] = None, app_name: Union[str, None] = None
+    cls: type, path: Union[Path, None] = None, app_name: Union[str, None] = None
 ) -> str:
     """Get the import string for the given module path."""
     if not path:

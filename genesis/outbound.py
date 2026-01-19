@@ -8,17 +8,19 @@ ESL implementation used for outgoing connections on freeswitch.
 from __future__ import annotations
 
 from asyncio import StreamReader, StreamWriter, Queue, start_server, Event, wait_for
-from typing import Optional, Union, Dict, Literal
-from collections.abc import Callable, Coroutine
+from typing import List, Dict, Optional, Callable, Coroutine, Union, Any, cast, Literal, Awaitable
+
 from functools import partial
 from pprint import pformat
 from uuid import uuid4
+import asyncio
 import socket
 
 from genesis.protocol import Protocol
 from genesis.parser import ESLEvent
 from genesis.logger import logger
 from opentelemetry import trace, metrics
+from genesis.types import OutboundHandler
 
 tracer = trace.get_tracer(__name__)
 meter = metrics.get_meter(__name__)
@@ -46,10 +48,10 @@ class Session(Protocol):
 
     def __init__(self, reader: StreamReader, writer: StreamWriter) -> None:
         super().__init__()
-        self.context: Dict[str, str] = dict()
+        self.context: ESLEvent = ESLEvent()
         self.reader = reader
         self.writer = writer
-        self.fifo = Queue()
+        self.fifo: Queue[ESLEvent] = Queue()
 
     async def __aenter__(self) -> Session:
         """Interface used to implement a context manager."""
@@ -78,7 +80,7 @@ class Session(Protocol):
         """
         semaphore = Event()
 
-        handlers = {}
+        handlers: Dict[str, Callable] = {}
 
         async def cleanup():
             for key, value in handlers.items():
@@ -113,7 +115,7 @@ class Session(Protocol):
 
         logger.debug(f"Register event handler for Application-UUID: {event_uuid}")
 
-        return wait_for(semaphore, timeout=timeout)
+        return wait_for(semaphore, timeout=timeout)  # type: ignore
 
     async def sendmsg(
         self,
@@ -190,6 +192,7 @@ class Session(Protocol):
             logger.debug(
                 f"Waiting for command completion with Application-UUID: {event_uuid}"
             )
+            assert event_uuid is not None
             command_is_complete = await self._awaitable_complete_command(
                 event_uuid, timeout
             )
@@ -295,30 +298,37 @@ class Session(Protocol):
             timeout=sendmsg_timeout,
         )
 
-
 class Outbound:
     """
-    Outbound class
-    -------------
+    Outbound application server
+    ---------------------------
 
-    Given a valid set of information, start an ESL server that processes calls.
+    This class is responsible for creating a server that listens for incoming connections
+    from freeswitch.
 
     Attributes:
-    - host: required
-        IP address the server should listen on.
-    - port: required
-        Network port the server should listen on.
-    - handler: required
-        Function that will take a session as an argument and will actually process the call.
+    - host: optional
+        IP address to listen for incoming connections.
+    - port: optional
+        Port to listen for incoming connections.
+    - app: required
+        Function that will be called when a new connection is established.
     - events: optional
         If true, ask freeswitch to send us all events associated with the session.
     - linger: optional
         If true, asks that the events associated with the session come even after the call hangup.
     """
 
+    host: str
+    port: int
+    app: OutboundHandler
+    myevents: bool
+    linger: bool
+    server: Optional[asyncio.AbstractServer]
+
     def __init__(
         self,
-        handler: Union[Callable, Coroutine],
+        handler: OutboundHandler,
         host: str = "127.0.0.1",
         port: int = 9000,
         events: bool = True,
