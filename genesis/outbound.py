@@ -8,7 +8,18 @@ ESL implementation used for outgoing connections on freeswitch.
 from __future__ import annotations
 
 from asyncio import StreamReader, StreamWriter, Queue, start_server, Event, wait_for
-from typing import List, Dict, Optional, Callable, Coroutine, Union, Any, cast, Literal, Awaitable
+from typing import (
+    List,
+    Dict,
+    Optional,
+    Callable,
+    Coroutine,
+    Union,
+    Any,
+    cast,
+    Literal,
+    Awaitable,
+)
 
 from functools import partial
 from pprint import pformat
@@ -297,6 +308,7 @@ class Session(Protocol):
             block=block,
             timeout=sendmsg_timeout,
         )
+
 
 class Outbound:
     """

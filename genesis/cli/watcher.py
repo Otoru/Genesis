@@ -52,6 +52,7 @@ class EventIterator(object):
             return cast(FileSystemEvent, item)
         return None
 
+
 def factory(
     path: Path,
     queue: asyncio.Queue,

@@ -5,7 +5,6 @@ Genesis exceptions
 Grouping of all errors that can occur in genesis.
 """
 
-
 import builtins
 
 
