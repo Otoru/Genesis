@@ -27,14 +27,32 @@ This workflow ensures that all tests pass and dependencies are installed before 
    ```
    *If this fails, run `poetry run black .` to automatically fix formatting.*
 
-4. **Run Tests**
+4. **Run Type Checker (Mypy)**
+   // turbo
+   Ensure type safety.
+   ```bash
+   poetry run mypy
+   ```
+
+5. **Run Tests**
    // turbo
    Run the test suite.
    ```bash
    poetry run py.test
    ```
 
-5. **Handle Failures**
+6. **Verify No Warnings**
+   // turbo
+   Ensure tests run without warnings.
+   ```bash
+   poetry run pytest -q 2>&1 | grep -E "warning|Warning" && echo "⚠️  Warnings detected! Fix them before proceeding." && exit 1 || echo "✅ No warnings"
+   ```
+   *If warnings are detected, investigate and fix them. Common fixes:*
+   - Update deprecated APIs (e.g., `autocompletion` → `shell_complete`)
+   - Upgrade outdated dependencies (e.g., `pytest-cov`)
+   - Fix async test configurations
+
+7. **Handle Failures**
    If the tests fail, analyze the output.
    - If it looks like a missing dependency error, run `poetry install` again or add the missing package with `poetry add <package>`.
-   - If it is a code error, fix the code and re-run step 4.
+   - If it is a code error, fix the code and re-run the tests.

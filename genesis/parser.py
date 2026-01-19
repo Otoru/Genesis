@@ -4,13 +4,13 @@ Genesis parse
 It implements the intelligence necessary for us to transform freeswitch events into python primitive types.
 """
 
-from typing import Optional
+from typing import Optional, Any
 from collections import UserDict
 from urllib.parse import unquote
 
 
 class ESLEvent(UserDict):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.body: Optional[str] = None
 

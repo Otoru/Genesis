@@ -3,6 +3,7 @@ import os
 import json
 import sys
 from datetime import datetime, timezone
+from typing import cast
 from rich.logging import RichHandler
 
 TRACE_LEVEL_NUM = 5
@@ -10,12 +11,13 @@ TRACE_LEVEL_NUM = 5
 logging.addLevelName(TRACE_LEVEL_NUM, "TRACE")
 
 
-def trace(self, message, *args, **kws):
-    if self.isEnabledFor(TRACE_LEVEL_NUM):
-        self._log(TRACE_LEVEL_NUM, message, args, **kws)
+class GenesisLogger(logging.Logger):
+    def trace(self, message: str, *args, **kws) -> None:
+        if self.isEnabledFor(TRACE_LEVEL_NUM):
+            self._log(TRACE_LEVEL_NUM, message, args, **kws)
 
 
-logging.Logger.trace = trace
+logging.setLoggerClass(GenesisLogger)
 
 
 def get_log_level() -> int:
@@ -132,7 +134,7 @@ def reconfigure_logger(use_json: bool = False) -> None:
     logger.debug(f"Logger reconfigured (json={use_json})")
 
 
-def setup_logger(name: str = __name__) -> logging.Logger:
+def setup_logger(name: str = __name__) -> GenesisLogger:
     """Configure a logger with rich handler and conventional formatting.
 
     Args:
@@ -144,7 +146,7 @@ def setup_logger(name: str = __name__) -> logging.Logger:
     logger = logging.getLogger(name)
 
     if logger.handlers:
-        return logger
+        return cast(GenesisLogger, logger)
 
     handler = RichHandler(
         rich_tracebacks=True,
@@ -166,7 +168,7 @@ def setup_logger(name: str = __name__) -> logging.Logger:
     logger.propagate = False
 
     logger.debug(f"Logger initialized with level: {logging.getLevelName(log_level)}")
-    return logger
+    return cast(GenesisLogger, logger)
 
 
 logger = setup_logger(__name__)

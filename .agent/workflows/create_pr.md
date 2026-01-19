@@ -6,9 +6,14 @@ description: Create a Pull Request respecting the semantic versioning rules of t
 
 This workflow guides you through creating a Pull Request while respecting the project's versioning logic (checking for `(major)`, `(minor)` in commit messages).
 
-1. **Run Validation**
-   Before creating a PR, ensure everything is working.
-   /test_and_validate
+1. **Run Full Validation (Tox)**
+   Before creating a PR, run the full validation suite (tests + types) across all supported environments to prevent CI failures.
+   
+   Ensure necessary python versions are available (using asdf if needed, e.g. `asdf set python 3.10.19 3.11.9 3.12.4`).
+   ```bash
+   poetry run tox
+   ```
+   *Fix any errors before proceeding.*
 
 2. **Determine Version Bump**
    Ask the user what kind of version bump this change represents:

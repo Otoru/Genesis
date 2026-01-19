@@ -4,7 +4,7 @@ Consumer Module
 Simple abstraction used to put some syntactic sugar into freeswitch event consumption.
 """
 
-from typing import Callable, Optional, Coroutine, Union
+from typing import Callable, Optional, Coroutine, Union, Any
 import functools
 import asyncio
 import re
@@ -15,7 +15,7 @@ from genesis.logger import logger
 
 def filtrate(
     key: str, value: Optional[str] = None, regex: bool = False
-) -> Union[Callable, Coroutine]:
+) -> Callable[..., Any]:
     """
     Method that allows to filter the events according to a set 'key', 'value'.
 
@@ -29,9 +29,9 @@ def filtrate(
         Tells whether 'value' is a regular expression.
     """
 
-    def decorator(function: Union[Callable, Coroutine]):
+    def decorator(function: Any) -> Any:
         @functools.wraps(function)
-        async def wrapper(message):
+        async def wrapper(message: Any) -> Any:
             if isinstance(message, dict):
                 if key in message:
                     content = message[key]
@@ -76,6 +76,11 @@ class Consumer:
         Maximum time we wait to initiate a connection.
     """
 
+    host: str
+    port: int
+    password: str
+    protocol: Inbound
+
     def __init__(
         self,
         host: str = "127.0.0.1",
@@ -83,7 +88,10 @@ class Consumer:
         password: str = "ClueCon",
         timeout: int = 5,
     ) -> None:
-        self.protocol: Inbound = Inbound(host, port, password, timeout)
+        self.host = host
+        self.port = port
+        self.password = password
+        self.protocol = Inbound(self.host, self.port, self.password, timeout)
 
     def handle(self, event: str) -> Union[Callable, Coroutine]:
         """Decorator that allows the registration of new handlers.
@@ -94,7 +102,7 @@ class Consumer:
             Name of the event to be parsed.
         """
 
-        def decorator(function: Union[Callable, Coroutine]):
+        def decorator(function: Callable[..., Any]) -> Callable[..., Any]:
             self.protocol.on(event, function)
 
             @functools.wraps(function)
