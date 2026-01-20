@@ -107,11 +107,18 @@ class Inbound(Protocol):
 
         await super().start()
         try:
-            active_connections_counter.add(1, attributes={"type": "inbound"})
-        except Exception as e:
-            logger.error(f"OTel error in start: {e}")
-            pass
-        await self.authenticate()
+            try:
+                active_connections_counter.add(1, attributes={"type": "inbound"})
+            except Exception:
+                try:
+                    logger.error("OTel error in start", exc_info=True)
+                except Exception:
+                    pass
+                pass
+            await self.authenticate()
+        except Exception:
+            await self.stop()
+            raise
 
     async def stop(self) -> None:
         """Terminates the connection."""

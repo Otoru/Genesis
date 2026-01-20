@@ -93,7 +93,7 @@ class Consumer:
         self.password = password
         self.protocol = Inbound(self.host, self.port, self.password, timeout)
 
-    def handle(self, event: str) -> Union[Callable, Coroutine]:
+    def handle(self, event: str) -> Callable:
         """Decorator that allows the registration of new handlers.
 
         Parameters

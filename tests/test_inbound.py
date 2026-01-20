@@ -2,9 +2,9 @@ import asyncio
 from textwrap import dedent
 
 try:
-    from unittest.mock import AsyncMock
+    from unittest.mock import AsyncMock, patch
 except ImportError:
-    from mock import AsyncMock
+    from mock import AsyncMock, patch  # type: ignore
 
 import pytest
 
@@ -31,7 +31,9 @@ async def test_connect_without_freeswitch(port):
 
 async def test_connect_timeout_with_freesswitch(freeswitch):
     with pytest.raises(ConnectionTimeoutError):
-        async with Inbound(*freeswitch.address, 0):
+        async with Inbound(
+            freeswitch.host, freeswitch.port, freeswitch.password, timeout=0
+        ):
             await asyncio.sleep(1)
 
 
@@ -120,9 +122,52 @@ async def test_to_remove_event_handler():
     assert handler not in client.handlers["MESSAGE"], "The handler has not been removed"
 
 
-async def test_inbound_client_connection_error_after_connect(freeswitch):
+async def test_inbound_client_send_command_error(freeswitch):
     async with freeswitch:
         async with Inbound(*freeswitch.address) as client:
             with pytest.raises(ConnectionError):
-                client.writer.close()
+                if client.writer:
+                    client.writer.close()
                 await client.send("uptime")
+
+
+async def test_inbound_tracer_fallback(freeswitch):
+    async with freeswitch:
+        with patch(
+            "genesis.inbound.tracer.start_as_current_span",
+            side_effect=Exception("Tracer error"),
+        ):
+            async with Inbound(*freeswitch.address) as client:
+                assert client.is_connected
+
+
+async def test_inbound_metrics_error_on_start(freeswitch):
+    async with freeswitch:
+        with patch(
+            "genesis.inbound.active_connections_counter.add",
+            side_effect=Exception("Metrics error"),
+        ):
+            async with Inbound(*freeswitch.address) as client:
+                assert client.is_connected
+
+
+async def test_inbound_metrics_error_on_stop(freeswitch):
+    async with freeswitch:
+        async with Inbound(*freeswitch.address):
+            with patch(
+                "genesis.inbound.active_connections_counter.add",
+                side_effect=Exception("Metrics error"),
+            ):
+                pass
+
+
+async def test_inbound_connection_error_metrics_failure(freeswitch):
+    with patch(
+        "genesis.inbound.connection_errors_counter.add",
+        side_effect=Exception("Metrics error"),
+    ):
+        with pytest.raises(ConnectionTimeoutError):
+            async with Inbound(
+                freeswitch.host, freeswitch.port, freeswitch.password, timeout=0
+            ):
+                await asyncio.sleep(0.1)
