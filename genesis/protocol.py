@@ -14,6 +14,7 @@ from asyncio import (
     Event,
     Queue,
     Task,
+    CancelledError,
 )
 
 from typing import List, Dict, Optional, Callable, Coroutine, Any, Union, cast
@@ -93,10 +94,18 @@ class Protocol(ABC):
         if self.producer and not self.producer.cancelled():
             logger.debug("Cancel event producer task.")
             self.producer.cancel()
+            try:
+                await self.producer
+            except (Exception, CancelledError):
+                pass
 
         if self.consumer and not self.consumer.cancelled():
             logger.debug("Cancel event consumer task.")
             self.consumer.cancel()
+            try:
+                await self.consumer
+            except (Exception, CancelledError):
+                pass
 
     async def handler(self) -> None:
         """Defines intelligence to treat received events."""
@@ -192,7 +201,13 @@ class Protocol(ABC):
                             continue  # Skip the final event.put
 
                         else:
-                            # If no clear header/body separation, treat everything as body
+                            if contentType == "text/event-plain":
+                                additional_headers = parse_headers(complete_content)
+                                event.update(additional_headers)
+                                event.body = ""
+                                await self.events.put(event)
+                                continue
+
                             event.body = complete_content
                     else:
                         event.body = complete_content

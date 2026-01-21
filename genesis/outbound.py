@@ -7,20 +7,19 @@ ESL implementation used for outgoing connections on freeswitch.
 
 from __future__ import annotations
 
-from asyncio import StreamReader, StreamWriter, Queue, start_server, Event, wait_for
-from typing import (
-    List,
-    Dict,
-    Optional,
-    Callable,
-    Coroutine,
-    Union,
-    Any,
-    cast,
-    Literal,
-    Awaitable,
+from asyncio import (
+    StreamReader,
+    StreamWriter,
+    Queue,
+    start_server,
+    Event,
+    wait_for,
+    Task,
+    CancelledError,
+    current_task,
 )
-
+from typing import Optional, Union, Dict, Literal, Awaitable
+from collections.abc import Callable, Coroutine
 from functools import partial
 from pprint import pformat
 from uuid import uuid4
@@ -31,7 +30,6 @@ from genesis.protocol import Protocol
 from genesis.parser import ESLEvent
 from genesis.logger import logger
 from opentelemetry import trace, metrics
-from genesis.types import OutboundHandler
 
 tracer = trace.get_tracer(__name__)
 meter = metrics.get_meter(__name__)
@@ -59,7 +57,7 @@ class Session(Protocol):
 
     def __init__(self, reader: StreamReader, writer: StreamWriter) -> None:
         super().__init__()
-        self.context: ESLEvent = ESLEvent()
+        self.context: Dict[str, str] = dict()
         self.reader = reader
         self.writer = writer
         self.fifo: Queue[ESLEvent] = Queue()
@@ -74,7 +72,7 @@ class Session(Protocol):
         await self.stop()
 
     async def _awaitable_complete_command(
-        self, event_uuid: str, timeout: Optional[int] = None
+        self, event_uuid: str, timeout: Optional[float] = None
     ) -> Event:
         """
         Create an event that will be set when a command completes.
@@ -91,7 +89,9 @@ class Session(Protocol):
         """
         semaphore = Event()
 
-        handlers: Dict[str, Callable] = {}
+        handlers: Dict[
+            str, Callable[[Session, ESLEvent], Coroutine[None, None, None]]
+        ] = {}
 
         async def cleanup():
             for key, value in handlers.items():
@@ -126,7 +126,7 @@ class Session(Protocol):
 
         logger.debug(f"Register event handler for Application-UUID: {event_uuid}")
 
-        return wait_for(semaphore, timeout=timeout)  # type: ignore
+        return semaphore
 
     async def sendmsg(
         self,
@@ -138,7 +138,7 @@ class Session(Protocol):
         event_uuid: Optional[str] = None,
         block: bool = False,
         headers: Optional[Dict[str, str]] = None,
-        timeout: Optional[int] = None,
+        timeout: Optional[float] = None,
     ) -> ESLEvent:
         """
         Used to send commands from dialplan to session.
@@ -199,19 +199,24 @@ class Session(Protocol):
 
         logger.debug(f"Send command to freeswitch: '{cmd}'.")
 
-        if block and command == "execute":
+        if block and command == "execute" and event_uuid:
             logger.debug(
                 f"Waiting for command completion with Application-UUID: {event_uuid}"
             )
-            assert event_uuid is not None
+            # Register the event handler FIRST (returns Event object immediately)
             command_is_complete = await self._awaitable_complete_command(
                 event_uuid, timeout
             )
+            # Send the command (this triggers the mock to send +OK then CHANNEL_EXECUTE_COMPLETE)
             response = await self.send(cmd)
             logger.debug(
                 f"Recived reponse of execute command with block: {pformat(response)}"
             )
-            await command_is_complete.wait()
+            # Now wait for the completion event
+            if timeout is not None:
+                await wait_for(command_is_complete.wait(), timeout=timeout)
+            else:
+                await command_is_complete.wait()
             return await self.fifo.get()
 
         return await self.send(cmd)
@@ -239,7 +244,7 @@ class Session(Protocol):
         return await self.sendmsg("execute", "hangup", cause)
 
     async def playback(
-        self, path: str, block=True, timeout: Optional[int] = None
+        self, path: str, block=True, timeout: Optional[float] = None
     ) -> ESLEvent:
         """Requests the freeswitch to play an audio."""
         return await self.sendmsg(
@@ -255,7 +260,7 @@ class Session(Protocol):
         method: str = "pronounced",
         gender: str = "FEMININE",
         block=True,
-        timeout: Optional[int] = None,
+        timeout: Optional[float] = None,
     ) -> ESLEvent:
         """The say application will use the pre-recorded sound files to read or say things."""
         if lang:
@@ -281,7 +286,7 @@ class Session(Protocol):
         invalid_file: Optional[str] = None,
         digit_timeout: Optional[int] = None,
         transfer_on_failure: Optional[str] = None,
-        sendmsg_timeout: Optional[int] = None,
+        sendmsg_timeout: Optional[float] = None,
     ) -> ESLEvent:
         formatter = lambda value: "" if value is None else str(value)
         ordered_arguments = [
@@ -312,35 +317,27 @@ class Session(Protocol):
 
 class Outbound:
     """
-    Outbound application server
-    ---------------------------
+    Outbound class
+    -------------
 
-    This class is responsible for creating a server that listens for incoming connections
-    from freeswitch.
+    Given a valid set of information, start an ESL server that processes calls.
 
     Attributes:
-    - host: optional
-        IP address to listen for incoming connections.
-    - port: optional
-        Port to listen for incoming connections.
-    - app: required
-        Function that will be called when a new connection is established.
+    - host: required
+        IP address the server should listen on.
+    - port: required
+        Network port the server should listen on.
+    - handler: required
+        Function that will take a session as an argument and will actually process the call.
     - events: optional
         If true, ask freeswitch to send us all events associated with the session.
     - linger: optional
         If true, asks that the events associated with the session come even after the call hangup.
     """
 
-    host: str
-    port: int
-    app: OutboundHandler
-    myevents: bool
-    linger: bool
-    server: Optional[asyncio.AbstractServer]
-
     def __init__(
         self,
-        handler: OutboundHandler,
+        handler: Callable[[Session], Awaitable[None]],
         host: str = "127.0.0.1",
         port: int = 9000,
         events: bool = True,
@@ -351,7 +348,8 @@ class Outbound:
         self.app = handler
         self.myevents = events
         self.linger = linger
-        self.server = None
+        self.server: Optional[asyncio.AbstractServer] = None
+        self.tasks: set[Task] = set()
 
     async def start(self, block: bool = True) -> None:
         """Start the application server."""
@@ -359,8 +357,7 @@ class Outbound:
         self.server = await start_server(
             handler, self.host, self.port, family=socket.AF_INET
         )
-        address = f"{self.host}:{self.port}"
-        logger.info(f"Start application server and listen on '{address}'.")
+
         if block:
             await self.server.serve_forever()
         else:
@@ -373,42 +370,61 @@ class Outbound:
             self.server.close()
             await self.server.wait_closed()
 
+        # Cancel all handler tasks
+        for task in list(self.tasks):
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except (Exception, CancelledError):
+                    pass
+
     @staticmethod
     async def handler(
         server: Outbound, reader: StreamReader, writer: StreamWriter
     ) -> None:
         """Method used to process new connections."""
-        with tracer.start_as_current_span(
-            "outbound_handle_connection",
-            attributes={
-                "net.peer.name": server.host,
-                "net.peer.port": server.port,
-            },
-        ):
+        task = current_task()
+        if task:
+            server.tasks.add(task)
 
-            try:
-                active_connections_counter.add(1, attributes={"type": "outbound"})
-            except Exception:
-                pass
+        try:
+            with tracer.start_as_current_span(
+                "outbound_handle_connection",
+                attributes={
+                    "net.peer.name": server.host,
+                    "net.peer.port": server.port,
+                },
+            ):
 
-            try:
-                async with Session(reader, writer) as session:
-                    logger.debug("Send command to start handle a call")
-                    session.context = await session.send("connect")
-
-                    if server.myevents:
-                        logger.debug("Send command to receive all call events")
-                        await session.send("myevents")
-
-                    if server.linger:
-                        logger.debug("Send linger command to freeswitch")
-                        await session.send("linger")
-                        session.is_lingering = True
-
-                    logger.debug("Start server session handler")
-                    await server.app(session)
-            finally:
                 try:
-                    active_connections_counter.add(-1, attributes={"type": "outbound"})
+                    active_connections_counter.add(1, attributes={"type": "outbound"})
                 except Exception:
                     pass
+
+                try:
+                    async with Session(reader, writer) as session:
+                        logger.debug("Send command to start handle a call")
+                        session.context = dict(await session.send("connect"))
+
+                        if server.myevents:
+                            logger.debug("Send command to receive all call events")
+                            await session.send("myevents")
+
+                        if server.linger:
+                            logger.debug("Send linger command to freeswitch")
+                            await session.send("linger")
+                            session.is_lingering = True
+
+                        logger.debug("Start server session handler")
+                        await server.app(session)
+                finally:
+                    try:
+                        active_connections_counter.add(
+                            -1, attributes={"type": "outbound"}
+                        )
+                    except Exception:
+                        pass
+        finally:
+            if task:
+                server.tasks.discard(task)

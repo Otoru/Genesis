@@ -39,14 +39,18 @@ mock = "^4.0.3"
 opentelemetry-sdk = "^1.39.1"
 mypy = "^1.19.1"
 types-mock = "^5.2.0.20250924"
+pytest-timeout = "^2.4.0"
 
 [tool.poetry.scripts]
 genesis = "genesis.cli:app"
 
 [tool.pytest.ini_options]
-addopts = "-vvv -x --full-trace"
+addopts = "-vvv -x --full-trace --timeout=10"
 asyncio_mode = "auto"
-
+filterwarnings = [
+    "ignore:There is no current event loop:DeprecationWarning",
+    "ignore:The hookimpl:pytest.PytestDeprecationWarning"
+]
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

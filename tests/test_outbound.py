@@ -1,5 +1,5 @@
 from asyncio import Queue, Event
-from typing import Awaitable
+from typing import Awaitable, Any
 
 try:
     from unittest.mock import AsyncMock
@@ -10,9 +10,9 @@ from genesis import Outbound, Session
 
 
 async def test_outbound_session_has_context(host, port, dialplan):
-    buffer = Queue(maxsize=1)
+    buffer: Queue[dict[str, str]] = Queue(maxsize=1)
 
-    async def handler(session: Session) -> Awaitable[None]:
+    async def handler(session: Session) -> None:
         await buffer.put(session.context)
 
     address = (host(), port())
@@ -141,7 +141,7 @@ async def test_outbound_session_send_answer_command(
     semaphore = Event()
     monkeypatch.setattr(Session, "sendmsg", spider)
 
-    async def handler(session: Session) -> Awaitable[None]:
+    async def handler(session: Session) -> None:
         await session.answer()
         semaphore.set()
 
@@ -168,7 +168,7 @@ async def test_outbound_session_send_park_command(
     semaphore = Event()
     monkeypatch.setattr(Session, "sendmsg", spider)
 
-    async def handler(session: Session) -> Awaitable[None]:
+    async def handler(session: Session) -> None:
         await session.park()
         semaphore.set()
 
@@ -196,7 +196,7 @@ async def test_outbound_session_send_hangup_command(
     semaphore = Event()
     monkeypatch.setattr(Session, "sendmsg", spider)
 
-    async def handler(session: Session) -> Awaitable[None]:
+    async def handler(session: Session) -> None:
         await session.hangup()
         semaphore.set()
 
@@ -225,7 +225,7 @@ async def test_outbound_session_sendmsg_parameters(
     # Add an Event to track completion
     test_complete = Event()
 
-    test_cases = [
+    test_cases: list[dict[str, Any]] = [
         {
             "args": ("execute", "playback", "/tmp/test.wav"),
             "kwargs": {"lock": True},
@@ -255,7 +255,9 @@ async def test_outbound_session_sendmsg_parameters(
 
     async def handler(session: Session) -> None:
         for case in test_cases:
-            await session.sendmsg(*case["args"], **case["kwargs"])
+            args: tuple[str, str, str] = case["args"]
+            kwargs: dict[str, Any] = case["kwargs"]
+            await session.sendmsg(*args, **kwargs)
         # Signal that all calls are complete
         test_complete.set()
 
@@ -276,3 +278,165 @@ async def test_outbound_session_sendmsg_parameters(
         expected_args = case["args"]
         expected_kwargs = case["kwargs"]
         spider.assert_any_call(*expected_args, **expected_kwargs)
+
+
+async def test_outbound_handler_options(host, port, dialplan, monkeypatch, generic):
+    """Test that handler options (events, linger) control connection setup commands."""
+    spider = AsyncMock()
+    spider.return_value = {"Socket-Mode": "async"}
+    monkeypatch.setattr(Session, "send", spider)
+
+    semaphore = Event()
+
+    async def handler(session: Session) -> None:
+        semaphore.set()
+
+    # Test with events=False, linger=False
+    address = (host(), port())
+    app = Outbound(handler, *address, events=False, linger=False)
+
+    await app.start(block=False)
+    await dialplan.start(*address)
+
+    await semaphore.wait()
+    await app.stop()
+    await dialplan.stop()
+
+    # Verify "myevents" and "linger" were NOT sent
+    # Only "connect" should have been sent (and potentially other internal calls if any, but specifically checking for absence)
+    calls = [call.args[0] for call in spider.call_args_list]
+    assert "connect" in calls
+    assert "myevents" not in calls
+    assert "linger" not in calls
+
+
+async def test_outbound_session_helpers(host, port, dialplan, monkeypatch, generic):
+    """Test session helper methods (log, playback, say, play_and_get_digits)."""
+    spider = AsyncMock()
+    spider.return_value = generic
+    monkeypatch.setattr(Session, "sendmsg", spider)
+
+    test_complete = Event()
+
+    async def handler(session: Session) -> None:
+        # Test log
+        await session.log("INFO", "test message")
+
+        # Test playback
+        await session.playback("/tmp/file.wav")
+
+        # Test say
+        await session.say("123", kind="NUMBER", method="pronounced")
+
+        # Test play_and_get_digits
+        await session.play_and_get_digits(
+            tries=3,
+            timeout=5000,
+            terminators="#",
+            file="/tmp/prompt.wav",
+            minimal=1,
+            maximum=4,
+            var_name="my_digits",
+            regexp="\\d+",
+            digit_timeout=2000,
+        )
+
+        test_complete.set()
+
+    address = (host(), port())
+    app = Outbound(handler, *address)
+
+    await app.start(block=False)
+    await dialplan.start(*address)
+
+    await test_complete.wait()
+    await app.stop()
+    await dialplan.stop()
+
+    # Verify calls
+    spider.assert_any_call("execute", "log", "INFO test message")
+    spider.assert_any_call(
+        "execute", "playback", "/tmp/file.wav", block=True, timeout=None
+    )
+    spider.assert_any_call(
+        "execute",
+        "say",
+        "en NUMBER pronounced FEMININE 123",
+        block=True,
+        timeout=None,
+    )
+
+    # Expected arguments for play_and_get_digits based on the call above
+    # ordered_arguments in source: minimal, maximum, tries, timeout, terminators, file, invalid_file, var_name, regexp, digit_timeout, transfer_on_failure
+    expected_pagd_args = "1 4 3 5000 # /tmp/prompt.wav  my_digits \\d+ 2000 "
+    spider.assert_any_call(
+        "execute",
+        "play_and_get_digits",
+        expected_pagd_args,
+        block=True,
+        timeout=None,
+    )
+
+
+async def test_outbound_blocking_command(host, port, dialplan, generic):
+    """Test that blocking commands wait for completion event."""
+    test_complete = Event()
+
+    async def handler(session: Session) -> None:
+        # We need to use specific IDs to match what the mock expects if we were strict,
+        # but our mock implementation just echoes back whatever ID we send.
+        # Logic: sendmsg(block=True) -> generates uuid -> mock receives -> sends event -> session receives -> function returns
+
+        # Using playback as a typical blocking command
+        event = await session.playback("/tmp/blocking.wav", block=True)
+        assert event["Event-Name"] == "CHANNEL_EXECUTE_COMPLETE"
+        test_complete.set()
+
+    address = (host(), port())
+    app = Outbound(handler, *address)
+
+    await app.start(block=False)
+    await dialplan.start(*address)
+
+    await test_complete.wait()
+    await app.stop()
+    await dialplan.stop()
+
+
+async def test_outbound_blocking_command_timeout(host, port, dialplan, generic):
+    """Test that blocking commands raise TimeoutError if event doesn't arrive."""
+    test_complete = Event()
+
+    try:
+        from asyncio import TimeoutError
+    except ImportError:
+        # Python 3.10+
+        pass
+
+    async def handler(session: Session) -> None:
+        # Set a timeout shorter than the mock's sleep (0.01s)
+        try:
+            await session.playback("/tmp/timeout.wav", block=True, timeout=0.001)
+        except TimeoutError:
+            test_complete.set()
+        except Exception as e:
+            # If any other exception, fail
+            print(f"Caught unexpected exception: {e}")
+
+    address = (host(), port())
+    app = Outbound(handler, *address)
+
+    await app.start(block=False)
+    await dialplan.start(*address)
+
+    # Wait a bit longer than the timeout to ensure it triggers
+    # We use a wait_for on the event to avoid hanging accurately
+    import asyncio
+
+    try:
+        await asyncio.wait_for(test_complete.wait(), timeout=1.0)
+    except asyncio.TimeoutError:
+        assert False, "Blocking command did not timeout as expected"
+
+    await app.stop()
+    await dialplan.stop()

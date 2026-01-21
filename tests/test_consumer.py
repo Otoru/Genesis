@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 try:
     from unittest.mock import AsyncMock, PropertyMock
@@ -127,7 +128,7 @@ async def test_consumer_wait_method_is_callend(freeswitch):
     async with freeswitch as server:
         spider = AsyncMock(side_effect=semaphore.set)
         app = Consumer(*server.address)
-        app.wait = spider
+        setattr(app, "wait", spider)
 
         future = asyncio.ensure_future(app.start())
         await semaphore.wait()
@@ -163,7 +164,7 @@ async def test_receive_background_job_event(freeswitch, background_job):
             "+OK filter added. [filter]=[Event-Name BACKGROUND_JOB]",
         )
 
-        buffer = asyncio.Queue()
+        buffer: asyncio.Queue[Any] = asyncio.Queue()
         app = Consumer(*server.address)
 
         @app.handle("BACKGROUND_JOB")
@@ -209,7 +210,7 @@ async def test_receive_mod_audio_stream_play(freeswitch, mod_audio_stream_play):
             "+OK filter added. [filter]=[Event-Name mod_audio_stream::play]",
         )
 
-        buffer = asyncio.Queue()
+        buffer: asyncio.Queue[Any] = asyncio.Queue()
         app = Consumer(*server.address)
 
         @app.handle("mod_audio_stream::play")
