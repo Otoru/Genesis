@@ -48,7 +48,7 @@ types-mock = "^5.2.0.20250924"
 pytest-timeout = "^2.4.0"
 
 [tool.poetry.group.examples.dependencies]
-fastapi = "^0.116.0"
+fastapi = "^0.128.0"
 uvicorn = {extras = ["standard"], version = "^0.32.0"}
 pydantic = "^2.10.0"
 starlette = ">=0.49.1,<0.50.0"
