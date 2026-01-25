@@ -53,4 +53,5 @@ For more details about the Docker setup, see the [docker/freeswitch/README.md](h
 {{< cards cols="1" >}}
   {{< card link="fastapi-click2call/" title="Click2Call API" icon="code" subtitle="REST API endpoint for click2call functionality using FastAPI." >}}
   {{< card link="ivr/" title="IVR" icon="phone" subtitle="Simple IVR system using Outbound mode with DTMF interaction." >}}
+  {{< card link="group-call/" title="Group Call" icon="users" subtitle="Simultaneous originate that calls multiple destinations and bridges with the first to answer." >}}
 {{< /cards >}}
