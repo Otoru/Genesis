@@ -103,7 +103,6 @@ This command:
 Once the call is connected:
 - You'll hear the welcome message
 - Press `1`, `2`, or `3` to select an option
-- Press `0` to exit
 - The IVR will respond to your selection
 
 ### 5. View Logs
