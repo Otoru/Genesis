@@ -126,6 +126,47 @@ This example demonstrates how to implement simultaneous originate (similar to Fr
 4. **Cleans up**: Cancels pending tasks and hangs up channels that didn't answer
 5. **Bridges**: Connects the caller with the first callee to answer
 
+### Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant FreeSWITCH
+    participant Caller as Caller<br/>(user/1000)
+    participant Callee1 as Callee 1<br/>(user/1001)
+    participant Callee2 as Callee 2<br/>(user/1002)
+    participant Callee3 as Callee 3<br/>(user/1003)
+    
+    App->>FreeSWITCH: Create caller channel
+    FreeSWITCH->>Caller: Ring
+    Caller->>FreeSWITCH: Answer
+    FreeSWITCH-->>App: Caller answered
+    
+    par Simultaneous Originate
+        App->>FreeSWITCH: Create callee 1 channel
+        App->>FreeSWITCH: Create callee 2 channel
+        App->>FreeSWITCH: Create callee 3 channel
+    end
+    
+    par All Callees Ringing
+        FreeSWITCH->>Callee1: Ring
+        FreeSWITCH->>Callee2: Ring
+        FreeSWITCH->>Callee3: Ring
+    end
+    
+    Callee2->>FreeSWITCH: Answer (first)
+    FreeSWITCH-->>App: Callee 2 answered
+    
+    App->>FreeSWITCH: Cancel callee 1 & 3
+    FreeSWITCH->>Callee1: Hangup
+    FreeSWITCH->>Callee3: Hangup
+    
+    App->>FreeSWITCH: Bridge caller ↔ callee 2
+    FreeSWITCH->>Caller: Connected
+    FreeSWITCH->>Callee2: Connected
+    Note over Caller,Callee2: Call in progress
+```
+
 This pattern is useful for scenarios like:
 - **Ring groups**: Call multiple people at once, connect to whoever answers first
 - **Failover**: Try multiple destinations simultaneously, use the first available

@@ -42,6 +42,6 @@ Use the CLI to run your applications in development or production mode.
 
 ## Learn More
 
-- **New to FreeSWITCH or ESL?** Check out our [concepts guide](concepts/) to understand the fundamentals.
-- **Looking for examples?** See our [examples section](Examples/) for practical implementations.
-- **Need advanced features?** Explore our [tools and tricks](Tools/) section.
+- **New to FreeSWITCH or ESL?** Check out our [concepts guide]({{< relref "concepts.md" >}}) to understand the fundamentals.
+- **Looking for examples?** See our [examples section]({{< relref "Examples/_index.md" >}}) for practical implementations.
+- **Need advanced features?** Explore our [tools and tricks]({{< relref "Tools/_index.md" >}}) section.
