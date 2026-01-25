@@ -1,0 +1,254 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "ci-cd-${{ github.ref }}"
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Initial check: cancel workflow if commit is from bot
+  check-commit:
+    name: Check Commit Source
+    runs-on: ubuntu-latest
+    if: always()
+    outputs:
+      should-run: ${{ steps.check.outputs.should-run || steps.check-pr.outputs.should-run }}
+    steps:
+      - name: Check if commit is from bot
+        id: check
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: |
+          # For workflow_dispatch, always allow
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "should-run=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check the original commit that triggered the workflow
+          COMMIT_AUTHOR="${{ github.event.head_commit.author.name }}"
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          
+          # Cancel if commit was made by bot or is bot-related commit
+          if [[ "$COMMIT_AUTHOR" == "github-actions[bot]" ]] || \
+             [[ "$COMMIT_MSG" == *"🚀 Bump version"* ]] || \
+             [[ "$COMMIT_MSG" == *":pencil: (docs) update contributors"* ]]; then
+            echo "should-run=false" >> $GITHUB_OUTPUT
+            echo "⏭️  Skipping workflow - commit was made by bot"
+            exit 0
+          else
+            echo "should-run=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Set default for PRs
+        id: check-pr
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "should-run=true" >> $GITHUB_OUTPUT
+
+  # Tests, linter and type checker
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+    needs: check-commit
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && needs.check-commit.outputs.should-run == 'true') ||
+      (github.event_name == 'workflow_dispatch' && needs.check-commit.outputs.should-run == 'true')
+    strategy:
+      matrix:
+        python-version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          installer-parallel: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run Linter (Black)
+        run: poetry run black . --check
+
+      - name: Run Type Checker (Mypy)
+        run: poetry run mypy
+
+      - name: Run tests
+        run: poetry run py.test
+
+  # Version bump (only runs on push to main, not on PRs)
+  # Runs after contributors to avoid infinite loops
+  bump-version:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    needs: [check-commit, add-contributors]
+    if: |
+      needs.check-commit.outputs.should-run == 'true' &&
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          installer-parallel: true
+          virtualenvs-in-project: true
+
+      - name: Bump version to calendar format
+        id: version
+        run: |
+          # Get current date in YYYY.MM.DD format
+          NEW_VERSION=$(date +"%Y.%m.%d")
+          
+          # Set the new version
+          poetry version "$NEW_VERSION"
+          echo "🚀 New version: $(poetry version -s)"
+
+      - name: Commit and push updated version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull
+          git add pyproject.toml
+          git commit -m "🚀 Bump version of project to $(poetry version -s)" || exit 0
+          git push origin main || exit 0
+
+  # Update contributors (only runs on push to main, not on PRs)
+  add-contributors:
+    name: Update Contributors
+    runs-on: ubuntu-latest
+    needs: [check-commit, test]
+    if: |
+      needs.check-commit.outputs.should-run == 'true' &&
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Update Contributors
+        uses: BobAnkh/add-contributors@master
+        with:
+          CONTRIBUTOR: "## Contributors"
+          COLUMN_PER_ROW: "6"
+          ACCESS_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          IMG_WIDTH: "100"
+          FONT_SIZE: "14"
+          PATH: "/README.md"
+          COMMIT_MESSAGE: ":pencil: (docs) update contributors"
+          AVATAR_SHAPE: "round"
+
+  # Build and deploy documentation
+  build-docs:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    needs: [check-commit, test]
+    if: |
+      needs.check-commit.outputs.should-run == 'true' &&
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    env:
+      HUGO_VERSION: 0.147.2
+      HUGO_ENVIRONMENT: production
+      TZ: America/Los_Angeles
+    steps:
+      - name: Install Hugo CLI
+        run: |
+          wget -O ${{ runner.temp }}/hugo.deb https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb \
+            && sudo dpkg -i ${{ runner.temp }}/hugo.deb
+      - name: Install Dart Sass
+        run: sudo snap install dart-sass
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v5
+      - name: Install Node.js dependencies
+        run: "[[ -f package-lock.json || -f npm-shrinkwrap.json ]] && npm ci || true"
+      - name: Cache Restore
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ runner.temp }}/hugo_cache
+          key: hugo-${{ github.run_id }}
+          restore-keys: hugo-
+      - name: Configure Git
+        run: git config core.quotepath false
+      - name: Build with Hugo
+        run: |
+          hugo \
+            --source docs \
+            --destination public \
+            --gc \
+            --minify \
+            --baseURL "${{ steps.pages.outputs.base_url }}/" \
+            --cacheDir "${{ runner.temp }}/hugo_cache"
+      - name: Cache Save
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ runner.temp }}/hugo_cache
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/public
+
+  deploy-docs:
+    name: Deploy Documentation
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: [check-commit, build-docs]
+    if: |
+      needs.check-commit.outputs.should-run == 'true' &&
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

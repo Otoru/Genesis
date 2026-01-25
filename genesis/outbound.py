@@ -18,7 +18,7 @@ from asyncio import (
     CancelledError,
     current_task,
 )
-from typing import Optional, Union, Dict, Literal, Awaitable
+from typing import Optional, Union, Dict, Awaitable, TYPE_CHECKING
 from collections.abc import Callable, Coroutine
 from functools import partial
 from pprint import pformat
@@ -30,6 +30,9 @@ from genesis.protocol import Protocol
 from genesis.parser import ESLEvent
 from genesis.logger import logger
 from opentelemetry import trace, metrics
+
+if TYPE_CHECKING:
+    from genesis.channel import Channel
 
 tracer = trace.get_tracer(__name__)
 meter = metrics.get_meter(__name__)
@@ -61,6 +64,11 @@ class Session(Protocol):
         self.reader = reader
         self.writer = writer
         self.fifo: Queue[ESLEvent] = Queue()
+        self.channel: Optional["Channel"] = None
+
+    @property
+    def uuid(self) -> Optional[str]:
+        return self.context.get("Unique-ID")
 
     async def __aenter__(self) -> Session:
         """Interface used to implement a context manager."""
@@ -221,99 +229,6 @@ class Session(Protocol):
 
         return await self.send(cmd)
 
-    async def log(
-        self,
-        level: Literal[
-            "CONSOLE", "ALERT", "CRIT", "ERR", "WARNING", "NOTICE", "INFO", "DEBUG"
-        ],
-        message: str,
-    ) -> ESLEvent:
-        """Log a message to FreeSWITCH using dp tools log."""
-        return await self.sendmsg("execute", "log", f"{level} {message}")
-
-    async def answer(self) -> ESLEvent:
-        """Answer the call associated with the session."""
-        return await self.sendmsg("execute", "answer")
-
-    async def park(self) -> ESLEvent:
-        """Move session-associated call to park."""
-        return await self.sendmsg("execute", "park")
-
-    async def hangup(self, cause: str = "NORMAL_CLEARING") -> ESLEvent:
-        """Hang up the call associated with the session."""
-        return await self.sendmsg("execute", "hangup", cause)
-
-    async def playback(
-        self, path: str, block=True, timeout: Optional[float] = None
-    ) -> ESLEvent:
-        """Requests the freeswitch to play an audio."""
-        return await self.sendmsg(
-            "execute", "playback", path, block=block, timeout=timeout
-        )
-
-    async def say(
-        self,
-        text: str,
-        module="en",
-        lang: Optional[str] = None,
-        kind: str = "NUMBER",
-        method: str = "pronounced",
-        gender: str = "FEMININE",
-        block=True,
-        timeout: Optional[float] = None,
-    ) -> ESLEvent:
-        """The say application will use the pre-recorded sound files to read or say things."""
-        if lang:
-            module += f":{lang}"
-
-        arguments = f"{module} {kind} {method} {gender} {text}"
-        logger.debug(f"Arguments used in say command: {arguments}")
-        return await self.sendmsg(
-            "execute", "say", arguments, block=block, timeout=timeout
-        )
-
-    async def play_and_get_digits(
-        self,
-        tries,
-        timeout,
-        terminators,
-        file,
-        minimal=0,
-        maximum=128,
-        block=True,
-        regexp: Optional[str] = None,
-        var_name: Optional[str] = None,
-        invalid_file: Optional[str] = None,
-        digit_timeout: Optional[int] = None,
-        transfer_on_failure: Optional[str] = None,
-        sendmsg_timeout: Optional[float] = None,
-    ) -> ESLEvent:
-        formatter = lambda value: "" if value is None else str(value)
-        ordered_arguments = [
-            minimal,
-            maximum,
-            tries,
-            timeout,
-            terminators,
-            file,
-            invalid_file,
-            var_name,
-            regexp,
-            digit_timeout,
-            transfer_on_failure,
-        ]
-        formated_ordered_arguments = map(formatter, ordered_arguments)
-        arguments = " ".join(formated_ordered_arguments)
-        logger.debug(f"Arguments used in play_and_get_digits command: {arguments}")
-
-        return await self.sendmsg(
-            "execute",
-            "play_and_get_digits",
-            arguments,
-            block=block,
-            timeout=sendmsg_timeout,
-        )
-
 
 class Outbound:
     """
@@ -415,6 +330,21 @@ class Outbound:
                             logger.debug("Send linger command to freeswitch")
                             await session.send("linger")
                             session.is_lingering = True
+
+                        # Initialize channel from session if UUID is available
+                        if session.uuid:
+                            from genesis.channel import Channel
+
+                            try:
+                                session.channel = await Channel.from_session(session)
+                                logger.debug(
+                                    f"Channel initialized for session: {session.channel.uuid}"
+                                )
+                            except Exception as e:
+                                logger.warning(
+                                    f"Failed to initialize channel for session: {e}"
+                                )
+                                session.channel = None
 
                         logger.debug("Start server session handler")
                         await server.app(session)

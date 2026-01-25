@@ -1,0 +1,31 @@
+<profile name="default">
+  <settings>
+    <!-- Basic SIP Settings -->
+    <param name="sip-trace" value="no"/>
+    <param name="context" value="public"/>
+    <param name="rfc2833-pt" value="101"/>
+    <param name="sip-port" value="$${internal_sip_port}"/>
+    <param name="dialplan" value="XML"/>
+    <param name="dtmf-duration" value="2000"/>
+
+    <!-- IP & RTP Settings -->
+    <param name="rtp-ip" value="$${local_ip_v4}"/>
+    <param name="sip-ip" value="$${local_ip_v4}"/>
+    <param name="ext-rtp-ip" value="$${local_ip_v4}"/>
+    <param name="ext-sip-ip" value="$${local_ip_v4}"/>
+    <param name="rtp-timer-name" value="soft"/>
+    <param name="rtp-hold-timeout-sec" value="1800"/>
+
+    <!-- Codec Settings -->
+    <param name="inbound-codec-prefs" value="$${global_codec_prefs}"/>
+    <param name="outbound-codec-prefs" value="$${global_codec_prefs}"/>
+
+    <!-- Domain Settings -->
+    <param name="force-register-domain" value="$${domain}"/>
+    <param name="force-subscription-domain" value="$${domain}"/>
+    <param name="force-register-db-domain" value="$${domain}"/>
+
+    <!-- Authentication -->
+    <param name="challenge-realm" value="auto_from"/>
+  </settings>
+</profile>

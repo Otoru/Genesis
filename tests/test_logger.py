@@ -4,7 +4,9 @@ import logging
 import json
 import os
 from unittest.mock import Mock, patch
+
 import pytest
+
 from genesis.logger import (
     get_log_level,
     setup_logger,

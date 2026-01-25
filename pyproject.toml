@@ -1,23 +1,29 @@
 [tool.poetry]
 name = "genesis"
-version = "0.11.7"
-description = "Implementation of FreeSWITCH Event Socket protocol with asyncio"
+version = "2026.01.24"
+description = "Async Python library for FreeSWITCH Event Socket Layer (ESL) - Build high-performance telephony applications with asyncio"
 authors = ["Vitor <vitor.hov@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/Otoru/Genesis"
 readme = "README.md"
 homepage = "https://github.com/Otoru/Genesis#readme"
+keywords = ["freeswitch", "esl", "event-socket", "telephony", "voip", "asyncio", "async", "pbx", "ivr", "sip", "webrtc"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: MIT License",
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
     "Intended Audience :: Telecommunications Industry",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Framework :: AsyncIO",
     "Topic :: Communications :: Telephony",
-    "Topic :: Software Development",
+    "Topic :: Internet",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 exclude = ["tests"]
 
@@ -41,12 +47,18 @@ mypy = "^1.19.1"
 types-mock = "^5.2.0.20250924"
 pytest-timeout = "^2.4.0"
 
+[tool.poetry.group.examples.dependencies]
+fastapi = "^0.115.0"
+uvicorn = {extras = ["standard"], version = "^0.32.0"}
+pydantic = "^2.10.0"
+
 [tool.poetry.scripts]
 genesis = "genesis.cli:app"
 
 [tool.pytest.ini_options]
 addopts = "-vvv -x --full-trace --timeout=10"
 asyncio_mode = "auto"
+norecursedirs = ["freeswitch", ".git", ".venv", "venv", "build", "dist"]
 filterwarnings = [
     "ignore:There is no current event loop:DeprecationWarning",
     "ignore:The hookimpl:pytest.PytestDeprecationWarning"
@@ -58,6 +70,8 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/Otoru/Genesis/issues"
 "Source Code" = "https://github.com/Otoru/Genesis"
+"Documentation" = "https://otoru.github.io/Genesis/"
+"Changelog" = "https://github.com/Otoru/Genesis/releases"
 
 [tool.mypy]
 files = ["genesis"]

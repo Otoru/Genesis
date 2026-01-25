@@ -88,3 +88,8 @@ async def dialplan(connect, generic) -> Dialplan:
     instance.oncommand("myevents", generic)
 
     return instance
+
+
+@pytest.fixture
+def dtmf() -> str:
+    return payloads.dtmf

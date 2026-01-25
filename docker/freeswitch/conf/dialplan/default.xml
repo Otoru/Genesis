@@ -1,0 +1,50 @@
+<include>
+  <context name="default">
+    
+    <!-- User-to-user calls (1000-1019) -->
+    <!-- Used by click2call example and for internal user calls -->
+    <extension name="Local_Extension">
+      <condition field="destination_number" expression="^(10[01][0-9])$">
+        <action application="export" data="dialed_extension=$1"/>
+        <action application="set" data="ringback=${us-ring}"/>
+        <action application="set" data="transfer_ringback=$${hold_music}"/>
+        <action application="set" data="call_timeout=30"/>
+        <action application="set" data="hangup_after_bridge=true"/>
+        <action application="bridge" data="user/${dialed_extension}@${domain_name}"/>
+      </condition>
+    </extension>
+    
+    <!-- Outbound socket test extension -->
+    <extension name="outbound_socket_test">
+      <condition field="destination_number" expression="^(9999)$">
+        <action application="socket" data="host.docker.internal:9696 async full"/>
+      </condition>
+    </extension>
+    
+    <!-- Echo test -->
+    <extension name="echo_test">
+      <condition field="destination_number" expression="^(9196)$">
+        <action application="answer"/>
+        <action application="echo"/>
+      </condition>
+    </extension>
+    
+    <!-- Playback test -->
+    <extension name="playback_test">
+      <condition field="destination_number" expression="^(9195)$">
+        <action application="answer"/>
+        <action application="playback" data="ivr/ivr-welcome.wav"/>
+        <action application="hangup"/>
+      </condition>
+    </extension>
+    
+    <!-- Hold music test -->
+    <extension name="hold_music">
+      <condition field="destination_number" expression="^(9664)$">
+        <action application="answer"/>
+        <action application="playback" data="local_stream://moh"/>
+      </condition>
+    </extension>
+    
+  </context>
+</include>

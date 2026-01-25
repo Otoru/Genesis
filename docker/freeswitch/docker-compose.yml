@@ -1,0 +1,35 @@
+services:
+  freeswitch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: genesis-freeswitch
+    hostname: freeswitch
+    network_mode: host
+    cap_add:
+      - IPC_LOCK
+      - NET_ADMIN
+      - NET_RAW
+      - NET_BROADCAST
+      - SYS_NICE
+      - SYS_RESOURCE
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 60000
+        hard: 60000
+      memlock: -1
+      rtprio: 99
+    environment:
+      TZ: America/Sao_Paulo
+    volumes:
+      - ./conf:/etc/freeswitch
+      - ./logs:/var/log/freeswitch
+      - ./recordings:/var/lib/freeswitch/recordings
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "fs_cli", "-x", "status" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

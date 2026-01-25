@@ -7,6 +7,7 @@ except ImportError:
     from mock import AsyncMock
 
 from genesis import Outbound, Session
+from genesis.parser import parse_headers
 
 
 async def test_outbound_session_has_context(host, port, dialplan):
@@ -136,13 +137,13 @@ async def test_outbound_session_send_answer_command(
     host, port, dialplan, monkeypatch, generic
 ):
     spider = AsyncMock()
-    spider.return_value = generic
+    spider.return_value = parse_headers(generic)
 
     semaphore = Event()
     monkeypatch.setattr(Session, "sendmsg", spider)
 
     async def handler(session: Session) -> None:
-        await session.answer()
+        await session.channel.answer()
         semaphore.set()
 
     address = (host(), port())
@@ -156,20 +157,20 @@ async def test_outbound_session_send_answer_command(
     await dialplan.stop()
     await application.stop()
 
-    spider.assert_called_with("execute", "answer")
+    spider.assert_called_with("execute", "answer", None, block=False, timeout=None)
 
 
 async def test_outbound_session_send_park_command(
     host, port, dialplan, monkeypatch, generic
 ):
     spider = AsyncMock()
-    spider.return_value = generic
+    spider.return_value = parse_headers(generic)
 
     semaphore = Event()
     monkeypatch.setattr(Session, "sendmsg", spider)
 
     async def handler(session: Session) -> None:
-        await session.park()
+        await session.channel.park()
         semaphore.set()
 
     address = (host(), port())
@@ -184,20 +185,20 @@ async def test_outbound_session_send_park_command(
     await dialplan.stop()
     await application.stop()
 
-    spider.assert_called_with("execute", "park")
+    spider.assert_called_with("execute", "park", None, block=False, timeout=None)
 
 
 async def test_outbound_session_send_hangup_command(
     host, port, dialplan, monkeypatch, generic
 ):
     spider = AsyncMock()
-    spider.return_value = generic
+    spider.return_value = parse_headers(generic)
 
     semaphore = Event()
     monkeypatch.setattr(Session, "sendmsg", spider)
 
     async def handler(session: Session) -> None:
-        await session.hangup()
+        await session.channel.hangup()
         semaphore.set()
 
     address = (host(), port())
@@ -211,7 +212,9 @@ async def test_outbound_session_send_hangup_command(
     await dialplan.stop()
     await application.stop()
 
-    spider.assert_called_with("execute", "hangup", "NORMAL_CLEARING")
+    spider.assert_called_with(
+        "execute", "hangup", "NORMAL_CLEARING", block=False, timeout=None
+    )
 
 
 async def test_outbound_session_sendmsg_parameters(
@@ -219,7 +222,7 @@ async def test_outbound_session_sendmsg_parameters(
 ):
     """Test different parameter combinations for sendmsg."""
     spider = AsyncMock()
-    spider.return_value = generic
+    spider.return_value = parse_headers(generic)
     monkeypatch.setattr(Session, "sendmsg", spider)
 
     # Add an Event to track completion
@@ -313,23 +316,23 @@ async def test_outbound_handler_options(host, port, dialplan, monkeypatch, gener
 async def test_outbound_session_helpers(host, port, dialplan, monkeypatch, generic):
     """Test session helper methods (log, playback, say, play_and_get_digits)."""
     spider = AsyncMock()
-    spider.return_value = generic
+    spider.return_value = parse_headers(generic)
     monkeypatch.setattr(Session, "sendmsg", spider)
 
     test_complete = Event()
 
     async def handler(session: Session) -> None:
         # Test log
-        await session.log("INFO", "test message")
+        await session.channel.log("INFO", "test message")
 
         # Test playback
-        await session.playback("/tmp/file.wav")
+        await session.channel.playback("/tmp/file.wav")
 
         # Test say
-        await session.say("123", kind="NUMBER", method="pronounced")
+        await session.channel.say("123", kind="NUMBER", method="pronounced")
 
         # Test play_and_get_digits
-        await session.play_and_get_digits(
+        await session.channel.play_and_get_digits(
             tries=3,
             timeout=5000,
             terminators="#",
@@ -354,7 +357,9 @@ async def test_outbound_session_helpers(host, port, dialplan, monkeypatch, gener
     await dialplan.stop()
 
     # Verify calls
-    spider.assert_any_call("execute", "log", "INFO test message")
+    spider.assert_any_call(
+        "execute", "log", "INFO test message", block=False, timeout=None
+    )
     spider.assert_any_call(
         "execute", "playback", "/tmp/file.wav", block=True, timeout=None
     )
@@ -388,7 +393,7 @@ async def test_outbound_blocking_command(host, port, dialplan, generic):
         # Logic: sendmsg(block=True) -> generates uuid -> mock receives -> sends event -> session receives -> function returns
 
         # Using playback as a typical blocking command
-        event = await session.playback("/tmp/blocking.wav", block=True)
+        event = await session.channel.playback("/tmp/blocking.wav", block=True)
         assert event["Event-Name"] == "CHANNEL_EXECUTE_COMPLETE"
         test_complete.set()
 
@@ -416,7 +421,9 @@ async def test_outbound_blocking_command_timeout(host, port, dialplan, generic):
     async def handler(session: Session) -> None:
         # Set a timeout shorter than the mock's sleep (0.01s)
         try:
-            await session.playback("/tmp/timeout.wav", block=True, timeout=0.001)
+            await session.channel.playback(
+                "/tmp/timeout.wav", block=True, timeout=0.001
+            )
         except TimeoutError:
             test_complete.set()
         except Exception as e:
