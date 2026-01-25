@@ -46,7 +46,7 @@ async def originate_multiple_simultaneous(
         # Get the first callee to answer
         answered_task = done.pop()
         answered = tasks[answered_task]
-        
+
         # Wait for the task to complete (may raise if it failed)
         await answered_task
 
@@ -70,7 +70,6 @@ async def originate_multiple_simultaneous(
 
         return caller_ch, answered
 
-
     except Exception:
         for task in tasks:
             task.cancel()
@@ -90,7 +89,9 @@ async def main() -> None:
 
     async with Inbound(FS_HOST, FS_PORT, FS_PASSWORD) as client:
         # Originate the calls
-        caller_ch, callee_ch = await originate_multiple_simultaneous(client, caller, callees)
+        caller_ch, callee_ch = await originate_multiple_simultaneous(
+            client, caller, callees
+        )
 
         await caller_ch.bridge(callee_ch)
 
