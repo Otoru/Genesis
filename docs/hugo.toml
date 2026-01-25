@@ -1,5 +1,84 @@
 baseURL = 'https://otoru.github.io/Genesis/'
 languageCode = 'en-us'
 title = 'Genesis'
-theme = 'book'
+theme = 'hextra'
 enableGitInfo = true
+enableRobotsTXT = true
+
+[outputs]
+home = ['html', 'llms']
+page = ['html']
+section = ['html', 'rss']
+
+[markup]
+[markup.goldmark.renderer]
+  unsafe = true
+
+[markup.tableOfContents]
+  startLevel = 1
+
+[markup.highlight]
+  noClasses = false
+
+# Navigation menu
+[menu]
+[[menu.main]]
+  name = 'Search'
+  weight = 1
+  [menu.main.params]
+    type = 'search'
+
+[[menu.main]]
+  name = 'Forum'
+  url = 'https://github.com/Otoru/Genesis/discussions'
+  weight = 2
+  [menu.main.params]
+    icon = 'chat'
+
+[[menu.main]]
+  name = 'Releases'
+  url = 'https://github.com/Otoru/Genesis/releases'
+  weight = 3
+  [menu.main.params]
+    icon = 'tag'
+
+[[menu.main]]
+  name = 'GitHub'
+  url = 'https://github.com/Otoru/Genesis'
+  weight = 4
+  [menu.main.params]
+    icon = 'github'
+
+# Hextra theme parameters
+[params]
+description = 'Python library for building asynchronous FreeSWITCH applications using Event Socket Layer'
+
+[params.navbar]
+  displayTitle = true
+  displayLogo = false
+  width = 'wide'
+
+[params.page]
+  width = 'normal'
+
+[params.theme]
+  default = 'system'
+  displayToggle = true
+
+[params.footer]
+  enable = true
+  displayCopyright = true
+  displayPoweredBy = false
+  width = 'normal'
+
+[params.editURL]
+  enable = true
+  base = 'https://github.com/Otoru/Genesis/edit/main/docs/content'
+
+[params.search]
+  enable = true
+  type = 'flexsearch'
+
+[params.search.flexsearch]
+  index = 'content'
+  tokenize = 'forward'

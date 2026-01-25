@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://otoru.github.io/Genesis/
+    about: Check our documentation for guides and API references
+  - name: Discussions
+    url: https://github.com/Otoru/Genesis/discussions
+    about: Ask questions and discuss ideas with the community

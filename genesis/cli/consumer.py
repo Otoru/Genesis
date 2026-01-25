@@ -6,7 +6,6 @@ import asyncio
 
 import typer
 
-
 from genesis.cli import watcher
 from genesis.logger import logger
 from genesis.consumer import Consumer
