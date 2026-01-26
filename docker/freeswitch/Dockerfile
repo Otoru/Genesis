@@ -18,6 +18,12 @@ RUN mkdir -p /sounds && \
 
 FROM safarov/freeswitch
 
+# Install termcap for interactive CLI support
+# Try both apt-get (Debian/Ubuntu) and apk (Alpine)
+RUN (apt-get update && apt-get install -y --no-install-recommends ncurses-term && rm -rf /var/lib/apt/lists/*) || \
+    (apk add --no-cache ncurses-terminfo-base ncurses-terminfo) || \
+    true
+
 # Copy sounds from downloader stage
 COPY --from=downloader /sounds-extracted /usr/share/freeswitch/sounds/en/us/callie
 
