@@ -48,23 +48,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## How It Works
-
-This example demonstrates how to use `RingGroup` to implement simultaneous originate:
-
-1. Uses `RingGroup.ring()` with `RingMode.PARALLEL` to call all destinations simultaneously
-2. The method automatically waits for the first callee to answer and returns that channel
-3. Channels that didn't answer are automatically hung up
-4. Creates the caller channel and bridges it with the answered callee
-
-### Ring Modes
-
-`RingGroup` supports two modes:
-
-- **`RingMode.PARALLEL`**: Calls all destinations simultaneously. The first one to answer wins, and all others are automatically hung up.
-- **`RingMode.SEQUENTIAL`**: Calls destinations one at a time. Tries the next one only if the current one doesn't answer within the timeout.
-
-### Flow Diagram
+## Flow Diagram
 
 ```mermaid
 sequenceDiagram
@@ -105,37 +89,14 @@ sequenceDiagram
     Note over Caller,Callee2: Call in progress
 ```
 
-This pattern is useful for scenarios like:
-- **Ring groups**: Call multiple people at once, connect to whoever answers first
-- **Failover**: Try multiple destinations simultaneously, use the first available
-- **Load distribution**: Distribute calls across multiple agents
-
 ## Running the Example
 
-{{% steps %}}
-
-### 1. Start FreeSWITCH
-
-Make sure FreeSWITCH is running in Docker (see [Examples environment]({{< relref "../Examples/_index.md" >}})).
-
-### 2. Run the Example
+Start FreeSWITCH (see [Examples environment]({{< relref "../Examples/_index.md" >}})) and run:
 
 ```bash
 python examples/group_call.py
 ```
 
-The example will:
-- Ring the group `["user/1001", "user/1002", "user/1003"]` in parallel mode
-- Wait for the first callee to answer (or timeout after 30 seconds)
-- Create and bridge the caller (`user/1000`) with the answered callee
-- Hang up all channels after 5 seconds
+The example will ring the group `["user/1001", "user/1002", "user/1003"]` in parallel mode, wait for the first callee to answer, create and bridge the caller (`user/1000`) with the answered callee, then hang up all channels after 5 seconds.
 
-### 3. Test with Multiple Users
-
-To test this properly, you'll need multiple SIP clients registered:
-- User `1000` (caller)
-- Users `1001`, `1002`, `1003` (callees)
-
-The first callee to answer will be connected to the caller.
-
-{{% /steps %}}
+To test this properly, you'll need multiple SIP clients registered: user `1000` (caller) and users `1001`, `1002`, `1003` (callees). The first callee to answer will be connected to the caller.

@@ -3,13 +3,13 @@ title: Load Balancer
 weight: 31
 ---
 
-Load balancing ensures calls are distributed evenly across your destinations. Instead of always calling destinations in the same order, the load balancer routes calls to the least busy destination first.
+Load balancing ensures calls are distributed evenly across your destinations. The load balancer determines which destination to try first based on current load, prioritizing less busy destinations. Destinations are called sequentially (one at a time) in order of least to most loaded, ensuring even distribution when using the same balancer across multiple groups.
 
 ## Why Use Load Balancing?
 
-Without load balancing, if you ring `["user/1001", "user/1002", "user/1003"]`, the first destination (`user/1001`) will always be called first and may become overloaded while others remain idle.
+Without load balancing, if you ring `["user/1001", "user/1002", "user/1003"]` in multiple groups, `user/1001` will always be tried first in each group and may become overloaded while others remain idle.
 
-With load balancing, the system automatically tracks how many active calls each destination is handling and routes new calls to the one with the least load, ensuring even distribution.
+With load balancing, the system tracks how many active calls each destination is handling and tries destinations in order from least to most loaded. This ensures that less busy destinations are contacted first, preventing specific destinations from being overloaded when using the same balancer instance across multiple groups.
 
 ## Strategies
 

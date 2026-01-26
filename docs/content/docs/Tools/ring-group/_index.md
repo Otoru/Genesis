@@ -51,7 +51,7 @@ asyncio.run(ring_group_example())
 
 **Sequential mode** calls destinations one at a time, only trying the next one if the current one doesn't answer. This is useful when you have priorities or need to respect a specific order.
 
-**Balancing mode** calls all destinations simultaneously, but uses load balancing to reorder them based on current load. This ensures even distribution across destinations when using the same balancer instance across multiple groups.
+**Balancing mode** calls destinations sequentially, one at a time, but uses load balancing to determine the order. The least busy destination is tried first, then the next least busy, and so on. This ensures even distribution across destinations, especially when using the same balancer instance across multiple groups.
 
 ### Parallel Mode
 
@@ -91,7 +91,7 @@ answered = await RingGroup.ring(
 
 ### Balancing Mode
 
-Calls all destinations simultaneously with load balancing. Destinations are reordered based on current load before calling, ensuring even distribution.
+Calls destinations sequentially, one at a time, but uses load balancing to determine which destination to try first. The least busy destination is tried first, then the next least busy if the first doesn't answer, and so on.
 
 ```python
 from genesis import Inbound, RingGroup, RingMode, InMemoryLoadBalancer
@@ -108,11 +108,11 @@ async with Inbound("127.0.0.1", 8021, "ClueCon") as client:
 ```
 
 **Use cases:**
-- Even call distribution across agents
+- Even call distribution across agents when using the same balancer across multiple groups
+- Preventing destination overload by prioritizing less busy destinations
 - Horizontal scaling with shared load state
-- Preventing destination overload
 
-The load balancer tracks call counts globally. If the same balancer instance is used across different groups, destinations that appear in multiple groups will have their load tracked correctly.
+The load balancer tracks call counts globally. When you use the same balancer instance across different groups, destinations that appear in multiple groups will have their load tracked correctly. This means if `user/1002` is already handling calls from another group, it will be deprioritized in favor of less busy destinations.
 
 For detailed information about load balancer backends, see [Load Balancer]({{< relref "load-balancer.md" >}}).
 
@@ -125,7 +125,7 @@ The `RingGroup.ring()` method accepts:
 - `mode`: Ring mode (default: `PARALLEL`)
   - `RingMode.PARALLEL`: Call all destinations simultaneously
   - `RingMode.SEQUENTIAL`: Call destinations one at a time
-  - `RingMode.BALANCING`: Call all destinations simultaneously with load balancing
+  - `RingMode.BALANCING`: Call destinations sequentially with load balancing
 - `timeout`: Maximum time to wait for any callee to answer in seconds (default: `30.0`)
 - `variables`: Optional dictionary of custom variables for callee channel creation
 - `balancer`: Required for `BALANCING` mode, ignored for other modes
@@ -244,13 +244,14 @@ await app.start()
 
 ### Balancing Mode Flow
 
-1. Reorders destinations based on current load (least loaded first)
-2. Increments load count for all destinations
-3. Originates all destinations simultaneously in balanced order
-4. Waits for the first callee to answer
-5. Decrements load count for answered destination
-6. Decrements load count for all destinations that didn't answer
-7. Returns the channel that answered first
+1. Finds the least loaded destination from the remaining group
+2. Increments load count for that destination
+3. Originates that destination and waits for it to answer
+4. If answered, decrements load count and returns the channel
+5. If timeout, decrements load count, hangs up, and tries the next least loaded destination
+6. Continues until someone answers or all destinations are exhausted
+
+The key difference from sequential mode is the ordering: destinations are tried based on current load (least busy first) rather than the original order, which helps distribute calls evenly when the same balancer is used across multiple groups.
 
 {{% /steps %}}
 

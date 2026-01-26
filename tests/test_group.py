@@ -244,11 +244,11 @@ async def test_ring_group_with_load_balancer(freeswitch):
                 )
             )
 
-            created_channels = await wait_for_channels(freeswitch, 3)
+            created_channels = await wait_for_channels(freeswitch, 1)
 
-            assert await lb.get_count("user/1001") == 1
-            assert await lb.get_count("user/1002") == 1
-            assert await lb.get_count("user/1003") == 1
+            assert len(created_channels) == 1
+            first_dest = freeswitch.calls[created_channels[0]]
+            assert await lb.get_count(first_dest) == 1
 
             first_channel_uuid = created_channels[0]
             await send_state_and_answer_events(freeswitch, client, first_channel_uuid)
@@ -258,9 +258,7 @@ async def test_ring_group_with_load_balancer(freeswitch):
             assert answered is not None
             assert answered.uuid == first_channel_uuid
 
-            assert await lb.get_count("user/1001") == 0
-            assert await lb.get_count("user/1002") == 0
-            assert await lb.get_count("user/1003") == 0
+            assert await lb.get_count(first_dest) == 0
 
 
 @pytest.mark.asyncio
@@ -279,10 +277,10 @@ async def test_ring_group_balancing_shared_destination(freeswitch):
                 )
             )
 
-            created_channels1 = await wait_for_channels(freeswitch, 2)
+            created_channels1 = await wait_for_channels(freeswitch, 1)
 
-            assert await lb.get_count("user/1001") == 1
-            assert await lb.get_count("user/1002") == 1
+            dest1 = freeswitch.calls[created_channels1[0]]
+            assert await lb.get_count(dest1) == 1
 
             ring_task2 = asyncio.create_task(
                 RingGroup.ring(
@@ -290,10 +288,15 @@ async def test_ring_group_balancing_shared_destination(freeswitch):
                 )
             )
 
-            created_channels2 = await wait_for_channels(freeswitch, 4)
+            created_channels2 = await wait_for_channels(freeswitch, 2)
 
-            assert await lb.get_count("user/1002") == 2
-            assert await lb.get_count("user/1003") == 1
+            dest2 = freeswitch.calls[created_channels2[1]]
+            assert await lb.get_count(dest2) == 1
+
+            if dest1 == "user/1002":
+                assert await lb.get_count("user/1002") == 2
+            else:
+                assert await lb.get_count("user/1002") == 1
 
             first_channel_uuid = created_channels1[0]
             await send_state_and_answer_events(freeswitch, client, first_channel_uuid)
@@ -301,30 +304,19 @@ async def test_ring_group_balancing_shared_destination(freeswitch):
             answered1 = await ring_task1
 
             assert answered1 is not None
-            dest1 = answered1.dial_path
             assert await lb.get_count(dest1) == 0
 
-            existing_channels = set(freeswitch.calls.keys())
-            new_channels = [
-                ch for ch in created_channels2 if ch not in created_channels1
-            ]
-            if new_channels:
-                second_channel_uuid = new_channels[0]
-            else:
-                second_channel_uuid = created_channels2[0]
-
+            second_channel_uuid = created_channels2[1]
             await send_state_and_answer_events(freeswitch, client, second_channel_uuid)
 
             answered2 = await ring_task2
 
             assert answered2 is not None
-            dest2 = answered2.dial_path
             assert await lb.get_count(dest2) == 0
 
-            all_destinations = set(group1 + group2)
-            answered_destinations = {dest1, dest2}
-            for dest in all_destinations - answered_destinations:
-                assert await lb.get_count(dest) == 0
+            for dest in group1 + group2:
+                if dest != dest1 and dest != dest2:
+                    assert await lb.get_count(dest) == 0
 
 
 @pytest.mark.asyncio

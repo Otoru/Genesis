@@ -327,101 +327,32 @@ class RingGroup:
         variables: Dict[str, str],
         balancer: LoadBalancerBackend,
     ) -> Optional[Channel]:
-        """Ring destinations using load balancing, return first to answer."""
+        """Ring destinations sequentially using load balancing, return first to answer."""
 
-        balanced_group = []
         remaining = list(group)
         while remaining:
             least_loaded = await balancer.get_least_loaded(remaining)
-            if least_loaded:
-                balanced_group.append(least_loaded)
-                remaining.remove(least_loaded)
-            else:
-                balanced_group.extend(remaining)
-                break
+            if not least_loaded:
+                least_loaded = remaining[0]
 
-        for callee in balanced_group:
-            await balancer.increment(callee)
+            await balancer.increment(least_loaded)
 
-        callees: List[Channel] = []
-        callee_map: Dict[Channel, str] = {}
-        for callee in balanced_group:
-            ch = await Channel.create(protocol, callee, variables=variables)
-            callees.append(ch)
-            callee_map[ch] = callee
-
-        tasks: Dict[asyncio.Task, Channel] = {}
-        for ch in callees:
-            task = asyncio.create_task(
-                ch.wait(ChannelState.EXECUTE, timeout=timeout * 2)
-            )
-            tasks[task] = ch
-
-        answered: Optional[Channel] = None
-
-        async def cleanup() -> None:
-            nonlocal answered
-
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
-                    try:
-                        await task
-                    except (asyncio.CancelledError, TimeoutError):
-                        pass
-
-            await RingGroup._cleanup_unanswered(callees, answered)
-
-            for ch in callees:
-                if ch in callee_map:
-                    dest = callee_map[ch]
-                    await balancer.decrement(dest)
-
-        try:
-            done, pending = await asyncio.wait(
-                tasks.keys(), return_when=asyncio.FIRST_COMPLETED, timeout=timeout
-            )
-
-            if not done:
-                await cleanup()
-                return None
-
-            answered_task = done.pop()
-            answered = tasks[answered_task]
-
+            ch = await Channel.create(protocol, least_loaded, variables=variables)
             try:
-                await answered_task
+                await ch.wait(ChannelState.EXECUTE, timeout=timeout)
+                await balancer.decrement(least_loaded)
+                return ch
             except TimeoutError:
-                answered = None
-                await cleanup()
-                return None
+                await balancer.decrement(least_loaded)
+                if ch.state < ChannelState.HANGUP:
+                    try:
+                        await ch.hangup("NORMAL_CLEARING")
+                    except Exception:
+                        pass
+                remaining.remove(least_loaded)
+                continue
 
-            for task in pending:
-                task.cancel()
-                try:
-                    await task
-                except (asyncio.CancelledError, TimeoutError):
-                    pass
-
-            await RingGroup._cleanup_unanswered(callees, answered)
-
-            if answered and answered in callee_map:
-                dest = callee_map[answered]
-                await balancer.decrement(dest)
-
-            for ch in callees:
-                if ch != answered and ch in callee_map:
-                    dest = callee_map[ch]
-                    await balancer.decrement(dest)
-
-            return answered
-
-        except asyncio.TimeoutError:
-            await cleanup()
-            return None
-        except Exception:
-            await cleanup()
-            raise
+        return None
 
     @staticmethod
     async def _cleanup_unanswered(
