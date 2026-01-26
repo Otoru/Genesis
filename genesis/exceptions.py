@@ -36,3 +36,31 @@ class UnconnectedError(Exception):
     """It happens when we try to send dice to a server once we connect before."""
 
     ...
+
+
+class OperationInterruptedException(Exception):
+    """Occurs when an operation (e.g., playback) is interrupted by a hangup or other event."""
+
+    def __init__(
+        self,
+        message: str,
+        event_uuid: str | None = None,
+        channel_uuid: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.event_uuid = event_uuid
+        self.channel_uuid = channel_uuid
+
+
+class OriginateError(Exception):
+    """Raised when a channel origination attempt fails."""
+
+    def __init__(
+        self,
+        message: str,
+        destination: str,
+        variables: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.destination = destination
+        self.variables = variables or {}

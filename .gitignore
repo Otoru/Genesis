@@ -82,4 +82,5 @@ test
 /docs/hugo.darwin
 /docs/hugo.linux
 /docs/.hugo_build.lock
+tmp/
 examples/*

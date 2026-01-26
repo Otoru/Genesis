@@ -45,6 +45,7 @@ pytest-timeout = "^2.4.0"
 genesis = "genesis.cli:app"
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 addopts = "-vvv -x --full-trace --timeout=10"
 asyncio_mode = "auto"
 filterwarnings = [
