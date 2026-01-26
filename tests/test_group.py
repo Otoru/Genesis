@@ -282,22 +282,6 @@ async def test_ring_group_balancing_shared_destination(freeswitch):
             dest1 = freeswitch.calls[created_channels1[0]]
             assert await lb.get_count(dest1) == 1
 
-            ring_task2 = asyncio.create_task(
-                RingGroup.ring(
-                    client, group2, RingMode.BALANCING, timeout=2.0, balancer=lb
-                )
-            )
-
-            created_channels2 = await wait_for_channels(freeswitch, 2)
-
-            dest2 = freeswitch.calls[created_channels2[1]]
-            assert await lb.get_count(dest2) == 1
-
-            if dest1 == "user/1002":
-                assert await lb.get_count("user/1002") == 2
-            else:
-                assert await lb.get_count("user/1002") == 1
-
             first_channel_uuid = created_channels1[0]
             await send_state_and_answer_events(freeswitch, client, first_channel_uuid)
 
@@ -306,7 +290,27 @@ async def test_ring_group_balancing_shared_destination(freeswitch):
             assert answered1 is not None
             assert await lb.get_count(dest1) == 0
 
-            second_channel_uuid = created_channels2[1]
+            ring_task2 = asyncio.create_task(
+                RingGroup.ring(
+                    client, group2, RingMode.BALANCING, timeout=2.0, balancer=lb
+                )
+            )
+
+            created_channels2 = await wait_for_channels(freeswitch, 2)
+
+            all_channels = list(freeswitch.calls.keys())
+            new_channels = [ch for ch in all_channels if ch not in created_channels1]
+            assert len(new_channels) == 1
+
+            dest2 = freeswitch.calls[new_channels[0]]
+            assert await lb.get_count(dest2) == 1
+
+            if dest1 == "user/1002":
+                assert await lb.get_count("user/1002") == 1
+            else:
+                assert await lb.get_count("user/1002") == 1
+
+            second_channel_uuid = new_channels[0]
             await send_state_and_answer_events(freeswitch, client, second_channel_uuid)
 
             answered2 = await ring_task2
