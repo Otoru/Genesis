@@ -6,7 +6,6 @@ import logging
 
 import typer
 
-
 from genesis.cli import watcher
 from genesis.logger import logger
 from genesis.outbound import Outbound

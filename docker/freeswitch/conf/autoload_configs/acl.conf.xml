@@ -1,0 +1,20 @@
+<configuration name="acl.conf" description="Network Lists">
+  <network-lists>
+    <list name="lan" default="allow">
+      <node type="deny" cidr="192.168.42.0/24"/>
+      <node type="allow" cidr="192.168.42.42/32"/>
+    </list>
+
+    <list name="domains" default="deny">
+      <node type="allow" domain="$${domain}"/>
+    </list>
+
+    <!-- ACL for ESL connections - allows localhost and Docker network -->
+    <list name="esl" default="deny">
+      <node type="allow" cidr="127.0.0.1/32"/>
+      <node type="allow" cidr="192.168.64.0/24"/>
+      <node type="allow" cidr="172.16.0.0/12"/>
+      <node type="allow" cidr="10.0.0.0/8"/>
+    </list>
+  </network-lists>
+</configuration>

@@ -572,3 +572,32 @@ generic = dedent(
     Reply-Text: Reply generic command
     """
 )
+
+
+channel_state = dedent(
+    """\
+    Event-Name: CHANNEL_STATE
+    Unique-ID: {unique_id}
+    Channel-State: {state}
+    variable_test_key: {variable_test_key}
+    Content-Type: text/event-plain
+    Content-Length: 0
+    """
+)
+
+
+dtmf = dedent(
+    """\
+    Event-Name: DTMF
+    DTMF-Digit: {digit}
+    Unique-ID: {unique_id}
+    """
+)
+
+
+channel_answer = dedent(
+    """\
+    Event-Name: CHANNEL_ANSWER
+    Unique-ID: {unique_id}
+    """
+)

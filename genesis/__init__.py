@@ -4,6 +4,13 @@ import importlib.metadata
 from .consumer import Consumer, filtrate
 from .outbound import Outbound, Session, ESLEvent
 from .inbound import Inbound
+from .channel import Channel
+from .group import (
+    RingGroup,
+    RingMode,
+    InMemoryLoadBalancer,
+    RedisLoadBalancer,
+)
 
 # New shared modules (Phase 1)
 from .enums import ChannelState, CallState
@@ -29,6 +36,11 @@ __all__ = [
     "Outbound",
     "Session",
     "ESLEvent",
+    "Channel",
+    "RingGroup",
+    "RingMode",
+    "InMemoryLoadBalancer",
+    "RedisLoadBalancer",
     # Enums
     "ChannelState",
     "CallState",
@@ -44,5 +56,6 @@ __all__ = [
     "OriginateError",
     # Submodule
     "channels",
+
 ]
 __version__ = importlib.metadata.version("genesis")

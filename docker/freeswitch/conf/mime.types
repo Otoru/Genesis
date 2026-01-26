@@ -1,0 +1,11 @@
+# Minimal MIME types for Genesis FreeSWITCH
+types {
+    text/xml                                xml
+    text/plain                              txt
+    text/html                               html
+    application/json                        json
+    application/sdp                         sdp
+    audio/wav                               wav
+    audio/mpeg                              mp3
+    audio/ogg                               ogg
+}

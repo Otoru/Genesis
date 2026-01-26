@@ -12,12 +12,8 @@ from genesis.exceptions import AuthenticationError
 def memory_exporter():
     exporter = InMemorySpanExporter()
     processor = SimpleSpanProcessor(exporter)
-
     provider = trace.get_tracer_provider()
 
-    # If the current provider is a proxy or doesn't have add_span_processor (i.e. not the SDK provider),
-    # we initialize a new one.
-    # However, if it IS the SDK provider, we interpret that as "already initialized".
     if not hasattr(provider, "add_span_processor"):
         provider = TracerProvider()
         trace.set_tracer_provider(provider)
@@ -31,20 +27,54 @@ def host():
     return lambda: "127.0.0.1"
 
 
+async def wait_for_span(
+    exporter: InMemorySpanExporter, span_name: str, timeout: float = 1.0
+) -> None:
+    """Wait for a span to appear in the exporter using event-based polling."""
+    start_time = asyncio.get_event_loop().time()
+    check_event = asyncio.Event()
+
+    async def check_loop():
+        while True:
+            spans = exporter.get_finished_spans()
+            if any(s.name == span_name for s in spans):
+                check_event.set()
+                return
+
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed >= timeout:
+                check_event.set()
+                return
+
+            future = asyncio.Future()
+            asyncio.get_event_loop().call_soon(future.set_result, None)
+            await future
+
+    check_task = asyncio.create_task(check_loop())
+    try:
+        await asyncio.wait_for(check_event.wait(), timeout=timeout)
+    finally:
+        check_task.cancel()
+        try:
+            await check_task
+        except asyncio.CancelledError:
+            pass
+
+    spans = exporter.get_finished_spans()
+    if not any(s.name == span_name for s in spans):
+        elapsed = asyncio.get_event_loop().time() - start_time
+        raise TimeoutError(f"Span '{span_name}' not found within {timeout}s")
+
+
 async def test_inbound_connection_spans(freeswitch, memory_exporter):
     """Verify that connecting to FreeSWITCH generates an 'inbound_connect' span."""
-    async with freeswitch as server:
-        # Just connecting should trigger the span
+    async with freeswitch:
         async with Inbound(*freeswitch.address) as client:
             pass
 
-    # Wait a bit for spans to be processed
-    await asyncio.sleep(0.1)
+    await wait_for_span(memory_exporter, "inbound_connect", timeout=1.0)
 
     spans = memory_exporter.get_finished_spans()
-
-    # We expect 'inbound_connect' and potentially others depending on implementation details
-    # But specifically we want to check for inbound_connect
     connect_spans = [s for s in spans if s.name == "inbound_connect"]
     assert len(connect_spans) == 1
     span = connect_spans[0]
@@ -54,22 +84,20 @@ async def test_inbound_connection_spans(freeswitch, memory_exporter):
 
 async def test_send_command_span(freeswitch, memory_exporter):
     """Verify that sending a command generates a 'send_command' span."""
-    async with freeswitch as server:
-        server.oncommand("uptime", "6943047")
+    async with freeswitch:
+        freeswitch.oncommand("uptime", "6943047")
         async with Inbound(*freeswitch.address) as client:
             await client.send("uptime")
 
-    await asyncio.sleep(0.1)
-    spans = memory_exporter.get_finished_spans()
+    await wait_for_span(memory_exporter, "send_command", timeout=1.0)
 
+    spans = memory_exporter.get_finished_spans()
     send_spans = [s for s in spans if s.name == "send_command"]
     assert len(send_spans) >= 1
 
-    # Filter for the specific command we sent
     uptime_span = next(
         (s for s in send_spans if s.attributes["command.name"] == "uptime"), None
     )
     assert uptime_span is not None
-    # command.reply should be set if OTel is working correctly
     if "command.reply" in uptime_span.attributes:
         assert uptime_span.attributes["command.reply"] == "6943047"

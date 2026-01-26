@@ -7,8 +7,8 @@ Please note we have a code of conduct, please follow it in all your interactions
 ## Pull Request Process
 
 1. Make sure all unnecessary dependencies are removed.
-2. Update the README.md with details of changes.
-3. Increase the version numbers on all files to the new version this pull request would represent. The version control scheme we use is SemVer.
+2. Update the README.md with details of changes if needed.
+3. **Version management**: The project uses **calendar versioning** (format: `YYYY.MM.DD`). Version bumps are handled automatically by CI/CD on commits to main - you don't need to manually update versions.
 4. You may merge the Pull Request in once you have the sign-off of two other developers, or if you do not have permission to do that, you may request the second reviewer to merge it for you.
 
 ## Code Style & Quality

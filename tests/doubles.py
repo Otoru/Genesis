@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from uuid import uuid4
 import socket
 import string
 import asyncio
@@ -115,9 +116,15 @@ class Freeswitch(ESLMixin):
         self.is_running = False
         self.commands = dict()
         self.events: List[str] = list()
+        self.received_commands: List[str] = list()
+        self.filters: List[tuple[str, str]] = list()
+        self.calls: Dict[str, str] = dict()
+        self.hangups: List[tuple[str, str]] = list()
+        self.bridges: List[tuple[str, str]] = list()
         self.server: Optional[Server] = None
         self.processor: Optional[Future] = None
         self._stop_lock = asyncio.Lock()
+        self._call_created_condition: Optional[asyncio.Condition] = None
 
     @property
     def address(self) -> tuple[str, int, str]:
@@ -128,14 +135,29 @@ class Freeswitch(ESLMixin):
             for event in self.events:
                 await self.send(writer, event.splitlines())
 
+    async def broadcast(self, event_headers: str) -> None:
+        """Sends an event to all connected writers."""
+        for writer in self.writers:
+            if not writer.is_closing():
+                await self.send(writer, event_headers.splitlines())
+
     async def start(self) -> None:
         # Properly type the partial for start_server
         # The handler expected by start_server is (reader, writer) -> None/Awaitable
         # Our handler is staticmethod (server, reader, writer, dial) -> None
 
+        self.client_connected = asyncio.Event()
+        # Initialize condition when event loop is running
+        if (
+            not hasattr(self, "_call_created_condition")
+            or self._call_created_condition is None
+        ):
+            self._call_created_condition = asyncio.Condition()
+
         async def _client_connected_cb(
             reader: StreamReader, writer: StreamWriter
         ) -> None:
+            self.client_connected.set()
             await self.handler(self, reader, writer, dial=False)
 
         self.port = 0
@@ -230,6 +252,9 @@ class Freeswitch(ESLMixin):
         parsed = parse_headers(request)
         payload = copy(request)
 
+        # Store received command for verification
+        self.received_commands.append(payload)
+
         if payload.startswith("sendmsg"):
             # Mock behavior for blocking commands
             # We need to parse the headers manually from the payload for the mock
@@ -244,10 +269,13 @@ class Freeswitch(ESLMixin):
             await self.command(writer, "+OK")
 
             # If it's an execute command with Event-UUID, send the complete event
+            # Use call_soon to yield to event loop without delay (event-driven, no sleep)
             if headers.get("call-command") == "execute" and "Event-UUID" in headers:
                 event_uuid = headers["Event-UUID"]
-                # Simulate async completion
-                await asyncio.sleep(0.01)
+                loop = asyncio.get_event_loop()
+                future = loop.create_future()
+                loop.call_soon(future.set_result, None)
+                await future
 
                 body_lines = [
                     "Event-Name: CHANNEL_EXECUTE_COMPLETE",
@@ -286,6 +314,59 @@ class Freeswitch(ESLMixin):
             await self.command(writer, "+OK event listener enabled plain")
             await self.shoot(writer)
 
+        elif payload.startswith("api create_uuid"):
+            uuid = str(uuid4())
+            await self.api(writer, uuid)
+
+        elif payload.startswith("filter"):
+            parts = payload.split()
+            if len(parts) >= 3:
+                header = parts[1]
+                value = parts[2]
+                self.filters.append((header, value))
+            await self.command(writer, f"+OK filter added. [{header}]=[{value}]")
+
+        elif payload.startswith("api uuid_kill"):
+            # payload example: api uuid_kill <uuid> <cause>
+            parts = payload.split()
+            if len(parts) >= 4:
+                uuid = parts[2]
+                cause = parts[3]
+                self.hangups.append((uuid, cause))
+            elif len(parts) >= 3:
+                uuid = parts[2]
+                cause = "NORMAL_CLEARING"  # Default if not specified, though Channel sends it.
+                self.hangups.append((uuid, cause))
+
+            await self.api(writer, "+OK")
+
+        elif payload.startswith("api uuid_bridge"):
+            # payload example: api uuid_bridge <uuid> <other_uuid>
+            parts = payload.split()
+            if len(parts) >= 4:
+                uuid = parts[2]
+                other_uuid = parts[3]
+                self.bridges.append((uuid, other_uuid))
+            await self.api(writer, f"+OK {other_uuid}")
+
+        elif payload.startswith("api originate"):
+            import re
+
+            match = re.search(r"origination_uuid=([a-fA-F0-9-]+)", payload)
+            if match:
+                uuid = match.group(1)
+                # Store the dial path as the value
+                # payload example: api originate {origination_uuid=...}user/1000 &park()
+                dial_path = payload.split("}")[-1].replace(" &park()", "").strip()
+                self.calls[uuid] = dial_path
+                async with self._call_created_condition:
+                    self._call_created_condition.notify_all()
+                await self.api(writer, f"+OK {uuid}")
+            else:
+                # Generate one if not provided (though Channel always provides it)
+                uuid = str(uuid4())
+                await self.api(writer, f"+OK {uuid}")
+
         elif payload in self.commands:
             response = self.commands.get(payload)
             if callable(response):
@@ -319,6 +400,29 @@ class Dialplan(ESLMixin):
         self.worker: Optional[Future] = None
         self.reader: Optional[StreamReader] = None
         self.writer: Optional[StreamWriter] = None
+        self.pending_execute_events: Dict[str, str] = {}  # event_uuid -> command
+        self.execute_event_condition: Optional[asyncio.Condition] = None
+
+    async def broadcast(self, event_headers: Dict[str, str]) -> None:
+        """Send a generic event."""
+        # Use the same format as CHANNEL_EXECUTE_COMPLETE in process method
+        body_lines = [f"{key}: {value}" for key, value in event_headers.items()]
+        # Content-Length should be the size of the body content
+        # Each line gets a \n, but we don't count the final \n added by send()
+        body_text = "\n".join(body_lines)
+        length = len(body_text)
+
+        # Use self.writer (same as used in process method for CHANNEL_EXECUTE_COMPLETE)
+        if self.writer and not self.writer.is_closing():
+            await self.send(
+                self.writer,
+                [
+                    "Content-Type: text/event-plain",
+                    f"Content-Length: {length}",
+                    "",
+                    *body_lines,  # Unpack the list so each line is sent separately
+                ],
+            )
 
     async def process(self, writer: StreamWriter, request: str) -> None:
         payload = copy(request)
@@ -336,31 +440,15 @@ class Dialplan(ESLMixin):
             # Send +OK reply
             await self.send(writer, ["Content-Type: command/reply", "Reply-Text: +OK"])
 
-            # If it's an execute command with Event-UUID, send CHANNEL_EXECUTE_COMPLETE
+            # If it's an execute command with Event-UUID, store it for potential completion
+            # Events are sent explicitly via broadcast() method, not automatically
+            # This allows tests to control when events are sent (e.g., for timeout tests)
             if headers.get("call-command") == "execute" and "Event-UUID" in headers:
                 event_uuid = headers["Event-UUID"]
-                # Simulate async completion
-                await asyncio.sleep(0.01)
-
-                body_lines = [
-                    "Event-Name: CHANNEL_EXECUTE_COMPLETE",
-                    f"Application-UUID: {event_uuid}",
-                    "Unique-ID: test-unique-id",
-                ]
-                # Content-Length should be the size of the body content
-                # Each line gets a \n, but we don't count the final \n added by send()
-                body_text = "\n".join(body_lines)
-                length = len(body_text)
-
-                await self.send(
-                    writer,
-                    [
-                        "Content-Type: text/event-plain",
-                        f"Content-Length: {length}",
-                        "",
-                        *body_lines,  # Unpack the list so each line is sent separately
-                    ],
-                )
+                # Store event UUID for potential completion (event-driven, no sleep)
+                async with self.execute_event_condition:
+                    self.pending_execute_events[event_uuid] = "execute"
+                    self.execute_event_condition.notify_all()
             return
 
         if payload in self.commands:
@@ -382,9 +470,20 @@ class Dialplan(ESLMixin):
 
     async def start(self, host, port) -> None:
         self.is_running = True
-        handler = partial(self.handler, self, dial=True)
+        self.client_connected = asyncio.Event()
+        # Initialize condition when event loop is running
+        if self.execute_event_condition is None:
+            self.execute_event_condition = asyncio.Condition()
+
+        async def _handler(reader: StreamReader, writer: StreamWriter) -> None:
+            self.client_connected.set()
+            await self.handler(self, reader, writer, dial=True)
+
+        handler = partial(self.handler, self, dial=True)  # Kept for reference if needed
         self.reader, self.writer = await open_connection(host, port)
-        self.worker = ensure_future(handler(self.reader, self.writer))
+        # Fix: the previous attempt defined _handler but didn't use it correctly with ensure_future
+        # The _handler needs the reader/writer from open_connection
+        self.worker = ensure_future(_handler(self.reader, self.writer))
 
     async def stop(self) -> None:
         self.is_running = False

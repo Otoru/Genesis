@@ -84,3 +84,13 @@ test
 /docs/.hugo_build.lock
 tmp/
 examples/*
+!examples/*.py
+docker/freeswitch/logs/
+docker/freeswitch/recordings/
+docker/freeswitch/conf/**/*.log
+docker/freeswitch/conf/**/*.db
+docker/freeswitch/conf/**/*.db-*
+docker/freeswitch/conf/**/.fsxml
+docker/freeswitch/conf/**/*.fsxml
+docker/freeswitch-test/config/logs/
+docker/freeswitch-test/config/recordings/freeswitch/
