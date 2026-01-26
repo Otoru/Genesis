@@ -12,104 +12,36 @@ Simultaneous originate example that calls multiple destinations and bridges with
 import asyncio
 import os
 
-from genesis import Inbound, Channel
+from genesis import Inbound, RingGroup, RingMode, Channel
 from genesis.types import ChannelState
-from genesis.exceptions import TimeoutError
 
 FS_HOST = os.getenv("FS_HOST", "127.0.0.1")
 FS_PORT = int(os.getenv("FS_PORT", "8021"))
 FS_PASSWORD = os.getenv("FS_PASSWORD", "ClueCon")
 
 
-async def originate_multiple_simultaneous(
-    client: Inbound,
-    caller: str,
-    callees: list[str],
-    timeout: float = 30.0,
-) -> tuple[Channel, Channel]:
-    """Originate calls simultaneously and return first to answer."""
-    # Originate the caller
-    caller_ch = await Channel.create(client, caller)
-    await caller_ch.wait(ChannelState.EXECUTE, timeout=timeout)
-
-    # Originate the callees
-    channels = []
-    for callee in callees:
-        ch = await Channel.create(client, callee)
-        channels.append(ch)
-
-    # Create tasks to wait for the callees to answer
-    tasks = {}
-    for ch in channels:
-        task = asyncio.create_task(ch.wait(ChannelState.EXECUTE, timeout=timeout))
-        tasks[task] = ch
-
-    try:
-        # Wait for the first callee to answer
-        done, pending = await asyncio.wait(
-            tasks.keys(), return_when=asyncio.FIRST_COMPLETED, timeout=timeout
-        )
-
-        # If no callee answered, raise an error
-        if not done:
-            raise TimeoutError("No destination answered")
-
-        # Get the first callee to answer
-        answered_task = done.pop()
-        answered = tasks[answered_task]
-        
-        # Wait for the task to complete (may raise if it failed)
-        await answered_task
-
-        # All pending callee tasks are about to be cancelled and the rest of the channels will be hung up.
-        for task in pending:
-            task.cancel()
-            try:
-                await task
-            except (asyncio.CancelledError, TimeoutError):
-                pass
-
-        for ch in channels:
-            if ch == answered:
-                continue
-            if ch.state >= ChannelState.HANGUP:
-                continue
-            try:
-                await ch.hangup("NORMAL_CLEARING")
-            except:
-                pass
-
-        return caller_ch, answered
-
-    except Exception:
-        for task in tasks:
-            task.cancel()
-        for ch in channels:
-            if ch.state >= ChannelState.HANGUP:
-                continue
-            try:
-                await ch.hangup("NORMAL_CLEARING")
-            except:
-                pass
-        raise
-
-
 async def main() -> None:
-    caller = "user/1000"
-    callees = ["user/1001", "user/1002", "user/1003"]
+    caller_dial_path = "user/1000"
+    group = ["user/1001", "user/1002", "user/1003"]
 
     async with Inbound(FS_HOST, FS_PORT, FS_PASSWORD) as client:
-        # Originate the calls
-        caller_ch, callee_ch = await originate_multiple_simultaneous(client, caller, callees)
+        # Ring group in parallel mode
+        answered = await RingGroup.ring(
+            client, group, RingMode.PARALLEL, timeout=30.0
+        )
 
-        await caller_ch.bridge(callee_ch)
+        if answered:
+            # Create caller channel and bridge with answered callee
+            caller = await Channel.create(client, caller_dial_path)
+            await caller.wait(ChannelState.EXECUTE)
+            await caller.bridge(answered)
 
-        # Do something with the call
-        await asyncio.sleep(5)
+            # Handle the call...
+            await asyncio.sleep(5)
 
-        # Hang up the call
-        await callee_ch.hangup()
-        await caller_ch.hangup()
+            # Hang up
+            await answered.hangup()
+            await caller.hangup()
 
 
 if __name__ == "__main__":
@@ -118,13 +50,19 @@ if __name__ == "__main__":
 
 ## How It Works
 
-This example demonstrates how to implement simultaneous originate (similar to FreeSWITCH dialplan's loop dial feature) using Genesis:
+This example demonstrates how to use `RingGroup` to implement simultaneous originate:
 
-1. **Originates the caller**: Creates a channel for the person making the call and waits for them to answer
-2. **Originates multiple callees**: Creates channels for all destinations simultaneously
-3. **Waits for first answer**: Uses `asyncio.wait()` with `FIRST_COMPLETED` to detect which callee answers first
-4. **Cleans up**: Cancels pending tasks and hangs up channels that didn't answer
-5. **Bridges**: Connects the caller with the first callee to answer
+1. Uses `RingGroup.ring()` with `RingMode.PARALLEL` to call all destinations simultaneously
+2. The method automatically waits for the first callee to answer and returns that channel
+3. Channels that didn't answer are automatically hung up
+4. Creates the caller channel and bridges it with the answered callee
+
+### Ring Modes
+
+`RingGroup` supports two modes:
+
+- **`RingMode.PARALLEL`**: Calls all destinations simultaneously. The first one to answer wins, and all others are automatically hung up.
+- **`RingMode.SEQUENTIAL`**: Calls destinations one at a time. Tries the next one only if the current one doesn't answer within the timeout.
 
 ### Flow Diagram
 
@@ -187,9 +125,9 @@ python examples/group_call.py
 ```
 
 The example will:
-- Originate a call to `user/1000` (caller)
-- Simultaneously originate calls to `user/1001`, `user/1002`, and `user/1003` (callees)
-- Bridge the caller with the first callee to answer
+- Ring the group `["user/1001", "user/1002", "user/1003"]` in parallel mode
+- Wait for the first callee to answer (or timeout after 30 seconds)
+- Create and bridge the caller (`user/1000`) with the answered callee
 - Hang up all channels after 5 seconds
 
 ### 3. Test with Multiple Users
@@ -201,22 +139,3 @@ To test this properly, you'll need multiple SIP clients registered:
 The first callee to answer will be connected to the caller.
 
 {{% /steps %}}
-
-## Customization
-
-You can customize the example by:
-
-- **Changing destinations**: Modify the `caller` and `callees` variables
-- **Adjusting timeout**: Change the `timeout` parameter (default: 30 seconds)
-- **Adding error handling**: Handle specific exceptions for different failure scenarios
-- **Logging**: Add logging to track which callee answered first
-
-## Similar FreeSWITCH Dialplan
-
-This example replicates the behavior of FreeSWITCH dialplan's simultaneous bridge:
-
-```xml
-<action application="bridge" data="user/1001@domain,user/1002@domain,user/1003@domain"/>
-```
-
-The comma-separated list tells FreeSWITCH to call all destinations simultaneously and bridge with the first one to answer.

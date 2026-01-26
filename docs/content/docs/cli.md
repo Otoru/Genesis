@@ -33,9 +33,9 @@ Run an ESL event consumer application.
 
 ### Examples
 
-{{< tabs items="Development,Production" >}}
+{{< tabs >}}
 
-  {{< tab >}}
+  {{< tab name="Development" >}}
   **Development mode** with auto-reload:
 
   ```bash
@@ -43,7 +43,7 @@ Run an ESL event consumer application.
   ```
   {{< /tab >}}
 
-  {{< tab >}}
+  {{< tab name="Production" >}}
   **Production mode**:
 
   ```bash
@@ -73,9 +73,9 @@ Run an outbound service application.
 
 ### Examples
 
-{{< tabs items="Development,Production" >}}
+{{< tabs >}}
 
-  {{< tab >}}
+  {{< tab name="Development" >}}
   **Development mode** with auto-reload:
 
   ```bash
@@ -83,7 +83,7 @@ Run an outbound service application.
   ```
   {{< /tab >}}
 
-  {{< tab >}}
+  {{< tab name="Production" >}}
   **Production mode**:
 
   ```bash

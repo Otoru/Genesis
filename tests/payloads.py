@@ -593,3 +593,11 @@ dtmf = dedent(
     Unique-ID: {unique_id}
     """
 )
+
+
+channel_answer = dedent(
+    """\
+    Event-Name: CHANNEL_ANSWER
+    Unique-ID: {unique_id}
+    """
+)

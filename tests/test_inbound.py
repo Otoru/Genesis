@@ -26,7 +26,7 @@ async def test_send_command_without_connection():
 async def test_connect_without_freeswitch(port):
     with pytest.raises((ConnectionRefusedError, OSError)):
         async with Inbound("0.0.0.0", port(), "ClueCon"):
-            await asyncio.sleep(1)
+            pass
 
 
 async def test_connect_timeout_with_freesswitch(freeswitch):
@@ -34,14 +34,14 @@ async def test_connect_timeout_with_freesswitch(freeswitch):
         async with Inbound(
             freeswitch.host, freeswitch.port, freeswitch.password, timeout=0
         ):
-            await asyncio.sleep(1)
+            pass
 
 
 async def test_inbound_client_with_invalid_password(freeswitch):
     async with freeswitch:
         with pytest.raises(AuthenticationError):
             async with Inbound(freeswitch.host, freeswitch.port, "invalid"):
-                await asyncio.sleep(1)
+                pass
 
 
 async def test_inbound_client_send_command(freeswitch):
@@ -170,4 +170,4 @@ async def test_inbound_connection_error_metrics_failure(freeswitch):
             async with Inbound(
                 freeswitch.host, freeswitch.port, freeswitch.password, timeout=0
             ):
-                await asyncio.sleep(0.1)
+                pass

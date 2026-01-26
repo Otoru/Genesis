@@ -124,6 +124,7 @@ class Freeswitch(ESLMixin):
         self.server: Optional[Server] = None
         self.processor: Optional[Future] = None
         self._stop_lock = asyncio.Lock()
+        self._call_created_condition: Optional[asyncio.Condition] = None
 
     @property
     def address(self) -> tuple[str, int, str]:
@@ -146,6 +147,12 @@ class Freeswitch(ESLMixin):
         # Our handler is staticmethod (server, reader, writer, dial) -> None
 
         self.client_connected = asyncio.Event()
+        # Initialize condition when event loop is running
+        if (
+            not hasattr(self, "_call_created_condition")
+            or self._call_created_condition is None
+        ):
+            self._call_created_condition = asyncio.Condition()
 
         async def _client_connected_cb(
             reader: StreamReader, writer: StreamWriter
@@ -262,10 +269,13 @@ class Freeswitch(ESLMixin):
             await self.command(writer, "+OK")
 
             # If it's an execute command with Event-UUID, send the complete event
+            # Use call_soon to yield to event loop without delay (event-driven, no sleep)
             if headers.get("call-command") == "execute" and "Event-UUID" in headers:
                 event_uuid = headers["Event-UUID"]
-                # Simulate async completion
-                await asyncio.sleep(0.01)
+                loop = asyncio.get_event_loop()
+                future = loop.create_future()
+                loop.call_soon(future.set_result, None)
+                await future
 
                 body_lines = [
                     "Event-Name: CHANNEL_EXECUTE_COMPLETE",
@@ -349,6 +359,8 @@ class Freeswitch(ESLMixin):
                 # payload example: api originate {origination_uuid=...}user/1000 &park()
                 dial_path = payload.split("}")[-1].replace(" &park()", "").strip()
                 self.calls[uuid] = dial_path
+                async with self._call_created_condition:
+                    self._call_created_condition.notify_all()
                 await self.api(writer, f"+OK {uuid}")
             else:
                 # Generate one if not provided (though Channel always provides it)
@@ -388,6 +400,8 @@ class Dialplan(ESLMixin):
         self.worker: Optional[Future] = None
         self.reader: Optional[StreamReader] = None
         self.writer: Optional[StreamWriter] = None
+        self.pending_execute_events: Dict[str, str] = {}  # event_uuid -> command
+        self.execute_event_condition: Optional[asyncio.Condition] = None
 
     async def broadcast(self, event_headers: Dict[str, str]) -> None:
         """Send a generic event."""
@@ -426,31 +440,15 @@ class Dialplan(ESLMixin):
             # Send +OK reply
             await self.send(writer, ["Content-Type: command/reply", "Reply-Text: +OK"])
 
-            # If it's an execute command with Event-UUID, send CHANNEL_EXECUTE_COMPLETE
+            # If it's an execute command with Event-UUID, store it for potential completion
+            # Events are sent explicitly via broadcast() method, not automatically
+            # This allows tests to control when events are sent (e.g., for timeout tests)
             if headers.get("call-command") == "execute" and "Event-UUID" in headers:
                 event_uuid = headers["Event-UUID"]
-                # Simulate async completion
-                await asyncio.sleep(0.01)
-
-                body_lines = [
-                    "Event-Name: CHANNEL_EXECUTE_COMPLETE",
-                    f"Application-UUID: {event_uuid}",
-                    "Unique-ID: test-unique-id",
-                ]
-                # Content-Length should be the size of the body content
-                # Each line gets a \n, but we don't count the final \n added by send()
-                body_text = "\n".join(body_lines)
-                length = len(body_text)
-
-                await self.send(
-                    writer,
-                    [
-                        "Content-Type: text/event-plain",
-                        f"Content-Length: {length}",
-                        "",
-                        *body_lines,  # Unpack the list so each line is sent separately
-                    ],
-                )
+                # Store event UUID for potential completion (event-driven, no sleep)
+                async with self.execute_event_condition:
+                    self.pending_execute_events[event_uuid] = "execute"
+                    self.execute_event_condition.notify_all()
             return
 
         if payload in self.commands:
@@ -473,6 +471,9 @@ class Dialplan(ESLMixin):
     async def start(self, host, port) -> None:
         self.is_running = True
         self.client_connected = asyncio.Event()
+        # Initialize condition when event loop is running
+        if self.execute_event_condition is None:
+            self.execute_event_condition = asyncio.Condition()
 
         async def _handler(reader: StreamReader, writer: StreamWriter) -> None:
             self.client_connected.set()
