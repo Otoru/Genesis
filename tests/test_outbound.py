@@ -1,4 +1,5 @@
-from asyncio import Queue, Event
+import asyncio
+from asyncio import Queue, Event, TimeoutError
 from typing import Awaitable, Any
 
 try:
@@ -305,8 +306,6 @@ async def test_outbound_handler_options(host, port, dialplan, monkeypatch, gener
     await app.stop()
     await dialplan.stop()
 
-    # Verify "myevents" and "linger" were NOT sent
-    # Only "connect" should have been sent (and potentially other internal calls if any, but specifically checking for absence)
     calls = [call.args[0] for call in spider.call_args_list]
     assert "connect" in calls
     assert "myevents" not in calls
@@ -356,7 +355,6 @@ async def test_outbound_session_helpers(host, port, dialplan, monkeypatch, gener
     await app.stop()
     await dialplan.stop()
 
-    # Verify calls
     spider.assert_any_call(
         "execute", "log", "INFO test message", block=False, timeout=None
     )
@@ -386,14 +384,48 @@ async def test_outbound_session_helpers(host, port, dialplan, monkeypatch, gener
 async def test_outbound_blocking_command(host, port, dialplan, generic):
     """Test that blocking commands wait for completion event."""
     test_complete = Event()
+    event_uuid_holder = {"uuid": None}
+
+    async def wait_for_execute_event_uuid(dialplan, timeout: float = 1.0) -> str:
+        """Wait for an execute command to be received and return its event UUID."""
+        start_time = asyncio.get_event_loop().time()
+        async with dialplan.execute_event_condition:
+            while True:
+                if dialplan.pending_execute_events:
+                    event_uuid = next(iter(dialplan.pending_execute_events.keys()))
+                    del dialplan.pending_execute_events[event_uuid]
+                    return event_uuid
+
+                elapsed = asyncio.get_event_loop().time() - start_time
+                if elapsed >= timeout:
+                    raise TimeoutError("No execute command received within timeout")
+
+                remaining_timeout = timeout - elapsed
+                try:
+                    await asyncio.wait_for(
+                        dialplan.execute_event_condition.wait(),
+                        timeout=remaining_timeout,
+                    )
+                except asyncio.TimeoutError:
+                    elapsed = asyncio.get_event_loop().time() - start_time
+                    raise TimeoutError("No execute command received within timeout")
 
     async def handler(session: Session) -> None:
-        # We need to use specific IDs to match what the mock expects if we were strict,
-        # but our mock implementation just echoes back whatever ID we send.
-        # Logic: sendmsg(block=True) -> generates uuid -> mock receives -> sends event -> session receives -> function returns
+        playback_task = asyncio.create_task(
+            session.channel.playback("/tmp/blocking.wav", block=True)
+        )
 
-        # Using playback as a typical blocking command
-        event = await session.channel.playback("/tmp/blocking.wav", block=True)
+        event_uuid = await wait_for_execute_event_uuid(dialplan, timeout=1.0)
+        event_uuid_holder["uuid"] = event_uuid
+        await dialplan.broadcast(
+            {
+                "Event-Name": "CHANNEL_EXECUTE_COMPLETE",
+                "Application-UUID": event_uuid,
+                "Unique-ID": "test-unique-id",
+            }
+        )
+
+        event = await playback_task
         assert event["Event-Name"] == "CHANNEL_EXECUTE_COMPLETE"
         test_complete.set()
 
@@ -412,14 +444,7 @@ async def test_outbound_blocking_command_timeout(host, port, dialplan, generic):
     """Test that blocking commands raise TimeoutError if event doesn't arrive."""
     test_complete = Event()
 
-    try:
-        from asyncio import TimeoutError
-    except ImportError:
-        # Python 3.10+
-        pass
-
     async def handler(session: Session) -> None:
-        # Set a timeout shorter than the mock's sleep (0.01s)
         try:
             await session.channel.playback(
                 "/tmp/timeout.wav", block=True, timeout=0.001
@@ -427,7 +452,6 @@ async def test_outbound_blocking_command_timeout(host, port, dialplan, generic):
         except TimeoutError:
             test_complete.set()
         except Exception as e:
-            # If any other exception, fail
             print(f"Caught unexpected exception: {e}")
 
     address = (host(), port())
@@ -435,10 +459,6 @@ async def test_outbound_blocking_command_timeout(host, port, dialplan, generic):
 
     await app.start(block=False)
     await dialplan.start(*address)
-
-    # Wait a bit longer than the timeout to ensure it triggers
-    # We use a wait_for on the event to avoid hanging accurately
-    import asyncio
 
     try:
         await asyncio.wait_for(test_complete.wait(), timeout=1.0)

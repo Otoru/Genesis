@@ -94,6 +94,15 @@ poetry run pytest tests/test_channel.py::test_channel_state
 - `timeout = 10` (via pytest-timeout)
 - `addopts = "-vvv -x --full-trace --timeout=10"`
 
+**CRITICAL: Never use `asyncio.sleep()` in tests**:
+- Tests must use events, awaitables, or proper synchronization primitives
+- Use `wait_for_channels()` helper or similar event-based waiting
+- Use `asyncio.create_task()` and await the task completion
+- Use `asyncio.Event`, `asyncio.Condition`, or `asyncio.Future` for coordination
+- Use `asyncio.wait_for()` with events/conditions for timeout handling
+- **NO EXCEPTIONS** - all sleeps must be replaced with event-driven mechanisms
+- Sleeps make tests flaky, slow, and unreliable
+
 #### tox
 
 Validate across Python versions (3.10, 3.11, 3.12):
@@ -215,25 +224,95 @@ The project uses **calendar versioning** (not semantic versioning):
 - No manual version bumps needed
 - Version is set in `pyproject.toml`
 
+## Documentation Standards
+
+**Always prefer lists over long lines and tables**:
+- Use bullet lists for parameters, options, or multiple items
+- Break long parameter descriptions into list items
+- Use tables only when comparing multiple attributes side-by-side
+- Keep lines readable (avoid horizontal scrolling)
+
+**Example - Good**:
+```markdown
+- `mode`: Ring mode (default: `PARALLEL`)
+  - `RingMode.PARALLEL`: Call all destinations simultaneously
+  - `RingMode.SEQUENTIAL`: Call destinations one at a time
+```
+
+**Example - Bad**:
+```markdown
+- `mode`: Ring mode - `RingMode.PARALLEL` or `RingMode.SEQUENTIAL` (default: `PARALLEL`)
+```
+
+## Observability Standards
+
+**All new features must include observability**:
+- **Tracing**: Use OpenTelemetry spans for all significant operations
+  - Create spans with `tracer.start_as_current_span()` context manager
+  - Add relevant attributes to spans (operation name, parameters, results)
+  - Record exceptions with `span.record_exception()`
+- **Metrics**: Create counters and histograms for operations
+  - Use `meter.create_counter()` for counting operations and results
+  - Use `meter.create_histogram()` for measuring durations
+  - Include relevant attributes (mode, success/failure, error types)
+- **Pattern**: Follow the same pattern used in `Channel` and `Protocol` modules
+  - Import `tracer` and `meter` from `opentelemetry`
+  - Create metrics at module level
+  - Wrap operations in spans with appropriate attributes
+  - Record metrics with operation results
+
+**Example**:
+```python
+from opentelemetry import trace, metrics
+
+tracer = trace.get_tracer(__name__)
+meter = metrics.get_meter(__name__)
+
+operation_counter = meter.create_counter("genesis.feature.operations", unit="1")
+operation_duration = meter.create_histogram("genesis.feature.duration", unit="s")
+
+async def my_feature():
+    with tracer.start_as_current_span("feature.operation", attributes={...}) as span:
+        start_time = time.time()
+        try:
+            result = await do_work()
+            duration = time.time() - start_time
+            span.set_attribute("feature.result", "success")
+            operation_counter.add(1, attributes={"result": "success"})
+            operation_duration.record(duration)
+            return result
+        except Exception as e:
+            span.record_exception(e)
+            operation_counter.add(1, attributes={"result": "error"})
+            raise
+```
+
 ## Pre-PR Checklist
 
-Before submitting a PR, ensure:
+**CRITICAL: Always run the full CI stack locally before opening a PR.**
 
-1. **Types**: `poetry run mypy` passes with no errors
-2. **Tests**: `poetry run pytest` passes
-3. **Multi-version**: `poetry run tox` passes on all Python versions
-4. **Formatting**: `poetry run black --check` passes
+Before submitting a PR, you MUST run all CI checks locally:
+
+1. **Formatting**: `poetry run black --check genesis/ tests/ examples/` - MUST pass
+2. **Types**: `poetry run mypy genesis/` - MUST pass with no errors
+3. **Tests**: `poetry run pytest tests/ -v` - MUST pass (all tests)
+4. **Multi-version**: `poetry run tox` - MUST pass on all Python versions (3.10, 3.11, 3.12)
+
+**Never open a PR without running these commands first.** PRs that fail CI checks will be rejected.
+
+Additional checks:
 5. **Dependencies**: No unnecessary dependencies added
 6. **Documentation**: 
    - README.md updated if needed
    - **All language versions updated** (en, pt, ko) if documentation changed
+   - Follow documentation standards (prefer lists over long lines)
 7. **Version**: Version is automatically managed by CI/CD (calendar format)
 
 ## Python Versions
 
 Supported: Python 3.10, 3.11, 3.12
 
-Constraint: `>=3.10,<4.0` (see `pyproject.toml`)
+Constraint: `>=3.10,<3.13` (see `pyproject.toml`)
 
 ## Resources
 

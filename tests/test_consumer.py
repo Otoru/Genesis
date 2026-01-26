@@ -61,7 +61,6 @@ async def test_decorator_not_change_behavior_of_funcion():
 
     @app.handle("sofia::register")
     async def handle(event):
-        await asyncio.sleep(0.0001)
         return "result"
 
     expected = "result"

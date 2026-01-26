@@ -96,7 +96,7 @@ jobs:
         run: poetry install --no-interaction
 
       - name: Run Linter (Black)
-        run: poetry run black . --check
+        run: poetry run black --check genesis/ tests/ examples/
 
       - name: Run Type Checker (Mypy)
         run: poetry run mypy

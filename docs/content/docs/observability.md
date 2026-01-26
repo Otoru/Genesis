@@ -72,6 +72,11 @@ Genesis automatically creates spans for the following operations:
   - Description: DTMF digit received
   - Attributes: `channel.uuid`, `dtmf.digit`, `dtmf.handled`
 
+**Ring Group Spans:**
+- **`ring_group.ring`** (`RingGroup` module)
+  - Description: Ringing a group of destinations
+  - Attributes: `ring_group.mode`, `ring_group.size`, `ring_group.timeout`, `ring_group.has_balancer`, `ring_group.has_variables`, `ring_group.balanced`, `ring_group.result`, `ring_group.duration`, `ring_group.answered_uuid`, `ring_group.answered_dial_path`, `ring_group.error` (if error)
+
 ### Configuration
 
 Install the OpenTelemetry SDK:
@@ -80,9 +85,9 @@ Install the OpenTelemetry SDK:
 pip install opentelemetry-sdk
 ```
 
-{{< tabs items="Console,Jaeger,OTLP" >}}
+{{< tabs >}}
 
-  {{< tab >}}
+  {{< tab name="Console" >}}
   **Console Exporter** (Development)
 
   ```python
@@ -105,7 +110,7 @@ pip install opentelemetry-sdk
   ```
   {{< /tab >}}
 
-  {{< tab >}}
+  {{< tab name="Jaeger" >}}
   **Jaeger Exporter** (Production)
 
   ```bash
@@ -128,7 +133,7 @@ pip install opentelemetry-sdk
   ```
   {{< /tab >}}
 
-  {{< tab >}}
+  {{< tab name="OTLP" >}}
   **OTLP Exporter** (Production)
 
   ```bash
@@ -220,64 +225,86 @@ Access metrics at `http://localhost:8000/metrics` (or your configured port).
 Genesis exposes the following metrics via OpenTelemetry:
 
 **Command Metrics:**
-- **`genesis.commands.sent`** → `genesis_commands_sent_total` (Counter)
+- **`genesis_commands_sent_total`** (Counter)
   - Description: Number of ESL commands sent
   - Attributes: `command`
 
-- **`genesis.commands.duration`** → `genesis_commands_duration_seconds` (Histogram)
+- **`genesis_commands_duration_seconds`** (Histogram)
   - Description: Command execution duration (RTT)
   - Attributes: `command`
 
-- **`genesis.commands.errors`** → `genesis_commands_errors_total` (Counter)
+- **`genesis_commands_errors_total`** (Counter)
   - Description: Number of failed ESL commands
   - Attributes: `command`, `error`
 
 **Event Metrics:**
-- **`genesis.events.received`** → `genesis_events_received_total` (Counter)
+- **`genesis_events_received_total`** (Counter)
   - Description: Number of ESL events received
   - Attributes: `event_name`, `event_subclass`, `direction`, `channel_state`, `answer_state`, `hangup_cause`
 
 **Connection Metrics:**
-- **`genesis.connections.active`** → `genesis_connections_active` (Gauge)
+- **`genesis_connections_active`** (Gauge)
   - Description: Number of active connections
   - Attributes: `type` (inbound/outbound)
 
-- **`genesis.connections.errors`** → `genesis_connections_errors_total` (Counter)
+- **`genesis_connections_errors_total`** (Counter)
   - Description: Number of connection errors
   - Attributes: `type`, `error`
 
 **Channel Operation Metrics:**
-- **`genesis.channel.operations`** → `genesis_channel_operations_total` (Counter)
+- **`genesis_channel_operations_total`** (Counter)
   - Description: Number of channel operations
   - Attributes: `operation` (answer, hangup, bridge, playback, say, etc.), `success`, `error`
 
-- **`genesis.channel.operation.duration`** → `genesis_channel_operation_duration_seconds` (Histogram)
+- **`genesis_channel_operation_duration_seconds`** (Histogram)
   - Description: Duration of channel operations
   - Attributes: `operation`
 
-- **`genesis.channel.hangup.causes`** → `genesis_channel_hangup_causes_total` (Counter)
+- **`genesis_channel_hangup_causes_total`** (Counter)
   - Description: Hangup causes
   - Attributes: `hangup.cause`, `error`
 
-- **`genesis.channel.bridge.operations`** → `genesis_channel_bridge_operations_total` (Counter)
+- **`genesis_channel_bridge_operations_total`** (Counter)
   - Description: Bridge operations
   - Attributes: `success`, `error`
 
-- **`genesis.channel.dtmf.received`** → `genesis_channel_dtmf_received_total` (Counter)
+- **`genesis_channel_dtmf_received_total`** (Counter)
   - Description: DTMF digits received
   - Attributes: `dtmf.digit`
 
 **Call Metrics:**
-- **`genesis.call.duration`** → `genesis_call_duration_seconds` (Histogram)
+- **`genesis_call_duration_seconds`** (Histogram)
   - Description: Total call duration from creation to hangup
   - Attributes: (no attributes)
 
+**Ring Group Metrics:**
+- **`genesis_ring_group_operations_total`** (Counter)
+  - Description: Number of ring group operations
+  - Attributes: `mode` (parallel/sequential), `has_balancer`
+
+- **`genesis_ring_group_operation_duration_seconds`** (Histogram)
+  - Description: Duration of ring group operations
+  - Attributes: `mode`, `has_balancer`
+
+- **`genesis_ring_group_results_total`** (Counter)
+  - Description: Ring group operation results
+  - Attributes: `mode`, `result` (answered/no_answer/error), `has_balancer`, `error` (if error)
+
+**Load Balancer Monitoring:**
+
+When using load balancers with ring groups, monitoring is integrated into the existing metrics:
+
+- The `has_balancer` attribute in ring group metrics indicates when load balancing is active
+- The `ring_group.balanced` span attribute shows when destinations were reordered by load
+- Track `ring_group.results` with `has_balancer=true` to monitor load-balanced operations
+- The `ring_group.answered_dial_path` attribute shows which destination answered, useful for analyzing load distribution
+
+For programmatic access to load counts per destination, use the load balancer's `get_count()` method or export custom metrics from your application based on these values.
+
 **Timeout Metrics:**
-- **`genesis.timeouts`** → `genesis_timeouts_total` (Counter)
+- **`genesis_timeouts_total`** (Counter)
   - Description: Number of timeouts
   - Attributes: `timeout.type` (wait, command, connection), `timeout.operation`, `timeout.duration`
-
-> **Note:** OpenTelemetry uses dot notation (`.`), but Prometheus automatically converts to underscores (`_`) and appends `_total` to counters.
 
 ### Manual Configuration
 

@@ -58,7 +58,7 @@ The container is configured with high-performance capabilities:
 docker-compose logs -f freeswitch
 
 # Access FreeSWITCH console (interactive)
-docker exec -it genesis-freeswitch fs_cli
+docker exec -it -e TERM=xterm-256color genesis-freeswitch fs_cli
 
 # Run FreeSWITCH commands non-interactively
 docker exec -it genesis-freeswitch fs_cli -x "status"

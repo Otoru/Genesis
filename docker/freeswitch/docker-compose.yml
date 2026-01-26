@@ -22,6 +22,7 @@ services:
       rtprio: 99
     environment:
       TZ: America/Sao_Paulo
+      TERM: xterm-256color
     volumes:
       - ./conf:/etc/freeswitch
       - ./logs:/var/log/freeswitch
