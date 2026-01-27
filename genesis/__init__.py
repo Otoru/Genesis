@@ -1,7 +1,9 @@
 import importlib.metadata
 
 from .consumer import Consumer, filtrate
-from .outbound import Outbound, Session, ESLEvent
+from .outbound import Outbound
+from .session import Session
+from .parser import ESLEvent
 from .inbound import Inbound
 from .channel import Channel
 from .group import (
