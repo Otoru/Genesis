@@ -56,6 +56,5 @@ __all__ = [
     "OriginateError",
     # Submodule
     "channels",
-
 ]
 __version__ = importlib.metadata.version("genesis")

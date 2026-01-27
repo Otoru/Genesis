@@ -34,7 +34,7 @@ class SessionGoneAway(GenesisError):
     ...
 
 
-class AuthenticationError(GenesisError):
+class AuthenticationError(GenesisError, ValueError):
     """It happens when we have a problem during authentication."""
 
     ...
@@ -72,8 +72,8 @@ class OriginateError(Exception):
         super().__init__(message)
         self.destination = destination
         self.variables = variables or {}
-        
-        
+
+
 class TimeoutError(GenesisError):
     """Occurs when an operation times out (e.g., waiting for an event)."""
 
