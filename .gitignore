@@ -83,8 +83,6 @@ test
 /docs/hugo.linux
 /docs/.hugo_build.lock
 tmp/
-examples/*
-!examples/*.py
 docker/freeswitch/logs/
 docker/freeswitch/recordings/
 docker/freeswitch/conf/**/*.log
