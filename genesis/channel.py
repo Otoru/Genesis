@@ -9,7 +9,7 @@ from uuid import uuid4
 from opentelemetry import trace, metrics
 
 from genesis.protocol import Protocol
-from genesis.outbound import Session
+from genesis.session import Session
 from genesis.inbound import Inbound
 from genesis.parser import ESLEvent
 from genesis.types import HangupCause, ChannelState, ContextType
