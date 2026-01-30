@@ -13,7 +13,7 @@ from enum import IntEnum
 from asyncio import StreamReader, StreamWriter
 
 if TYPE_CHECKING:
-    from genesis.outbound import Session
+    from genesis.session import Session
 
 
 @runtime_checkable
