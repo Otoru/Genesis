@@ -11,7 +11,7 @@ from opentelemetry import trace, metrics
 from genesis.protocol import Protocol
 from genesis.session import Session
 from genesis.inbound import Inbound
-from genesis.parser import ESLEvent
+from genesis.protocol.parser import ESLEvent
 from genesis.types import HangupCause, ChannelState, ContextType
 from genesis.exceptions import ChannelError, TimeoutError
 

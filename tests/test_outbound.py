@@ -8,7 +8,7 @@ except ImportError:
     from mock import AsyncMock
 
 from genesis import Outbound, Session
-from genesis.parser import parse_headers
+from genesis.protocol.parser import parse_headers
 
 
 async def test_outbound_session_has_context(host, port, dialplan):
