@@ -21,7 +21,7 @@ from pprint import pformat
 from uuid import uuid4
 
 from genesis.protocol import Protocol
-from genesis.parser import ESLEvent
+from genesis.protocol.parser import ESLEvent
 from genesis.logger import logger
 
 if TYPE_CHECKING:

@@ -1,4 +1,4 @@
-from genesis.parser import parse_headers
+from genesis.protocol.parser import parse_headers
 from textwrap import dedent
 
 

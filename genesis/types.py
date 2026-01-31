@@ -1,3 +1,10 @@
+"""
+Genesis Types
+-------------
+
+Centralized type definitions for the Genesis library.
+"""
+
 from typing import (
     Protocol,
     Any,
@@ -8,12 +15,21 @@ from typing import (
     Union,
     Awaitable,
     TYPE_CHECKING,
+    Callable,
+    Coroutine,
 )
-from enum import IntEnum
+from enum import IntEnum, Enum
 from asyncio import StreamReader, StreamWriter
 
 if TYPE_CHECKING:
     from genesis.session import Session
+    from genesis.protocol.parser import ESLEvent
+
+
+EventHandler = Union[
+    Callable[["ESLEvent"], None],
+    Callable[["ESLEvent"], Coroutine[Any, Any, None]],
+]
 
 
 @runtime_checkable
