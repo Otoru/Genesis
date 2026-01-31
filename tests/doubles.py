@@ -136,9 +136,26 @@ class Freeswitch(ESLMixin):
                 await self.send(writer, event.splitlines())
 
     async def broadcast(self, event_headers: str) -> None:
-        """Sends an event to all connected writers."""
+        """Sends an event to all connected writers, respecting filters."""
+        # Parse event headers to check against filters
+        event_dict = {}
+        for line in event_headers.splitlines():
+            if ": " in line:
+                key, value = line.split(": ", 1)
+                event_dict[key] = value
+
         for writer in self.writers:
             if not writer.is_closing():
+                # Check if event matches any filter
+                if self.filters:
+                    matches = False
+                    for filter_header, filter_value in self.filters:
+                        if event_dict.get(filter_header) == filter_value:
+                            matches = True
+                            break
+                    if not matches:
+                        continue
+
                 await self.send(writer, event_headers.splitlines())
 
     async def start(self) -> None:
@@ -310,7 +327,7 @@ class Freeswitch(ESLMixin):
             await self.disconnect(writer)
             await self.stop()
 
-        elif payload == "events plain ALL":
+        elif payload.lower() == "events plain all":
             await self.command(writer, "+OK event listener enabled plain")
             await self.shoot(writer)
 
@@ -449,6 +466,14 @@ class Dialplan(ESLMixin):
                 async with self.execute_event_condition:
                     self.pending_execute_events[event_uuid] = "execute"
                     self.execute_event_condition.notify_all()
+            return
+
+        if payload.startswith("filter"):
+            await self.send(writer, ["Content-Type: command/reply", "Reply-Text: +OK"])
+            return
+
+        if payload.startswith("event"):
+            await self.send(writer, ["Content-Type: command/reply", "Reply-Text: +OK"])
             return
 
         if payload in self.commands:

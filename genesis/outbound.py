@@ -130,7 +130,8 @@ class Outbound:
 
                         if server.myevents:
                             logger.debug("Send command to receive all call events")
-                            await session.send("myevents")
+                            await session.send(f"filter Unique-ID {session.uuid}")
+                            await session.send("event plain all")
 
                         if server.linger:
                             logger.debug("Send linger command to freeswitch")

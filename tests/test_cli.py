@@ -21,6 +21,19 @@ def mock_metrics_server(monkeypatch):
     monkeypatch.setenv("NO_COLOR", "1")
     monkeypatch.setenv("FORCE_COLOR", "0")
     monkeypatch.setenv("TERM", "dumb")
+
+    # Patch logger.info to use simple print to avoid rich formatting issues
+    import genesis.cli
+
+    original_logger_info = genesis.cli.logger.info
+
+    def simple_info(msg, *args, **kwargs):
+        # Simple print without rich formatting
+        print(f"INFO     {msg}")
+
+    monkeypatch.setattr(genesis.cli.logger, "info", simple_info)
+    monkeypatch.setattr(genesis.cli.logger, "warning", lambda *args, **kwargs: None)
+
     # We still keep the patch to avoid actual network binding if possible,
     # but the env var ensures if it DOES bind, it won't conflict.
     with patch("genesis.cli.start_http_server"):

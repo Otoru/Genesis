@@ -131,6 +131,59 @@ app = Outbound(handler, "127.0.0.1", 5000)
 asyncio.run(app.start())
 ```
 
+## Connection Management
+
+Genesis provides advanced control over the socket connection lifecycle and event subscription.
+
+### Linger
+
+By default, FreeSWITCH closes the socket connection immediately when the call hangs up. The `linger` option (enabled by default in `Outbound`) keeps the connection open for a short period after hangup, allowing your application to receive the final events (like `CHANNEL_HANGUP_COMPLETE`) and perform post-call processing.
+
+```python
+# Linger is enabled by default
+app = Outbound(handler, "127.0.0.1", 5000, linger=True)
+```
+
+### Event Filtering
+
+Genesis uses a flexible filtering system instead of the restrictive `myevents` command.
+
+```python
+# Events are enabled by default
+app = Outbound(handler, "127.0.0.1", 5000, events=True)
+```
+
+{{% steps %}}
+
+### Initial Filter
+
+Genesis automatically sends `filter Unique-ID <uuid>` to whitelist events for the current session.
+
+### Event Subscription
+
+It then subscribes to all events (`event plain all`).
+
+### Dynamic Filtering
+
+Because `filter` works as an additive whitelist (appending to the stack), you can simply send new `filter` commands sequentially to add more UUIDs. You do **not** need to resend the previous ones.
+
+```python
+# To add a B-leg later:
+await session.send(f"filter Unique-ID {b_leg_uuid}")
+```
+
+{{% /steps %}}
+
+{{< callout type="info" >}}
+**Source Code Verification**
+
+This behavior is confirmed by the FreeSWITCH source code in `mod_event_socket.c`, where `switch_event_add_header_string` uses `SWITCH_STACK_BOTTOM` to append new filters to the list rather than overwriting them.
+
+[View on GitHub](https://github.com/signalwire/freeswitch/blob/v1.10/src/mod/event_handlers/mod_event_socket/mod_event_socket.c#L803)
+{{< /callout >}}
+
+This approach ensures you receive all necessary events for the main call while retaining the ability to track related channels without flood or restriction.
+
 ## Use Cases
 
 - Interactive Voice Response (IVR) systems

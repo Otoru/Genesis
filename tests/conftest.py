@@ -85,7 +85,6 @@ async def dialplan(connect, generic) -> Dialplan:
     instance = Dialplan()
     instance.oncommand("linger", generic)
     instance.oncommand("connect", connect)
-    instance.oncommand("myevents", generic)
 
     return instance
 
