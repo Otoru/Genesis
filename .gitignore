@@ -82,8 +82,7 @@ test
 /docs/hugo.darwin
 /docs/hugo.linux
 /docs/.hugo_build.lock
-examples/*
-!examples/*.py
+tmp/
 docker/freeswitch/logs/
 docker/freeswitch/recordings/
 docker/freeswitch/conf/**/*.log
