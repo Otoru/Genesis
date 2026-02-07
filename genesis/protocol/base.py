@@ -19,7 +19,6 @@ from asyncio import (
 )
 from typing import List, Dict, Optional, Callable, Coroutine, Any, Union, cast
 from abc import ABC
-import logging
 import time
 
 from opentelemetry import trace
@@ -27,6 +26,7 @@ from opentelemetry import trace
 from genesis.exceptions import ConnectionError, UnconnectedError
 from genesis.observability import logger, TRACE_LEVEL_NUM
 from genesis.protocol.parser import ESLEvent, parse_headers
+from genesis.protocol.reader_fsm import ESLReaderFSM
 from genesis.protocol.metrics import (
     tracer,
     commands_sent_counter,
@@ -54,6 +54,7 @@ from genesis.protocol.telemetry import (
     record_event_metrics,
     log_event,
 )
+from genesis.protocol.processors import default_processors
 from genesis.types import EventHandler
 
 
@@ -78,6 +79,8 @@ class Protocol(ABC):
                 GlobalRoutingStrategy(self.handlers),  # O(N) fallback
             ]
         )
+        # Event processors (adapters) run before routing; extend for use-case logic
+        self.event_processors = default_processors()
 
     async def start(self) -> None:
         """Initiates a connection to a freeswitch."""
@@ -94,39 +97,40 @@ class Protocol(ABC):
             self.writer.close()
 
         self.is_connected = False
+        await self._cancel_task(self.producer, "event producer")
+        await self._cancel_task(self.consumer, "event consumer")
 
-        if self.producer and not self.producer.cancelled():
-            logger.debug("Cancel event producer task.")
-            self.producer.cancel()
-            try:
-                await self.producer
-            except (Exception, CancelledError):
-                pass
-
-        if self.consumer and not self.consumer.cancelled():
-            logger.debug("Cancel event consumer task.")
-            self.consumer.cancel()
-            try:
-                await self.consumer
-            except (Exception, CancelledError):
-                pass
+    async def _cancel_task(
+        self, task: Optional[Task[Any]], label: str = "task"
+    ) -> None:
+        """Cancel a task and wait for it; swallow CancelledError."""
+        if task is None or task.cancelled():
+            return
+        logger.debug(f"Cancel {label} task.")
+        task.cancel()
+        try:
+            await task
+        except (Exception, CancelledError):
+            pass
 
     async def handler(self) -> None:
-        """Defines intelligence to treat received events."""
+        """Defines intelligence to treat received events (state machine driven)."""
+        if self.reader is None:
+            return
+
+        fsm = ESLReaderFSM()
+
         while self.is_connected:
-            if self.reader is None:
-                break
-            request = None
+            # State: READING_HEADERS — accumulate until end of header block
+            request: Optional[str] = None
             buffer = ""
 
             while self.is_connected:
                 try:
                     content = await self.reader.readline()
-
                     if not content:
                         self.is_connected = False
                         break
-
                     buffer += content.decode("utf-8")
                 except Exception as e:
                     logger.error(f"Error reading from stream. {str(e)}")
@@ -141,84 +145,22 @@ class Protocol(ABC):
             if not request or not self.is_connected:
                 break
 
-            event = parse_headers(request)
+            events_from_headers, content_length = fsm.process_headers(request)
 
-            if "Content-Length" in event:
-                # Get the total length from the first Content-Length header
-                length = int(event["Content-Length"].split("\n")[0])
-                logger.trace(f"Total content length: {length} bytes")
+            for ev in events_from_headers:
+                await self.events.put(ev)
 
-                # Read the complete data
-                data = await self.reader.readexactly(length)
-                logger.trace(f"Received complete data: {data!r}")
-                complete_content = data.decode("utf-8")
-                contentType = event.get("Content-Type", None)
-
-                if contentType:
-                    logger.trace(f"Check content type of event: {event}")
-
-                    if contentType not in [
-                        "api/response",
-                        "text/rude-rejection",
-                        "log/data",
-                    ]:
-                        # Try to split headers and body
-                        if "\n\n" in complete_content:
-                            headers_part, body = complete_content.split("\n\n", 1)
-
-                            # Here we check for multiple events in one message (can happen if event-lock is set)
-                            event_parts = []
-
-                            if "event-lock: true" in headers_part.lower():
-                                # Split the string on "Event-Name: "
-                                parts = headers_part.split("\nEvent-Name: ")
-
-                                if len(parts) > 1:
-                                    event_parts = [parts[0]]
-
-                                    for part in parts[1:]:
-                                        event_parts.append(f"Event-Name: {part}")
-
-                                    logger.debug(
-                                        f"Split locked event into {len(event_parts)} separate events"
-                                    )
-                            else:
-                                event_parts = [headers_part]
-
-                            # Process each event part
-                            for idx, event_str in enumerate(event_parts):
-                                if idx == 0:
-                                    # First event is the original event
-                                    additional_headers = parse_headers(event_str)
-                                    event.update(additional_headers)
-                                    event.body = body
-                                    await self.events.put(event)
-                                else:
-                                    # More events are new events
-                                    new_event = parse_headers(event_str)
-                                    # Copy some headers from the original event
-                                    for key in ["Content-Length", "Content-Type"]:
-                                        if key in event:
-                                            new_event[key] = event[key]
-                                    new_event.body = body
-                                    await self.events.put(new_event)
-                            continue  # Skip the final event.put
-
-                        else:
-                            if contentType == "text/event-plain":
-                                additional_headers = parse_headers(complete_content)
-                                event.update(additional_headers)
-                                event.body = ""
-                                await self.events.put(event)
-                                continue
-
-                            event.body = complete_content
-                    else:
-                        event.body = complete_content
-                else:
-                    event.body = complete_content
-
-            await self.events.put(event)
+            if content_length > 0:
+                logger.trace(f"Total content length: {content_length} bytes")
+                try:
+                    data = await self.reader.readexactly(content_length)
+                except Exception as e:
+                    logger.error(f"Error reading body: {str(e)}")
+                    self.is_connected = False
+                    break
+                body_events = fsm.process_body(data)
+                for ev in body_events:
+                    await self.events.put(ev)
 
     async def consume(self) -> None:
         """Arm all event processors."""
@@ -239,29 +181,9 @@ class Protocol(ABC):
                     record_event_metrics(event)
                     log_event(event)
 
-                # Handle special event types
-                if "Content-Type" in event and event["Content-Type"] == "auth/request":
-                    self.authentication_event.set()
-
-                elif (
-                    "Content-Type" in event and event["Content-Type"] == "command/reply"
-                ):
-                    await self.commands.put(event)
-
-                elif (
-                    "Content-Type" in event and event["Content-Type"] == "api/response"
-                ):
-                    await self.commands.put(event)
-
-                elif "Content-Type" in event and event["Content-Type"] in [
-                    "text/rude-rejection",
-                    "text/disconnect-notice",
-                ]:
-                    if not (
-                        "Content-Disposition" in event
-                        and event["Content-Disposition"] == "linger"
-                    ):
-                        await self.stop()
+                # Run event processors (adapters) then route
+                for processor in self.event_processors:
+                    await processor(self, event)
 
                 # Route to event handlers using Strategy Pattern
                 handlers, _ = await self.routing_strategy.route(event)
@@ -290,7 +212,7 @@ class Protocol(ABC):
         """Removes the HANDLER from the list of handlers for the given event KEY name."""
         logger.debug(f"Remove handler to '{key}' event.")
         if key in self.handlers and handler in self.handlers[key]:
-            self.handlers.setdefault(key, list()).remove(handler)
+            self.handlers[key].remove(handler)
 
     def register_channel_handler(
         self,
@@ -342,89 +264,57 @@ class Protocol(ABC):
         if self.writer.is_closing():
             raise ConnectionError()
 
+        command_name = cmd.split()[0] if cmd.strip() else ""
         start_time = time.perf_counter()
+
         try:
             with tracer.start_as_current_span("send_command") as span:
                 span.set_attribute("command.name", cmd)
-                logger.debug(f"Send command: {cmd}")
+                return await self._execute_send(cmd, command_name, start_time, span)
+        except Exception:
+            # OTel not initialized - run without tracing
+            return await self._execute_send(cmd, command_name, start_time, None)
+
+    async def _execute_send(
+        self,
+        cmd: str,
+        command_name: str,
+        start_time: float,
+        span: Optional[Any],
+    ) -> ESLEvent:
+        """Execute command over the wire and record metrics (single implementation)."""
+        logger.debug(f"Send command: {cmd}")
+        try:
+            if command_name:
+                commands_sent_counter.add(1, attributes={"command": command_name})
+        except Exception:
+            pass
+
+        try:
+            if self.writer is None:
+                raise UnconnectedError()
+            self.writer.write(f"{cmd}\n\n".encode())
+            await self.writer.drain()
+            result = await self.commands.get()
+
+            reply = result.get("Reply-Text", "")
+            if reply.startswith("-ERR") and command_name:
                 try:
-                    command_name = cmd.split()[0]
-                    commands_sent_counter.add(1, attributes={"command": command_name})
+                    command_errors_counter.add(
+                        1,
+                        attributes={"command": command_name, "error": "protocol_error"},
+                    )
                 except Exception:
                     pass
 
-                try:
-                    self.writer.write(f"{cmd}\n\n".encode())
-                    await self.writer.drain()
-                    result = await self.commands.get()
+            if span is not None:
+                reply_text = result.get("Reply-Text")
+                if reply_text:
+                    span.set_attribute("command.reply", reply_text)
 
-                    reply = result.get("Reply-Text", "")
-                    if reply.startswith("-ERR"):
-                        try:
-                            command_errors_counter.add(
-                                1,
-                                attributes={
-                                    "command": command_name,
-                                    "error": "protocol_error",
-                                },
-                            )
-                        except Exception:
-                            pass
-
-                    reply_text = result.get("Reply-Text")
-                    if reply_text:
-                        span.set_attribute("command.reply", reply_text)
-
-                    return result
-                except Exception as e:
-                    try:
-                        command_errors_counter.add(
-                            1,
-                            attributes={
-                                "command": command_name,
-                                "error": type(e).__name__,
-                            },
-                        )
-                    except Exception:
-                        pass
-                    raise
-                finally:
-                    try:
-                        duration = time.perf_counter() - start_time
-                        command_duration_histogram.record(
-                            duration, attributes={"command": command_name}
-                        )
-                    except Exception:
-                        pass
-        except Exception:
-            # OTel not initialized - run without tracing
-            logger.debug(f"Send command: {cmd}")
-            try:
-                command_name = cmd.split()[0]
-                commands_sent_counter.add(1, attributes={"command": command_name})
-            except Exception:
-                pass
-
-            try:
-                self.writer.write(f"{cmd}\n\n".encode())
-                await self.writer.drain()
-                result = await self.commands.get()
-
-                reply = result.get("Reply-Text", "")
-                if reply.startswith("-ERR"):
-                    try:
-                        command_errors_counter.add(
-                            1,
-                            attributes={
-                                "command": command_name,
-                                "error": "protocol_error",
-                            },
-                        )
-                    except Exception:
-                        pass
-
-                return result
-            except Exception as e:
+            return result
+        except Exception as e:
+            if command_name:
                 try:
                     command_errors_counter.add(
                         1,
@@ -432,8 +322,9 @@ class Protocol(ABC):
                     )
                 except Exception:
                     pass
-                raise
-            finally:
+            raise
+        finally:
+            if command_name:
                 try:
                     duration = time.perf_counter() - start_time
                     command_duration_histogram.record(

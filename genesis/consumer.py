@@ -4,14 +4,33 @@ Consumer Module
 Simple abstraction used to put some syntactic sugar into freeswitch event consumption.
 """
 
-from typing import Callable, Optional, Coroutine, Union, Any
-import functools
 import asyncio
+import functools
 import re
+from typing import Any, Callable, Optional
 
 from genesis.inbound import Inbound
-from genesis.observability import logger
-from genesis.observability import observability
+from genesis.observability import logger, observability
+
+
+async def _invoke_maybe_coro(func: Callable[..., Any], message: Any) -> Any:
+    """Invoke handler and await if it returns a coroutine."""
+    result = func(message)
+    if asyncio.iscoroutine(result):
+        return await result
+    return result
+
+
+def _content_matches(content: Any, value: Optional[str], regex: bool) -> bool:
+    """True if value is None, or content matches value (literal or regex)."""
+    if value is None:
+        return True
+    if content is None:
+        return False
+    text = content[0] if isinstance(content, list) else str(content)
+    if not regex:
+        return text == value
+    return bool(re.match(value, text))
 
 
 def filtrate(
@@ -33,27 +52,12 @@ def filtrate(
     def decorator(function: Any) -> Any:
         @functools.wraps(function)
         async def wrapper(message: Any) -> Any:
-            if isinstance(message, dict):
-                if key in message:
-                    content = message[key]
-
-                    if value is None:
-                        result = function(message)
-                        if asyncio.iscoroutine(result):
-                            return await result
-                        return result
-
-                    if not regex and content == value:
-                        result = function(message)
-                        if asyncio.iscoroutine(result):
-                            return await result
-                        return result
-
-                    if regex and re.match(value, content):
-                        result = function(message)
-                        if asyncio.iscoroutine(result):
-                            return await result
-                        return result
+            if not isinstance(message, dict) or key not in message:
+                return None
+            content = message[key]
+            if not _content_matches(content, value, regex):
+                return None
+            return await _invoke_maybe_coro(function, message)
 
         return wrapper
 
@@ -94,7 +98,7 @@ class Consumer:
         self.password = password
         self.protocol = Inbound(self.host, self.port, self.password, timeout)
 
-    def handle(self, event: str) -> Callable:
+    def handle(self, event: str) -> Callable[..., Any]:
         """Decorator that allows the registration of new handlers.
 
         Parameters
@@ -105,19 +109,21 @@ class Consumer:
 
         def decorator(function: Callable[..., Any]) -> Callable[..., Any]:
             self.protocol.on(event, function)
-
-            @functools.wraps(function)
-            async def wrapper(*args, **kwargs):
-                return await function(*args, **kwargs)
-
-            return wrapper
+            return function
 
         return decorator
 
     async def wait(self) -> None:
-        while bool(self.protocol.is_connected):
+        """Block until the protocol disconnects."""
+        while self.protocol.is_connected:
             logger.debug("Wait to receive new events...")
             await asyncio.sleep(1)
+
+    def _filter_command(self, event: str) -> str:
+        """Build filter command for an event name (Event-Name vs Event-Subclass)."""
+        if event.isupper():
+            return f"filter Event-Name {event}"
+        return f"filter Event-Subclass {event}"
 
     async def start(self) -> None:
         """Method called to request the freeswitch to start sending us the appropriate events."""
@@ -130,23 +136,14 @@ class Consumer:
 
                 for event in protocol.handlers.keys():
                     logger.debug(
-                        f"Requesting freeswitch to filter events of type '{event}'."
+                        "Requesting freeswitch to filter events of type '%s'.",
+                        event,
                     )
-
-                    if event.isupper():
-                        logger.debug(
-                            f"Send command to filtrate events with name: '{event}'."
-                        )
-                        await protocol.send(f"filter Event-Name {event}")
-                    else:
-                        logger.debug(
-                            f"Send command to filtrate events with subclass: '{event}'."
-                        )
-                        await protocol.send(f"filter Event-Subclass {event}")
+                    await protocol.send(self._filter_command(event))
 
                 await self.wait()
 
-        except:
+        except Exception:
             await self.stop()
             raise
 
