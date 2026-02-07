@@ -128,9 +128,7 @@ async def test_outbound_session_has_context(host, port, dialplan):
     }
 
     assert got == expected, "The call context is incorrect"
-
     await dialplan.stop()
-
     await application.stop()
 
 
@@ -151,10 +149,10 @@ async def test_outbound_session_send_answer_command(
     application = Outbound(handler, *address)
 
     await application.start(block=False)
+
     await dialplan.start(*address)
 
     await semaphore.wait()
-
     await dialplan.stop()
     await application.stop()
 
@@ -182,7 +180,6 @@ async def test_outbound_session_send_park_command(
     await dialplan.start(*address)
 
     await semaphore.wait()
-
     await dialplan.stop()
     await application.stop()
 
@@ -209,7 +206,6 @@ async def test_outbound_session_send_hangup_command(
     await dialplan.start(*address)
 
     await semaphore.wait()
-
     await dialplan.stop()
     await application.stop()
 
@@ -269,6 +265,7 @@ async def test_outbound_session_sendmsg_parameters(
     app = Outbound(handler, *address)
 
     await app.start(block=False)
+
     await dialplan.start(*address)
 
     # Wait for all calls to complete before stopping
@@ -295,11 +292,11 @@ async def test_outbound_handler_options(host, port, dialplan, monkeypatch, gener
     async def handler(session: Session) -> None:
         semaphore.set()
 
-    # Test with events=False, linger=False
     address = (host(), port())
-    app = Outbound(handler, *address, events=False, linger=False)
+    app = Outbound(handler, *address, events=True, linger=True)
 
     await app.start(block=False)
+
     await dialplan.start(*address)
 
     await semaphore.wait()
@@ -307,9 +304,14 @@ async def test_outbound_handler_options(host, port, dialplan, monkeypatch, gener
     await dialplan.stop()
 
     calls = [call.args[0] for call in spider.call_args_list]
+
     assert "connect" in calls
     assert "myevents" not in calls
-    assert "linger" not in calls
+    assert "linger" in calls
+    assert "event plain all" in calls
+
+    has_filter = any(c.startswith("filter Unique-ID") for c in calls)
+    assert has_filter, f"Expected filter command in calls: {calls}"
 
 
 async def test_outbound_session_helpers(host, port, dialplan, monkeypatch, generic):
@@ -349,6 +351,7 @@ async def test_outbound_session_helpers(host, port, dialplan, monkeypatch, gener
     app = Outbound(handler, *address)
 
     await app.start(block=False)
+
     await dialplan.start(*address)
 
     await test_complete.wait()
@@ -433,6 +436,7 @@ async def test_outbound_blocking_command(host, port, dialplan, generic):
     app = Outbound(handler, *address)
 
     await app.start(block=False)
+
     await dialplan.start(*address)
 
     await test_complete.wait()
@@ -458,12 +462,12 @@ async def test_outbound_blocking_command_timeout(host, port, dialplan, generic):
     app = Outbound(handler, *address)
 
     await app.start(block=False)
+
     await dialplan.start(*address)
 
     try:
         await asyncio.wait_for(test_complete.wait(), timeout=1.0)
     except asyncio.TimeoutError:
         assert False, "Blocking command did not timeout as expected"
-
     await app.stop()
     await dialplan.stop()
