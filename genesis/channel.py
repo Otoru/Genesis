@@ -11,7 +11,7 @@ from opentelemetry import trace, metrics
 from genesis.protocol import Protocol
 from genesis.session import Session
 from genesis.inbound import Inbound
-from genesis.parser import ESLEvent
+from genesis.protocol.parser import ESLEvent
 from genesis.types import HangupCause, ChannelState, ContextType
 from genesis.exceptions import ChannelError, TimeoutError
 
@@ -207,8 +207,10 @@ class Channel:
                     # If state parsing fails, start with NEW
                     pass
 
-        # Register state handler to track channel state changes
-        self.protocol.on("CHANNEL_STATE", self._state_handler)
+        # Register state handler for O(1) routing of CHANNEL_STATE for this channel
+        self.protocol.register_channel_handler(
+            self.uuid, "CHANNEL_STATE", self._state_handler
+        )
 
         return self
 
