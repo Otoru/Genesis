@@ -11,7 +11,7 @@ from typing import Awaitable
 
 from genesis.exceptions import ConnectionTimeoutError, AuthenticationError
 from genesis.protocol import Protocol
-from genesis.logger import logger
+from genesis.observability import logger
 from opentelemetry import trace, metrics
 
 tracer = trace.get_tracer(__name__)

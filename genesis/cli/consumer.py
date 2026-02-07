@@ -7,12 +7,13 @@ import asyncio
 import typer
 
 from genesis.cli import watcher
-from genesis.logger import logger
+from genesis.observability import logger
 from genesis.consumer import Consumer
 from genesis.cli.exceptions import CLIExcpetion
 from genesis.cli.utils import complete_log_levels, get_log_level_map
 from genesis.cli.discover import get_import_string
 from genesis.types import WatcherProtocol
+from genesis.observability import observability, AppType
 
 consumer = typer.Typer(rich_markup_mode="rich")
 
@@ -20,6 +21,9 @@ consumer = typer.Typer(rich_markup_mode="rich")
 async def _run_with_reload(app: Consumer, path: Path) -> None:
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue()
+
+    observability.set_app_type(AppType.CONSUMER)
+    task = loop.create_task(observability.start())
 
     async def consume(queue: asyncio.Queue) -> None:
         await app.start()
@@ -41,6 +45,12 @@ async def _run_with_reload(app: Consumer, path: Path) -> None:
             await asyncio.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
+
+
+async def _run_production(app: Consumer) -> None:
+    observability.set_app_type(AppType.CONSUMER)
+    asyncio.create_task(observability.start())
+    await app.start()
 
 
 def _run(
@@ -72,7 +82,7 @@ def _run(
         if reload:
             asyncio.run(_run_with_reload(consumer_app, path))
         else:
-            asyncio.run(consumer_app.start())
+            asyncio.run(_run_production(consumer_app))
 
     except CLIExcpetion as e:
         logger.error(e)

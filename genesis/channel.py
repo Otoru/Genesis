@@ -14,6 +14,7 @@ from genesis.inbound import Inbound
 from genesis.protocol.parser import ESLEvent
 from genesis.types import HangupCause, ChannelState, ContextType
 from genesis.exceptions import ChannelError, TimeoutError
+from genesis.observability import logger
 
 tracer = trace.get_tracer(__name__)
 meter = metrics.get_meter(__name__)
@@ -775,7 +776,7 @@ class Channel:
             module += f":{lang}"
 
         arguments = f"{module} {kind} {method} {gender} {text}"
-        from genesis.logger import logger
+        from genesis.observability import logger
 
         logger.debug(f"Arguments used in say command: {arguments}")
 
@@ -865,7 +866,6 @@ class Channel:
         ]
         formated_ordered_arguments = map(formatter, ordered_arguments)
         arguments = " ".join(formated_ordered_arguments)
-        from genesis.logger import logger
 
         logger.debug(f"Arguments used in play_and_get_digits command: {arguments}")
 

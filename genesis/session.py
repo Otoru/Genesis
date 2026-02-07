@@ -22,7 +22,7 @@ from uuid import uuid4
 
 from genesis.protocol import Protocol
 from genesis.protocol.parser import ESLEvent
-from genesis.logger import logger
+from genesis.observability import logger
 
 if TYPE_CHECKING:
     from genesis.channel import Channel

@@ -19,7 +19,7 @@ from prometheus_client import start_http_server
 
 from genesis.cli.consumer import consumer
 from genesis.cli.outbound import outbound
-from genesis.logger import reconfigure_logger, logger
+from genesis.observability import reconfigure_logger, logger
 
 
 app = typer.Typer(rich_markup_mode="rich")
@@ -49,9 +49,7 @@ def callback(
     reconfigure_logger(json)
 
     try:
-        metrics_port = int(os.getenv("GENESIS_METRICS_PORT", "8000"))
-        start_http_server(metrics_port)
-
+        # Setup OpenTelemetry
         metric_reader = PrometheusMetricReader()
         provider = MeterProvider(
             resource=Resource.create({"service.name": "genesis"}),
@@ -59,12 +57,8 @@ def callback(
         )
         metrics.set_meter_provider(provider)
 
-        logger.info(f"Prometheus metrics server started on port {metrics_port}")
     except Exception as e:
-
-        logger.warning(
-            f"Failed to start Prometheus metrics server on port {metrics_port}: {e}"
-        )
+        logger.warning(f"Failed to setup OpenTelemetry: {e}")
 
     """
     Genesis - [blue]FreeSWITCH Event Socket protocol[/blue] implementation with [bold]asyncio[/bold].

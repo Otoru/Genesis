@@ -10,7 +10,8 @@ import asyncio
 import re
 
 from genesis.inbound import Inbound
-from genesis.logger import logger
+from genesis.observability import logger
+from genesis.observability import observability
 
 
 def filtrate(
@@ -121,6 +122,8 @@ class Consumer:
     async def start(self) -> None:
         """Method called to request the freeswitch to start sending us the appropriate events."""
         try:
+            self.protocol.on("HEARTBEAT", observability.record_heartbeat)
+
             async with self.protocol as protocol:
                 logger.debug("Asking freeswitch to send us all events.")
                 await protocol.send("events plain ALL")
