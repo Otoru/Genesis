@@ -13,7 +13,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 
-from genesis.logger import (
+from genesis.observability.logger import (
     get_log_level,
     setup_logger,
     reconfigure_logger,
@@ -210,7 +210,7 @@ def test_json_formatter_skips_zero_trace_ids():
 def test_reconfigure_logger_json():
     reconfigure_logger(use_json=True)
 
-    logger = logging.getLogger("genesis.logger")
+    logger = logging.getLogger("genesis.observability.logger")
     assert len(logger.handlers) > 0
 
     handler = logger.handlers[0]
@@ -220,7 +220,7 @@ def test_reconfigure_logger_json():
 def test_reconfigure_logger_rich():
     reconfigure_logger(use_json=False)
 
-    logger = logging.getLogger("genesis.logger")
+    logger = logging.getLogger("genesis.observability.logger")
     assert len(logger.handlers) > 0
 
 

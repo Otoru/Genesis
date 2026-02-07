@@ -10,7 +10,7 @@ from typing import Dict, List, Tuple
 from genesis.protocol.routing.base import RoutingStrategy
 from genesis.protocol.parser import ESLEvent
 from genesis.protocol.metrics import global_routing_counter
-from genesis.logger import logger
+from genesis.observability import logger
 from genesis.types import EventHandler
 
 

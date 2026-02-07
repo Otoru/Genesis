@@ -25,7 +25,7 @@ import time
 from opentelemetry import trace
 
 from genesis.exceptions import ConnectionError, UnconnectedError
-from genesis.logger import logger, TRACE_LEVEL_NUM
+from genesis.observability import logger, TRACE_LEVEL_NUM
 from genesis.protocol.parser import ESLEvent, parse_headers
 from genesis.protocol.metrics import (
     tracer,

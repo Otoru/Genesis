@@ -9,7 +9,7 @@ from typing import Dict, Any
 
 from genesis.protocol.parser import ESLEvent
 from genesis.protocol.metrics import tracer, events_received_counter
-from genesis.logger import logger, TRACE_LEVEL_NUM
+from genesis.observability import logger, TRACE_LEVEL_NUM
 
 
 def build_event_attributes(event: ESLEvent) -> Dict[str, Any]:

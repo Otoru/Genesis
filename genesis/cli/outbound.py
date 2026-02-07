@@ -7,12 +7,13 @@ import logging
 import typer
 
 from genesis.cli import watcher
-from genesis.logger import logger
+from genesis.observability import logger
 from genesis.outbound import Outbound
 from genesis.cli.exceptions import CLIExcpetion
 from genesis.cli.utils import complete_log_levels, get_log_level_map
 from genesis.cli.discover import get_import_string
 from genesis.types import WatcherProtocol
+from genesis.observability import observability, AppType
 
 
 outbound = typer.Typer(rich_markup_mode="rich")
@@ -116,6 +117,9 @@ async def _run_with_reload(app: Outbound, path: Path) -> None:
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue()
 
+    observability.set_app_type(AppType.OUTBOUND)
+    task = loop.create_task(observability.start())
+
     async def consume(queue: asyncio.Queue) -> None:
         await app.start(block=False)
         async for event in watcher.EventIterator(queue):
@@ -138,6 +142,12 @@ async def _run_with_reload(app: Outbound, path: Path) -> None:
         observer.stop()
 
     observer.join()
+
+
+async def _run_production(app: Outbound) -> None:
+    observability.set_app_type(AppType.OUTBOUND)
+    asyncio.create_task(observability.start())
+    await app.start()
 
 
 def _run(
@@ -167,7 +177,7 @@ def _run(
         if reload:
             asyncio.run(_run_with_reload(outbound_app, path))
         else:
-            asyncio.run(outbound_app.start())
+            asyncio.run(_run_production(outbound_app))
 
     except CLIExcpetion as e:
         logger.error(e)

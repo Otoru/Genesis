@@ -21,8 +21,9 @@ from functools import partial
 import asyncio
 import socket
 
-from genesis.logger import logger
+from genesis.observability import logger
 from genesis.session import Session
+from genesis.observability import observability
 from opentelemetry import trace, metrics
 
 
@@ -80,12 +81,15 @@ class Outbound:
         )
 
         if block:
+            observability.set_outbound_ready(True)
             await self.server.serve_forever()
         else:
             await self.server.start_serving()
+            observability.set_outbound_ready(True)
 
     async def stop(self) -> None:
         """Terminate the application server."""
+        observability.set_outbound_ready(False)
         if self.server:
             logger.debug("Shutdown application server.")
             self.server.close()
