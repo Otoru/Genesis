@@ -1,8 +1,9 @@
 """
-Genesis Protocol
-----------------
+Genesis Protocol Base Class
+----------------------------
 
-Here we will group what is common to the ESL client for inbound and outbound connections.
+Base Protocol class for ESL (Event Socket Layer) communication.
+Handles common functionality for inbound and outbound connections.
 """
 
 from asyncio import (
@@ -21,79 +22,39 @@ from abc import ABC
 import logging
 import time
 
-from opentelemetry import trace, metrics
-from rich.console import Console
+from opentelemetry import trace
 
 from genesis.exceptions import ConnectionError, UnconnectedError
 from genesis.logger import logger, TRACE_LEVEL_NUM
-from genesis.parser import ESLEvent, parse_headers
-
-tracer = trace.get_tracer(__name__)
-meter = metrics.get_meter(__name__)
-
-commands_sent_counter = meter.create_counter(
-    "genesis.commands.sent",
-    description="Number of ESL commands sent",
-    unit="1",
+from genesis.protocol.parser import ESLEvent, parse_headers
+from genesis.protocol.metrics import (
+    tracer,
+    commands_sent_counter,
+    events_received_counter,
+    command_duration_histogram,
+    command_errors_counter,
+    channel_operations_counter,
+    channel_operation_duration,
+    hangup_causes_counter,
+    bridge_operations_counter,
+    dtmf_received_counter,
+    call_duration_histogram,
+    timeout_counter,
+    channel_routing_counter,
+    global_routing_counter,
 )
-events_received_counter = meter.create_counter(
-    "genesis.events.received",
-    description="Number of ESL events received",
-    unit="1",
+from genesis.protocol.routing import (
+    CompositeRoutingStrategy,
+    ChannelRoutingStrategy,
+    GlobalRoutingStrategy,
+    dispatch_to_handlers,
 )
-command_duration_histogram = meter.create_histogram(
-    "genesis.commands.duration",
-    description="Duration of ESL commands execution",
-    unit="s",
+from genesis.protocol.telemetry import (
+    build_event_attributes,
+    record_event_metrics,
+    log_event,
 )
-command_errors_counter = meter.create_counter(
-    "genesis.commands.errors",
-    description="Number of failed ESL commands",
-    unit="1",
-)
-
-# Channel operation metrics
-channel_operations_counter = meter.create_counter(
-    "genesis.channel.operations",
-    description="Number of channel operations",
-    unit="1",
-)
-
-channel_operation_duration = meter.create_histogram(
-    "genesis.channel.operation.duration",
-    description="Duration of channel operations",
-    unit="s",
-)
-
-hangup_causes_counter = meter.create_counter(
-    "genesis.channel.hangup.causes",
-    description="Hangup causes",
-    unit="1",
-)
-
-bridge_operations_counter = meter.create_counter(
-    "genesis.channel.bridge.operations",
-    description="Bridge operations",
-    unit="1",
-)
-
-dtmf_received_counter = meter.create_counter(
-    "genesis.channel.dtmf.received",
-    description="DTMF digits received",
-    unit="1",
-)
-
-call_duration_histogram = meter.create_histogram(
-    "genesis.call.duration",
-    description="Total call duration from creation to hangup",
-    unit="s",
-)
-
-timeout_counter = meter.create_counter(
-    "genesis.timeouts",
-    description="Number of timeouts",
-    unit="1",
-)
+from genesis.types import EventHandler
 
 
 class Protocol(ABC):
@@ -107,15 +68,16 @@ class Protocol(ABC):
         self.consumer: Optional[Task] = None
         self.reader: Optional[StreamReader] = None
         self.writer: Optional[StreamWriter] = None
-        self.handlers: Dict[
-            str,
-            List[
-                Union[
-                    Callable[[ESLEvent], None],
-                    Callable[[ESLEvent], Coroutine[Any, Any, None]],
-                ]
-            ],
-        ] = {}
+        self.handlers: Dict[str, List[EventHandler]] = {}
+        self.channel_registry: Dict[str, List[EventHandler]] = {}
+
+        # Initialize routing strategy (Strategy Pattern)
+        self.routing_strategy = CompositeRoutingStrategy(
+            [
+                ChannelRoutingStrategy(self.channel_registry),  # O(1) routing first
+                GlobalRoutingStrategy(self.handlers),  # O(N) fallback
+            ]
+        )
 
     async def start(self) -> None:
         """Initiates a connection to a freeswitch."""
@@ -264,120 +226,20 @@ class Protocol(ABC):
             event = await self.events.get()
 
             try:
-                # OTel Tracing
-                attributes = {}
-                for key, value in event.items():
-                    if key == "Event-Name":
-                        attr_name = "event.name"
-                    elif key == "Unique-ID":
-                        attr_name = "event.uuid"
-                    elif key == "Content-Type":
-                        attr_name = "event.content_type"
-                    else:
-                        slug = key.lower().replace("-", "_")
-                        attr_name = f"event.header.{slug}"
-
-                    if isinstance(value, (str, int, float, bool, list, tuple)):
-                        attributes[attr_name] = value
-
+                # Telemetry and logging
                 try:
+                    attributes = build_event_attributes(event)
                     with tracer.start_as_current_span(
                         "process_event", attributes=attributes
-                    ) as span:
-                        for header_name, header_value in event.items():
-                            # Encode headers if necessary or ensure string
-                            attribute_key = header_name.lower().replace("-", "_")
-                            span.set_attribute(
-                                f"event.header.{attribute_key}", str(header_value)
-                            )
-
-                        event_name = event.get("Event-Name", "UNKNOWN")
-                        content_type = event.get("Content-Type", "UNKNOWN")
-                        metric_attributes = {
-                            "event_name": event_name,
-                            "content_type": content_type,
-                        }
-
-                        if "Event-Subclass" in event:
-                            metric_attributes["event_subclass"] = event[
-                                "Event-Subclass"
-                            ]
-                        if "Call-Direction" in event:
-                            metric_attributes["direction"] = event["Call-Direction"]
-                        if "Channel-State" in event:
-                            metric_attributes["channel_state"] = event["Channel-State"]
-                        if "Answer-State" in event:
-                            metric_attributes["answer_state"] = event["Answer-State"]
-                        if "Hangup-Cause" in event:
-                            metric_attributes["hangup_cause"] = event["Hangup-Cause"]
+                    ):
+                        record_event_metrics(event)
+                        log_event(event)
                 except Exception:
-                    # OTel not initialized or error in tracing - continue without tracing
-                    event_name = event.get("Event-Name", "UNKNOWN")
-                    content_type = event.get("Content-Type", "UNKNOWN")
-                    metric_attributes = {
-                        "event_name": event_name,
-                        "content_type": content_type,
-                    }
+                    # OTel not initialized - continue without tracing
+                    record_event_metrics(event)
+                    log_event(event)
 
-                try:
-                    events_received_counter.add(1, attributes=metric_attributes)
-                except Exception:
-                    pass
-
-                # LOGGING
-                try:
-                    if logger.isEnabledFor(TRACE_LEVEL_NUM):
-                        logger.trace(f"Received an event: '{event}'.")
-
-                    else:
-                        if logger.isEnabledFor(logging.DEBUG):
-                            name = event.get("Event-Name", None)
-                            uuid = event.get("Unique-ID", None)
-
-                            if uuid:
-                                logger.debug(
-                                    f"Received an event: '{name}' for call '{uuid}'. "
-                                )
-
-                                if name == "CHANNEL_EXECUTE_COMPLETE":
-                                    application = event.get("Application")
-                                    response = event.get("Application-Response")
-
-                                    logger.debug(
-                                        f"Application: '{application}' - Response: '{response}'."
-                                    )
-
-                            else:
-                                if name:
-                                    logger.debug(f"Received an event: '{name}'.")
-
-                                elif "Content-Type" in event and event[
-                                    "Content-Type"
-                                ] in [
-                                    "command/reply",
-                                    "auth/request",
-                                ]:
-                                    reply = event.get("Reply-Text", None)
-
-                                    if (
-                                        reply
-                                        and event["Content-Type"] == "command/reply"
-                                    ):
-                                        logger.debug(
-                                            f"Received an command reply: '{reply}'."
-                                        )
-
-                                    if (
-                                        reply
-                                        and event["Content-Type"] == "auth/request"
-                                    ):
-                                        logger.debug(
-                                            f"Received an authentication reply: '{event}'."
-                                        )
-
-                except Exception as e:
-                    logger.error(f"Error logging event: {str(e)} - Event: {event}")
-
+                # Handle special event types
                 if "Content-Type" in event and event["Content-Type"] == "auth/request":
                     self.authentication_event.set()
 
@@ -401,25 +263,11 @@ class Protocol(ABC):
                     ):
                         await self.stop()
 
-                identifier = event.get("Event-Name", None)
+                # Route to event handlers using Strategy Pattern
+                handlers, _ = await self.routing_strategy.route(event)
 
-                if identifier == "CUSTOM":
-                    name = event.get("Event-Subclass", None)
-                else:
-                    name = identifier
-
-                if name:
-                    logger.trace(f"Get all handlers for '{name}'.")
-                    specific = self.handlers.get(name, [])
-                    generic = self.handlers.get("*", list())
-                    handlers = specific + generic
-
-                    if handlers:
-                        for handler in handlers:
-                            if iscoroutinefunction(handler):
-                                create_task(handler(event))
-                            else:
-                                create_task(to_thread(handler, event))
+                if handlers:
+                    await dispatch_to_handlers(handlers, event)
 
             except Exception as outer_e:
                 logger.error(f"Error in consumer loop: {outer_e}", exc_info=True)
@@ -443,6 +291,48 @@ class Protocol(ABC):
         logger.debug(f"Remove handler to '{key}' event.")
         if key in self.handlers and handler in self.handlers[key]:
             self.handlers.setdefault(key, list()).remove(handler)
+
+    def register_channel_handler(
+        self,
+        uuid: str,
+        event_name: str,
+        handler: EventHandler,
+    ) -> None:
+        """Register a handler for a specific channel UUID.
+
+        This provides O(1) event routing for channel-specific events instead of
+        the O(N) iteration through all handlers.
+
+        Args:
+            uuid: The Unique-ID of the channel
+            event_name: The event name to listen for (e.g., "CHANNEL_STATE")
+            handler: The handler function to call when the event occurs
+        """
+        key = f"{uuid}:{event_name}"
+        logger.debug(f"Register channel handler for '{key}'")
+        self.channel_registry.setdefault(key, []).append(handler)
+
+    def unregister_channel_handler(
+        self,
+        uuid: str,
+        event_name: str,
+        handler: EventHandler,
+    ) -> None:
+        """Unregister a channel-specific handler.
+
+        Args:
+            uuid: The Unique-ID of the channel
+            event_name: The event name
+            handler: The handler function to remove
+        """
+        key = f"{uuid}:{event_name}"
+        logger.debug(f"Unregister channel handler for '{key}'")
+        if key in self.channel_registry:
+            if handler in self.channel_registry[key]:
+                self.channel_registry[key].remove(handler)
+                # Clean up empty lists to avoid memory leaks
+                if not self.channel_registry[key]:
+                    del self.channel_registry[key]
 
     async def send(self, cmd: str) -> ESLEvent:
         """Method used to send commands to or freeswitch."""

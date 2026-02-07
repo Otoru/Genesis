@@ -21,7 +21,7 @@ from pprint import pformat
 from uuid import uuid4
 
 from genesis.protocol import Protocol
-from genesis.parser import ESLEvent
+from genesis.protocol.parser import ESLEvent
 from genesis.logger import logger
 
 if TYPE_CHECKING:
@@ -85,10 +85,6 @@ class Session(Protocol):
             str, Callable[[Session, ESLEvent], Coroutine[None, None, None]]
         ] = {}
 
-        async def cleanup():
-            for key, value in handlers.items():
-                self.remove(key, value)
-
         async def channel_execute_complete_handler(session: Session, event: ESLEvent):
             logger.debug(f"Received channel execute complete event: {event}")
 
@@ -113,8 +109,25 @@ class Session(Protocol):
         handlers["CHANNEL_EXECUTE_COMPLETE"] = channel_execute_complete_handler
         handlers["CHANNEL_HANGUP_COMPLETE"] = channel_hangup_complete_handler
 
-        for key, value in handlers.items():
-            self.on(key, partial(value, self))
+        channel_uuid = self.uuid
+        if not channel_uuid:
+            for key, value in handlers.items():
+                self.on(key, partial(value, self))
+
+            async def cleanup():
+                for key, value in handlers.items():
+                    self.remove(key, partial(value, self))
+
+        else:
+            wrapped: Dict[str, Callable[..., Coroutine[None, None, None]]] = {}
+            for key, value in handlers.items():
+                bound = partial(value, self)
+                wrapped[key] = bound
+                self.register_channel_handler(channel_uuid, key, bound)
+
+            async def cleanup():
+                for key, value in wrapped.items():
+                    self.unregister_channel_handler(channel_uuid, key, value)
 
         logger.debug(f"Register event handler for Application-UUID: {event_uuid}")
 

@@ -8,7 +8,7 @@ except ImportError:
     from mock import AsyncMock
 
 from genesis import Outbound, Session
-from genesis.parser import parse_headers
+from genesis.protocol.parser import parse_headers
 
 
 async def test_outbound_session_has_context(host, port, dialplan):
@@ -424,7 +424,7 @@ async def test_outbound_blocking_command(host, port, dialplan, generic):
             {
                 "Event-Name": "CHANNEL_EXECUTE_COMPLETE",
                 "Application-UUID": event_uuid,
-                "Unique-ID": "test-unique-id",
+                "Unique-ID": session.uuid,
             }
         )
 

@@ -20,7 +20,7 @@ from functools import partial
 from random import choices
 from typing import Awaitable, Callable, Dict, List, Optional, Union
 
-from genesis.parser import parse_headers
+from genesis.protocol.parser import parse_headers
 
 
 def get_free_tcp_port() -> int:
