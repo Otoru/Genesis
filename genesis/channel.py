@@ -1,10 +1,19 @@
 from __future__ import annotations
-from typing import Optional, Union, Dict, Literal, TYPE_CHECKING, Awaitable, Callable
+
+from typing import (
+    Any,
+    Mapping,
+    Optional,
+    Union,
+    Dict,
+    Literal,
+    TYPE_CHECKING,
+    Awaitable,
+    Callable,
+)
 from collections.abc import Coroutine
-import asyncio
 import time
 from asyncio import Event, wait_for, TimeoutError as AsyncioTimeoutError
-from uuid import uuid4
 
 from opentelemetry import trace, metrics
 
@@ -61,6 +70,14 @@ timeout_counter = meter.create_counter(
     description="Number of timeouts",
     unit="1",
 )
+
+
+def _context_str(context: Mapping[str, Any], key: str) -> str:
+    """Get a string value from context, normalizing list or non-string to str."""
+    value = context.get(key, "")
+    if isinstance(value, list):
+        return value[0] if value else ""
+    return value if isinstance(value, str) else ""
 
 
 class Channel:
@@ -185,28 +202,17 @@ class Channel:
                 "Session does not have a valid UUID. Ensure session context is initialized."
             )
 
-        # Extract dial_path from context if available, otherwise use empty string
-        dial_path = session.context.get("Channel-Name", "")
-        if isinstance(dial_path, list):
-            dial_path = dial_path[0] if dial_path else ""
-        elif not isinstance(dial_path, str):
-            dial_path = ""
-
+        dial_path = _context_str(session.context, "Channel-Name")
         self = cls(session, dial_path)
         self.uuid = session.uuid
         self.context.update(session.context)
 
-        # Initialize state from context if available
-        channel_state = session.context.get("Channel-State")
+        channel_state = _context_str(session.context, "Channel-State")
         if channel_state:
-            if isinstance(channel_state, list):
-                channel_state = channel_state[0]
-            if isinstance(channel_state, str):
-                try:
-                    self._state = ChannelState.from_freeswitch(channel_state)
-                except (KeyError, ValueError):
-                    # If state parsing fails, start with NEW
-                    pass
+            try:
+                self._state = ChannelState.from_freeswitch(channel_state)
+            except (KeyError, ValueError):
+                pass
 
         # Register state handler for O(1) routing of CHANNEL_STATE for this channel
         self.protocol.register_channel_handler(
@@ -214,6 +220,85 @@ class Channel:
         )
 
         return self
+
+    async def _wait_for_event(self, event_name: str, timeout: float) -> ESLEvent:
+        """Wait for a specific event; raises TimeoutError if not received."""
+        received_event: Optional[ESLEvent] = None
+        event_ready = Event()
+
+        async def event_handler(event: ESLEvent) -> None:
+            nonlocal received_event
+            channel_specific_events = {
+                "CHANNEL_STATE",
+                "CHANNEL_ANSWER",
+                "CHANNEL_HANGUP_COMPLETE",
+            }
+            if (
+                event_name in channel_specific_events
+                and self.uuid
+                and event.get("Unique-ID") != self.uuid
+            ):
+                return
+            received_event = event
+            event_ready.set()
+
+        self.protocol.on(event_name, event_handler)
+        try:
+            await wait_for(event_ready.wait(), timeout=timeout)
+            assert received_event is not None
+            return received_event
+        except AsyncioTimeoutError:
+            raise TimeoutError(
+                f"Event '{event_name}' not received within {timeout}s timeout"
+            )
+        finally:
+            self.protocol.remove(event_name, event_handler)
+
+    async def _wait_for_state(
+        self, target_state: ChannelState, timeout: float
+    ) -> Optional[ESLEvent]:
+        """Wait for channel to reach target state; raises TimeoutError if not reached."""
+        state_event_received: Optional[ESLEvent] = None
+        state_reached = Event()
+        answer_received = Event() if target_state == ChannelState.EXECUTE else None
+
+        async def state_handler(event: ESLEvent) -> None:
+            nonlocal state_event_received
+            if event.get("Unique-ID") != self.uuid:
+                return
+            state_str = event.get("Channel-State")
+            if not state_str:
+                return
+            event_state = ChannelState.from_freeswitch(state_str)
+            if event_state == target_state or event_state >= ChannelState.HANGUP:
+                self._state = event_state
+                self.context.update(event)
+                state_event_received = event
+                if target_state != ChannelState.EXECUTE or (
+                    answer_received and answer_received.is_set()
+                ):
+                    state_reached.set()
+
+        async def answer_handler(event: ESLEvent) -> None:
+            if event.get("Unique-ID") == self.uuid and answer_received:
+                answer_received.set()
+                if self.state == ChannelState.EXECUTE:
+                    state_reached.set()
+
+        self.protocol.on("CHANNEL_STATE", state_handler)
+        if target_state == ChannelState.EXECUTE:
+            self.protocol.on("CHANNEL_ANSWER", answer_handler)
+        try:
+            await wait_for(state_reached.wait(), timeout=timeout)
+            return state_event_received if self.state == target_state else None
+        except AsyncioTimeoutError:
+            raise TimeoutError(
+                f"Channel did not reach {target_state.name} state within {timeout}s"
+            )
+        finally:
+            self.protocol.remove("CHANNEL_STATE", state_handler)
+            if target_state == ChannelState.EXECUTE:
+                self.protocol.remove("CHANNEL_ANSWER", answer_handler)
 
     async def wait(
         self, target: Union[ChannelState, str], timeout: float = 30.0
@@ -259,35 +344,9 @@ class Channel:
                 "operation": "wait",
             },
         ) as span:
-            # Handle event name (string)
             if isinstance(target, str):
-                event_name = target
-                received_event: Optional[ESLEvent] = None
-                event_ready = Event()
-
-                async def event_handler(event: ESLEvent) -> None:
-                    nonlocal received_event
-                    # Filter by channel UUID only for channel-specific events
-                    # Events like DTMF, CHANNEL_HANGUP, etc. may not have matching UUID
-                    # Only filter for events that are definitely channel-specific
-                    channel_specific_events = {
-                        "CHANNEL_STATE",
-                        "CHANNEL_ANSWER",
-                        "CHANNEL_HANGUP_COMPLETE",
-                    }
-                    if (
-                        event_name in channel_specific_events
-                        and self.uuid
-                        and event.get("Unique-ID") != self.uuid
-                    ):
-                        return
-                    received_event = event
-                    event_ready.set()
-
-                self.protocol.on(event_name, event_handler)
-
                 try:
-                    await wait_for(event_ready.wait(), timeout=timeout)
+                    result = await self._wait_for_event(target, timeout)
                     duration = time.time() - start_time
                     span.set_attribute("wait.result", "success")
                     span.set_attribute("wait.duration", duration)
@@ -299,17 +358,16 @@ class Channel:
                             "success": "true",
                         },
                     )
-                    return received_event
-                except AsyncioTimeoutError:
+                    return result
+                except TimeoutError:
                     duration = time.time() - start_time
-                    self.protocol.remove(event_name, event_handler)
                     span.set_attribute("wait.result", "timeout")
                     span.set_attribute("wait.duration", duration)
                     timeout_counter.add(
                         1,
                         attributes={
                             "timeout.type": "wait",
-                            "timeout.operation": f"wait.event.{event_name}",
+                            "timeout.operation": f"wait.event.{target}",
                             "timeout.duration": duration,
                         },
                     )
@@ -322,13 +380,8 @@ class Channel:
                             "error": "TimeoutError",
                         },
                     )
-                    raise TimeoutError(
-                        f"Event '{event_name}' not received within {timeout}s timeout"
-                    )
-                finally:
-                    self.protocol.remove(event_name, event_handler)
+                    raise
 
-            # Handle state (ChannelState)
             target_state = target
             if self.state >= ChannelState.HANGUP or (
                 self.state == target_state and target_state != ChannelState.EXECUTE
@@ -336,41 +389,8 @@ class Channel:
                 span.set_attribute("wait.result", "already_reached")
                 return None
 
-            state_event_received: Optional[ESLEvent] = None
-            state_reached = Event()
-            answer_received = Event() if target_state == ChannelState.EXECUTE else None
-
-            async def state_handler(event: ESLEvent) -> None:
-                nonlocal state_event_received
-                if event.get("Unique-ID") != self.uuid:
-                    return
-
-                state_str = event.get("Channel-State")
-                if not state_str:
-                    return
-
-                event_state = ChannelState.from_freeswitch(state_str)
-                if event_state == target_state or event_state >= ChannelState.HANGUP:
-                    self._state = event_state
-                    self.context.update(event)
-                    state_event_received = event
-                    if target_state != ChannelState.EXECUTE or (
-                        answer_received and answer_received.is_set()
-                    ):
-                        state_reached.set()
-
-            async def answer_handler(event: ESLEvent) -> None:
-                if event.get("Unique-ID") == self.uuid and answer_received:
-                    answer_received.set()
-                    if self.state == ChannelState.EXECUTE:
-                        state_reached.set()
-
-            self.protocol.on("CHANNEL_STATE", state_handler)
-            if target_state == ChannelState.EXECUTE:
-                self.protocol.on("CHANNEL_ANSWER", answer_handler)
-
             try:
-                await wait_for(state_reached.wait(), timeout=timeout)
+                state_result = await self._wait_for_state(target_state, timeout)
                 duration = time.time() - start_time
                 span.set_attribute("wait.result", "success")
                 span.set_attribute("wait.duration", duration)
@@ -382,8 +402,8 @@ class Channel:
                         "success": "true",
                     },
                 )
-                return state_event_received if self.state == target_state else None
-            except AsyncioTimeoutError:
+                return state_result
+            except TimeoutError:
                 duration = time.time() - start_time
                 span.set_attribute("wait.result", "timeout")
                 span.set_attribute("wait.duration", duration)
@@ -404,13 +424,7 @@ class Channel:
                         "error": "TimeoutError",
                     },
                 )
-                raise TimeoutError(
-                    f"Channel did not reach {target_state.name} state within {timeout}s"
-                )
-            finally:
-                self.protocol.remove("CHANNEL_STATE", state_handler)
-                if target_state == ChannelState.EXECUTE:
-                    self.protocol.remove("CHANNEL_ANSWER", answer_handler)
+                raise
 
     async def _sendmsg_or_send(
         self,
@@ -441,41 +455,46 @@ class Channel:
                 )
             return await self.protocol.send(cmd)
 
-    async def answer(self) -> ESLEvent:
-        """Answer the call associated with the channel."""
-        start_time = time.time()
-        operation = "answer"
+    def _get_peer_uuid(self, other: Union["Channel", "Session"]) -> Optional[str]:
+        """Extract UUID from a Channel or Session for bridge/peer operations."""
+        if hasattr(other, "uuid") and other.uuid:
+            return other.uuid
+        if hasattr(other, "context"):
+            unique_id = other.context.get("Unique-ID")
+            if isinstance(unique_id, list):
+                return unique_id[0] if unique_id else None
+            return unique_id if isinstance(unique_id, str) else None
+        return None
 
+    async def _execute_operation(
+        self,
+        operation: str,
+        span_name: str,
+        span_attributes: Dict[str, Any],
+        get_result: Callable[[], Awaitable[ESLEvent]],
+        extra_on_success: Optional[Callable[[Any, ESLEvent, float], None]] = None,
+        extra_on_error: Optional[Callable[[Exception], None]] = None,
+    ) -> ESLEvent:
+        """Run a channel operation with tracing and metrics (single implementation)."""
+        start_time = time.time()
         with tracer.start_as_current_span(
-            "channel.answer",
-            attributes={
-                "channel.uuid": self.uuid or "unknown",
-                "channel.state": self.state.name,
-                "operation": operation,
-            },
+            span_name, attributes=span_attributes
         ) as span:
             try:
-                result = await self._sendmsg_or_send("execute", "answer")
+                result = await get_result()
                 duration = time.time() - start_time
-
                 success = result.get("Reply-Text", "").startswith("+OK")
-                span.set_attribute("channel.answer.success", success)
-                span.set_attribute("channel.answer.duration", duration)
-
+                span.set_attribute(f"channel.{operation}.success", success)
+                span.set_attribute(f"channel.{operation}.duration", duration)
                 channel_operations_counter.add(
                     1,
-                    attributes={
-                        "operation": operation,
-                        "success": str(success),
-                    },
+                    attributes={"operation": operation, "success": str(success)},
                 )
                 channel_operation_duration.record(
-                    duration,
-                    attributes={
-                        "operation": operation,
-                    },
+                    duration, attributes={"operation": operation}
                 )
-
+                if extra_on_success:
+                    extra_on_success(span, result, duration)
                 return result
             except Exception as e:
                 span.record_exception(e)
@@ -488,126 +507,72 @@ class Channel:
                         "error": type(e).__name__,
                     },
                 )
+                if extra_on_error:
+                    extra_on_error(e)
                 raise
+
+    async def answer(self) -> ESLEvent:
+        """Answer the call associated with the channel."""
+        return await self._execute_operation(
+            "answer",
+            "channel.answer",
+            {
+                "channel.uuid": self.uuid or "unknown",
+                "channel.state": self.state.name,
+                "operation": "answer",
+            },
+            lambda: self._sendmsg_or_send("execute", "answer"),
+        )
 
     async def park(self) -> ESLEvent:
         """Move channel-associated call to park."""
-        start_time = time.time()
-        operation = "park"
-
-        with tracer.start_as_current_span(
+        return await self._execute_operation(
+            "park",
             "channel.park",
-            attributes={
+            {
                 "channel.uuid": self.uuid or "unknown",
                 "channel.state": self.state.name,
-                "operation": operation,
+                "operation": "park",
             },
-        ) as span:
-            try:
-                result = await self._sendmsg_or_send("execute", "park")
-                duration = time.time() - start_time
-
-                success = result.get("Reply-Text", "").startswith("+OK")
-                span.set_attribute("channel.park.success", success)
-                span.set_attribute("channel.park.duration", duration)
-
-                channel_operations_counter.add(
-                    1,
-                    attributes={
-                        "operation": operation,
-                        "success": str(success),
-                    },
-                )
-                channel_operation_duration.record(
-                    duration,
-                    attributes={
-                        "operation": operation,
-                    },
-                )
-
-                return result
-            except Exception as e:
-                span.record_exception(e)
-                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
-                channel_operations_counter.add(
-                    1,
-                    attributes={
-                        "operation": operation,
-                        "success": "false",
-                        "error": type(e).__name__,
-                    },
-                )
-                raise
+            lambda: self._sendmsg_or_send("execute", "park"),
+        )
 
     async def hangup(self, cause: HangupCause = "NORMAL_CLEARING") -> ESLEvent:
         """Hang up the call associated with the channel."""
-        start_time = time.time()
-        operation = "hangup"
+        call_duration = time.time() - self._created_at if self._created_at else None
 
-        # Calculate call duration if channel was created
-        call_duration = None
-        if self._created_at:
-            call_duration = time.time() - self._created_at
+        def on_success(span: Any, result: ESLEvent, duration: float) -> None:
+            hangup_causes_counter.add(1, attributes={"hangup.cause": cause})
+            if call_duration is not None:
+                span.set_attribute("call.duration", call_duration)
+                call_duration_histogram.record(call_duration)
 
-        with tracer.start_as_current_span(
+        def on_error(exc: Exception) -> None:
+            hangup_causes_counter.add(
+                1,
+                attributes={"hangup.cause": cause, "error": type(exc).__name__},
+            )
+
+        async def do_hangup() -> ESLEvent:
+            if isinstance(self.protocol, Session):
+                return await self._sendmsg_or_send("execute", "hangup", cause)
+            if self.protocol is not None:
+                return await self.protocol.send(f"api uuid_kill {self.uuid} {cause}")
+            raise ChannelError("Protocol not connected")
+
+        return await self._execute_operation(
+            "hangup",
             "channel.hangup",
-            attributes={
+            {
                 "channel.uuid": self.uuid or "unknown",
                 "channel.state": self.state.name,
                 "hangup.cause": cause,
-                "operation": operation,
+                "operation": "hangup",
             },
-        ) as span:
-            try:
-                if isinstance(self.protocol, Session):
-                    result = await self._sendmsg_or_send("execute", "hangup", cause)
-                else:
-                    # For Inbound, use api uuid_kill directly
-                    result = await self.protocol.send(
-                        f"api uuid_kill {self.uuid} {cause}"
-                    )
-
-                duration = time.time() - start_time
-                success = result.get("Reply-Text", "").startswith("+OK")
-
-                span.set_attribute("channel.hangup.success", success)
-                span.set_attribute("channel.hangup.duration", duration)
-                if call_duration is not None:
-                    span.set_attribute("call.duration", call_duration)
-                    call_duration_histogram.record(call_duration)
-
-                hangup_causes_counter.add(1, attributes={"hangup.cause": cause})
-                channel_operations_counter.add(
-                    1,
-                    attributes={
-                        "operation": operation,
-                        "success": str(success),
-                        "hangup.cause": cause,
-                    },
-                )
-                channel_operation_duration.record(
-                    duration,
-                    attributes={
-                        "operation": operation,
-                    },
-                )
-
-                return result
-            except Exception as e:
-                span.record_exception(e)
-                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
-                hangup_causes_counter.add(
-                    1, attributes={"hangup.cause": cause, "error": type(e).__name__}
-                )
-                channel_operations_counter.add(
-                    1,
-                    attributes={
-                        "operation": operation,
-                        "success": "false",
-                        "error": type(e).__name__,
-                    },
-                )
-                raise
+            do_hangup,
+            extra_on_success=on_success,
+            extra_on_error=on_error,
+        )
 
     async def bridge(self, other: Union["Channel", "Session"]) -> ESLEvent:
         """
@@ -616,146 +581,61 @@ class Channel:
         Returns:
             The event response from FreeSWITCH.
         """
-        start_time = time.time()
-        operation = "bridge"
-
         if self.state >= ChannelState.HANGUP:
             raise ChannelError(f"Cannot bridge channel in state {self.state.name}")
 
-        other_uuid = None
-
-        if hasattr(other, "uuid"):
-            other_uuid = other.uuid
-        elif hasattr(other, "context"):  # Session
-            unique_id = other.context.get("Unique-ID")
-            if isinstance(unique_id, list):
-                other_uuid = unique_id[0]
-            else:
-                other_uuid = unique_id
-
+        other_uuid = self._get_peer_uuid(other)
         if not self.uuid or not other_uuid:
             raise ChannelError("Both channels must have valid UUIDs to bridge.")
 
-        with tracer.start_as_current_span(
+        def on_success(span: Any, result: ESLEvent, duration: float) -> None:
+            success = result.get("Reply-Text", "").startswith("+OK")
+            bridge_operations_counter.add(1, attributes={"success": str(success)})
+
+        def on_error(exc: Exception) -> None:
+            bridge_operations_counter.add(
+                1, attributes={"success": "false", "error": type(exc).__name__}
+            )
+
+        async def do_bridge() -> ESLEvent:
+            if isinstance(self.protocol, Session):
+                return await self.protocol.sendmsg(
+                    "execute", "bridge", f"uuid:{other_uuid}"
+                )
+            return await self.protocol.send(f"api uuid_bridge {self.uuid} {other_uuid}")
+
+        return await self._execute_operation(
+            "bridge",
             "channel.bridge",
-            attributes={
+            {
                 "channel.uuid": self.uuid or "unknown",
                 "channel.other_uuid": other_uuid or "unknown",
                 "channel.state": self.state.name,
-                "operation": operation,
+                "operation": "bridge",
             },
-        ) as span:
-            try:
-                if isinstance(self.protocol, Session):
-                    result = await self.protocol.sendmsg(
-                        "execute", "bridge", f"uuid:{other_uuid}"
-                    )
-                else:
-                    result = await self.protocol.send(
-                        f"api uuid_bridge {self.uuid} {other_uuid}"
-                    )
-
-                duration = time.time() - start_time
-                success = result.get("Reply-Text", "").startswith("+OK")
-
-                span.set_attribute("channel.bridge.success", success)
-                span.set_attribute("channel.bridge.duration", duration)
-
-                bridge_operations_counter.add(
-                    1,
-                    attributes={
-                        "success": str(success),
-                    },
-                )
-                channel_operations_counter.add(
-                    1,
-                    attributes={
-                        "operation": operation,
-                        "success": str(success),
-                    },
-                )
-                channel_operation_duration.record(
-                    duration,
-                    attributes={
-                        "operation": operation,
-                    },
-                )
-
-                return result
-            except Exception as e:
-                span.record_exception(e)
-                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
-                bridge_operations_counter.add(
-                    1,
-                    attributes={
-                        "success": "false",
-                        "error": type(e).__name__,
-                    },
-                )
-                channel_operations_counter.add(
-                    1,
-                    attributes={
-                        "operation": operation,
-                        "success": "false",
-                        "error": type(e).__name__,
-                    },
-                )
-                raise
+            do_bridge,
+            extra_on_success=on_success,
+            extra_on_error=on_error,
+        )
 
     async def playback(
         self, path: str, block: bool = True, timeout: Optional[float] = None
     ) -> ESLEvent:
         """Requests the freeswitch to play an audio."""
-        start_time = time.time()
-        operation = "playback"
-
-        with tracer.start_as_current_span(
+        return await self._execute_operation(
+            "playback",
             "channel.playback",
-            attributes={
+            {
                 "channel.uuid": self.uuid or "unknown",
                 "channel.state": self.state.name,
                 "playback.path": path,
                 "playback.block": str(block),
-                "operation": operation,
+                "operation": "playback",
             },
-        ) as span:
-            try:
-                result = await self._sendmsg_or_send(
-                    "execute", "playback", path, block=block, timeout=timeout
-                )
-                duration = time.time() - start_time
-
-                success = result.get("Reply-Text", "").startswith("+OK")
-                span.set_attribute("channel.playback.success", success)
-                span.set_attribute("channel.playback.duration", duration)
-
-                channel_operations_counter.add(
-                    1,
-                    attributes={
-                        "operation": operation,
-                        "success": str(success),
-                    },
-                )
-                channel_operation_duration.record(
-                    duration,
-                    attributes={
-                        "operation": operation,
-                    },
-                )
-
-                return result
-            except Exception as e:
-                span.record_exception(e)
-                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
-                channel_operations_counter.add(
-                    1,
-                    attributes={
-                        "operation": operation,
-                        "success": "false",
-                        "error": type(e).__name__,
-                    },
-                )
-                raise
+            lambda: self._sendmsg_or_send(
+                "execute", "playback", path, block=block, timeout=timeout
+            ),
+        )
 
     async def say(
         self,
@@ -769,66 +649,27 @@ class Channel:
         timeout: Optional[float] = None,
     ) -> ESLEvent:
         """The say application will use the pre-recorded sound files to read or say things."""
-        start_time = time.time()
-        operation = "say"
-
         if lang:
             module += f":{lang}"
-
         arguments = f"{module} {kind} {method} {gender} {text}"
-        from genesis.observability import logger
-
         logger.debug(f"Arguments used in say command: {arguments}")
 
-        with tracer.start_as_current_span(
+        return await self._execute_operation(
+            "say",
             "channel.say",
-            attributes={
+            {
                 "channel.uuid": self.uuid or "unknown",
                 "channel.state": self.state.name,
                 "say.module": module,
                 "say.kind": kind,
                 "say.method": method,
                 "say.gender": gender,
-                "operation": operation,
+                "operation": "say",
             },
-        ) as span:
-            try:
-                result = await self._sendmsg_or_send(
-                    "execute", "say", arguments, block=block, timeout=timeout
-                )
-                duration = time.time() - start_time
-
-                success = result.get("Reply-Text", "").startswith("+OK")
-                span.set_attribute("channel.say.success", success)
-                span.set_attribute("channel.say.duration", duration)
-
-                channel_operations_counter.add(
-                    1,
-                    attributes={
-                        "operation": operation,
-                        "success": str(success),
-                    },
-                )
-                channel_operation_duration.record(
-                    duration,
-                    attributes={
-                        "operation": operation,
-                    },
-                )
-
-                return result
-            except Exception as e:
-                span.record_exception(e)
-                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
-                channel_operations_counter.add(
-                    1,
-                    attributes={
-                        "operation": operation,
-                        "success": "false",
-                        "error": type(e).__name__,
-                    },
-                )
-                raise
+            lambda: self._sendmsg_or_send(
+                "execute", "say", arguments, block=block, timeout=timeout
+            ),
+        )
 
     async def play_and_get_digits(
         self,
@@ -847,9 +688,6 @@ class Channel:
         sendmsg_timeout: Optional[float] = None,
     ) -> ESLEvent:
         """Play a file and collect digits from the caller."""
-        start_time = time.time()
-        operation = "play_and_get_digits"
-
         formatter = lambda value: "" if value is None else str(value)
         ordered_arguments = [
             minimal,
@@ -864,65 +702,30 @@ class Channel:
             digit_timeout,
             transfer_on_failure,
         ]
-        formated_ordered_arguments = map(formatter, ordered_arguments)
-        arguments = " ".join(formated_ordered_arguments)
-
+        arguments = " ".join(map(formatter, ordered_arguments))
         logger.debug(f"Arguments used in play_and_get_digits command: {arguments}")
 
-        with tracer.start_as_current_span(
+        return await self._execute_operation(
+            "play_and_get_digits",
             "channel.play_and_get_digits",
-            attributes={
+            {
                 "channel.uuid": self.uuid or "unknown",
                 "channel.state": self.state.name,
                 "play_and_get_digits.file": file,
-                "play_and_get_digits.tries": tries,
-                "play_and_get_digits.timeout": timeout,
-                "play_and_get_digits.minimal": minimal,
-                "play_and_get_digits.maximum": maximum,
-                "operation": operation,
+                "play_and_get_digits.tries": str(tries),
+                "play_and_get_digits.timeout": str(timeout),
+                "play_and_get_digits.minimal": str(minimal),
+                "play_and_get_digits.maximum": str(maximum),
+                "operation": "play_and_get_digits",
             },
-        ) as span:
-            try:
-                result = await self._sendmsg_or_send(
-                    "execute",
-                    "play_and_get_digits",
-                    arguments,
-                    block=block,
-                    timeout=sendmsg_timeout,
-                )
-                duration = time.time() - start_time
-
-                success = result.get("Reply-Text", "").startswith("+OK")
-                span.set_attribute("channel.play_and_get_digits.success", success)
-                span.set_attribute("channel.play_and_get_digits.duration", duration)
-
-                channel_operations_counter.add(
-                    1,
-                    attributes={
-                        "operation": operation,
-                        "success": str(success),
-                    },
-                )
-                channel_operation_duration.record(
-                    duration,
-                    attributes={
-                        "operation": operation,
-                    },
-                )
-
-                return result
-            except Exception as e:
-                span.record_exception(e)
-                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
-                channel_operations_counter.add(
-                    1,
-                    attributes={
-                        "operation": operation,
-                        "success": "false",
-                        "error": type(e).__name__,
-                    },
-                )
-                raise
+            lambda: self._sendmsg_or_send(
+                "execute",
+                "play_and_get_digits",
+                arguments,
+                block=block,
+                timeout=sendmsg_timeout,
+            ),
+        )
 
     async def log(
         self,

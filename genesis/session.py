@@ -7,25 +7,50 @@ Abstracts a session established between the application and the freeswitch.
 
 from __future__ import annotations
 
-from asyncio import (
-    StreamReader,
-    StreamWriter,
-    Queue,
-    Event,
-    wait_for,
-)
-from typing import Optional, Dict, TYPE_CHECKING
-from collections.abc import Callable, Coroutine
+from asyncio import Event, Queue, StreamReader, StreamWriter, wait_for
 from functools import partial
-from pprint import pformat
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
+from genesis.observability import logger
 from genesis.protocol import Protocol
 from genesis.protocol.parser import ESLEvent
-from genesis.observability import logger
 
 if TYPE_CHECKING:
     from genesis.channel import Channel
+
+
+def _build_sendmsg_cmd(
+    command: str,
+    application: str,
+    data: Optional[str] = None,
+    lock: bool = False,
+    uuid: Optional[str] = None,
+    event_uuid: Optional[str] = None,
+    headers: Optional[Dict[str, str]] = None,
+) -> Tuple[str, Optional[str]]:
+    """Build sendmsg command string and return (cmd, event_uuid)."""
+    cmd = f"sendmsg {uuid}" if uuid else "sendmsg"
+    cmd += f"\ncall-command: {command}"
+
+    if command == "execute":
+        cmd += f"\nexecute-app-name: {application}"
+        if data:
+            cmd += f"\nexecute-app-arg: {data}"
+        event_uuid = event_uuid or str(uuid4())
+        cmd += f"\nEvent-UUID: {event_uuid}"
+
+    if lock:
+        cmd += "\nevent-lock: true"
+
+    if command == "hangup":
+        cmd += f"\nhangup-cause: {data}"
+
+    if headers:
+        for key, value in headers.items():
+            cmd += f"\n{key}: {value}"
+
+    return (cmd, event_uuid if command == "execute" else None)
 
 
 class Session(Protocol):
@@ -59,7 +84,7 @@ class Session(Protocol):
         await self.start()
         return self
 
-    async def __aexit__(self, *args, **kwargs) -> None:
+    async def __aexit__(self, *args: object, **kwargs: object) -> None:
         """Interface used to implement a context manager."""
         await self.stop()
 
@@ -80,57 +105,47 @@ class Session(Protocol):
             Event that will be set when command completes.
         """
         semaphore = Event()
+        registrations: List[Tuple[Optional[str], str, Any]] = (
+            []
+        )  # (channel_uuid?, key, handler)
 
-        handlers: Dict[
-            str, Callable[[Session, ESLEvent], Coroutine[None, None, None]]
-        ] = {}
-
-        async def channel_execute_complete_handler(session: Session, event: ESLEvent):
-            logger.debug(f"Received channel execute complete event: {event}")
-
-            if "Application-UUID" in event and event["Application-UUID"] == event_uuid:
+        async def execute_complete_handler(session: Session, event: ESLEvent) -> None:
+            logger.debug("Received channel execute complete event: %s", event)
+            if event.get("Application-UUID") == event_uuid:
                 await session.fifo.put(event)
                 semaphore.set()
                 await cleanup()
 
-        # Handler for CHANNEL_HANGUP_COMPLETE event to ensure we don't miss it
-        # if the call is hung up before the command completes
-        async def channel_hangup_complete_handler(session: Session, event: ESLEvent):
-            logger.debug(f"Received hangup event: {event}")
-
-            if (
-                "Unique-ID" in event
-                and session.context.get("Channel-Unique-ID", None) == event["Unique-ID"]
-            ):
+        async def hangup_complete_handler(session: Session, event: ESLEvent) -> None:
+            logger.debug("Received hangup event: %s", event)
+            if session.context.get("Channel-Unique-ID") == event.get("Unique-ID"):
                 await session.fifo.put(event)
                 semaphore.set()
                 await cleanup()
 
-        handlers["CHANNEL_EXECUTE_COMPLETE"] = channel_execute_complete_handler
-        handlers["CHANNEL_HANGUP_COMPLETE"] = channel_hangup_complete_handler
+        handlers = {
+            "CHANNEL_EXECUTE_COMPLETE": execute_complete_handler,
+            "CHANNEL_HANGUP_COMPLETE": hangup_complete_handler,
+        }
+
+        async def cleanup() -> None:
+            for channel_uid, key, handler in registrations:
+                if channel_uid is None:
+                    self.remove(key, handler)
+                else:
+                    self.unregister_channel_handler(channel_uid, key, handler)
 
         channel_uuid = self.uuid
-        if not channel_uuid:
-            for key, value in handlers.items():
-                self.on(key, partial(value, self))
-
-            async def cleanup():
-                for key, value in handlers.items():
-                    self.remove(key, partial(value, self))
-
-        else:
-            wrapped: Dict[str, Callable[..., Coroutine[None, None, None]]] = {}
-            for key, value in handlers.items():
-                bound = partial(value, self)
-                wrapped[key] = bound
+        for key, handler_fn in handlers.items():
+            bound = partial(handler_fn, self)
+            if channel_uuid:
                 self.register_channel_handler(channel_uuid, key, bound)
+                registrations.append((channel_uuid, key, bound))
+            else:
+                self.on(key, bound)
+                registrations.append((None, key, bound))
 
-            async def cleanup():
-                for key, value in wrapped.items():
-                    self.unregister_channel_handler(channel_uuid, key, value)
-
-        logger.debug(f"Register event handler for Application-UUID: {event_uuid}")
-
+        logger.debug("Register event handler for Application-UUID: %s", event_uuid)
         return semaphore
 
     async def sendmsg(
@@ -175,49 +190,24 @@ class Session(Protocol):
         Returns:
             ESLEvent: The event received from FreeSWITCH after executing the command.
         """
-        if uuid:
-            cmd = f"sendmsg {uuid}"
-        else:
-            cmd = "sendmsg"
+        cmd, resolved_event_uuid = _build_sendmsg_cmd(
+            command, application, data, lock, uuid, event_uuid, headers
+        )
+        logger.debug("Send command to freeswitch: '%s'.", cmd)
 
-        cmd += f"\ncall-command: {command}"
-
-        # Generate event_uuid if not provided and command is execute
-        if command == "execute":
-            cmd += f"\nexecute-app-name: {application}"
-            if data:
-                cmd += f"\nexecute-app-arg: {data}"
-
-            event_uuid = event_uuid or str(uuid4())
-
-            cmd += f"\nEvent-UUID: {event_uuid}"
-
-        if lock:
-            cmd += f"\nevent-lock: true"
-
-        if command == "hangup":
-            cmd += f"\nhangup-cause: {data}"
-
-        if headers:
-            for key, value in headers.items():
-                cmd += f"\n{key}: {value}"
-
-        logger.debug(f"Send command to freeswitch: '{cmd}'.")
-
-        if block and command == "execute" and event_uuid:
+        if block and command == "execute" and resolved_event_uuid:
             logger.debug(
-                f"Waiting for command completion with Application-UUID: {event_uuid}"
+                "Waiting for command completion with Application-UUID: %s",
+                resolved_event_uuid,
             )
-            # Register the event handler FIRST (returns Event object immediately)
             command_is_complete = await self._awaitable_complete_command(
-                event_uuid, timeout
+                resolved_event_uuid, timeout
             )
-            # Send the command (this triggers the mock to send +OK then CHANNEL_EXECUTE_COMPLETE)
             response = await self.send(cmd)
             logger.debug(
-                f"Received response of execute command with block: {pformat(response)}"
+                "Received response of execute command with block: %s",
+                response,
             )
-            # Now wait for the completion event
             if timeout is not None:
                 await wait_for(command_is_complete.wait(), timeout=timeout)
             else:
