@@ -215,7 +215,7 @@ class Session(Protocol):
             # Send the command (this triggers the mock to send +OK then CHANNEL_EXECUTE_COMPLETE)
             response = await self.send(cmd)
             logger.debug(
-                f"Recived reponse of execute command with block: {pformat(response)}"
+                f"Received response of execute command with block: {pformat(response)}"
             )
             # Now wait for the completion event
             if timeout is not None:
