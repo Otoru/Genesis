@@ -91,12 +91,30 @@ sequenceDiagram
 
 ## Running the Example
 
-Start FreeSWITCH (see [Examples environment]({{< relref "../Examples/_index.md" >}})) and run:
+{{% steps %}}
+
+### Start FreeSWITCH
+
+Make sure FreeSWITCH is running (see [Examples environment]({{< relref "../Examples/_index.md" >}})).
+
+### Run the example
 
 ```bash
 python examples/group_call.py
 ```
 
-The example will ring the group `["user/1001", "user/1002", "user/1003"]` in parallel mode, wait for the first callee to answer, create and bridge the caller (`user/1000`) with the answered callee, then hang up all channels after 5 seconds.
+### Make test calls
 
-To test this properly, you'll need multiple SIP clients registered: user `1000` (caller) and users `1001`, `1002`, `1003` (callees). The first callee to answer will be connected to the caller.
+- Register multiple SIP clients: user `1000` , `1001`, `1002` and `1003`.
+- Run the example; the first callee to answer is connected to the caller.
+
+### View Logs
+
+To see what's happening in FreeSWITCH:
+
+```bash
+docker exec -it genesis-freeswitch fs_cli -x "show channels"
+docker logs genesis-freeswitch -f
+```
+
+{{% /steps %}}

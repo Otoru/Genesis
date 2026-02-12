@@ -7,6 +7,7 @@ import asyncio
 import typer
 
 from genesis.cli import watcher
+from genesis.loop import use_uvloop
 from genesis.observability import logger
 from genesis.consumer import Consumer
 from genesis.cli.exceptions import CLIExcpetion
@@ -78,6 +79,8 @@ def _run(
         logger.info(f"Setting log level to [bold]{loglevel.upper()}[/bold]")
         levels = get_log_level_map()
         logger.setLevel(levels.get(loglevel.upper(), logging.INFO))
+
+        use_uvloop()
 
         if reload:
             asyncio.run(_run_with_reload(consumer_app, path))

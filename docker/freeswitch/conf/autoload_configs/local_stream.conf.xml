@@ -1,0 +1,4 @@
+<configuration name="local_stream.conf" description="Local Stream">
+  <!-- Music on Hold: stream "moh" → sounds/music/8000 (see vars.xml hold_music) -->
+  <directory name="moh" path="$${sounds_dir}/music/8000"/>
+</configuration>

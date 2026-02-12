@@ -72,11 +72,11 @@ This example demonstrates Outbound Socket mode, where FreeSWITCH connects to you
 
 {{% steps %}}
 
-### 1. Start FreeSWITCH
+### Start FreeSWITCH
 
 Make sure FreeSWITCH is running in Docker (see [Examples environment]({{< relref "../Examples/_index.md" >}})).
 
-### 2. Start the IVR Server
+### Start the IVR Server
 
 In a terminal, run the IVR example:
 
@@ -86,7 +86,7 @@ python examples/ivr.py
 
 The server will start listening on `0.0.0.0:9696` and wait for FreeSWITCH to connect.
 
-### 3. Make a Test Call
+### Make a Test Call
 
 In another terminal, use FreeSWITCH CLI to originate a call to the IVR:
 
@@ -98,14 +98,14 @@ This command:
 - Creates a call from user `1000` (a test user configured in the Docker environment)
 - Routes it to number `9999` (configured in the dialplan to connect to your outbound socket)
 
-### 4. Interact with the IVR
+### Interact with the IVR
 
 Once the call is connected:
 - You'll hear the welcome message
 - Press `1`, `2`, or `3` to select an option
 - The IVR will respond to your selection
 
-### 5. View Logs
+### View Logs
 
 To see what's happening in FreeSWITCH:
 
@@ -115,33 +115,3 @@ docker logs genesis-freeswitch -f
 ```
 
 {{% /steps %}}
-
-## Testing with a SIP Client
-
-You can also test using a SIP client (like Linphone, Zoiper, or X-Lite):
-
-1. Configure your SIP client to connect to FreeSWITCH:
-   - **Server:** `127.0.0.1:5060`
-   - **Username:** `1000` or `1001`
-   - **Password:** `1000` or `1001` (same as username)
-   - **Domain:** `127.0.0.1`
-
-2. Register the SIP client
-
-3. Make a call to `9999`
-
-4. The call will be routed to your IVR application
-
-## Dialplan Configuration
-
-The Docker environment includes a dialplan entry that routes calls to `9999` to your outbound socket:
-
-```xml
-<extension name="outbound_socket_test">
-  <condition field="destination_number" expression="^(9999)$">
-    <action application="socket" data="127.0.0.1:9696 async full"/>
-  </condition>
-</extension>
-```
-
-This means any call to `9999` will trigger FreeSWITCH to connect to your application at `127.0.0.1:9696`.

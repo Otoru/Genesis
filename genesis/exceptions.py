@@ -50,3 +50,9 @@ class TimeoutError(GenesisError):
     """Occurs when an operation times out (e.g., waiting for an event)."""
 
     ...
+
+
+class QueueTimeoutError(TimeoutError):
+    """Occurs when waiting for a queue slot exceeds the optional timeout."""
+
+    ...

@@ -7,58 +7,15 @@ Load balancing backends for ring groups.
 
 from __future__ import annotations
 
-import subprocess
-import sys
-from typing import TYPE_CHECKING, Protocol, List, Optional, Any, Awaitable
+from typing import Any, List, Optional, Protocol
 from abc import ABC, abstractmethod
 
-if TYPE_CHECKING:
-    try:
-        import redis.asyncio as redis
-    except ImportError:
-        redis = None
-else:
-    try:
-        import redis.asyncio as redis
-    except ImportError:
-        redis = None
+import redis.asyncio as redis
 
 
 async def _create_redis_client(url: str = "redis://localhost:6379") -> Any:
-    """
-    Create a Redis async client, installing redis package if needed.
-
-    Internal helper function.
-
-    Args:
-        url: Redis connection URL (default: "redis://localhost:6379")
-
-    Returns:
-        Redis async client instance
-
-    Raises:
-        RuntimeError: If redis package cannot be installed or imported
-    """
-    # Import here to handle optional dependency
-    try:
-        import redis.asyncio as redis_module
-    except ImportError:
-        # Try to install redis automatically
-        try:
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", "redis>=5.0.0"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            # Re-import after installation
-            import redis.asyncio as redis_module
-        except (subprocess.CalledProcessError, ImportError):
-            raise RuntimeError(
-                "Redis package is required for RedisLoadBalancer. "
-                "Install it with: pip install redis"
-            )
-
-    return await redis_module.from_url(url)
+    """Create a Redis async client."""
+    return await redis.from_url(url)
 
 
 class LoadBalancerBackend(Protocol):
@@ -165,7 +122,6 @@ class RedisLoadBalancer:
     Redis-based load balancer backend.
 
     Tracks call counts in Redis. Suitable for horizontal scaling.
-    The redis package is automatically installed when needed.
 
     Args:
         url: Redis connection URL (default: "redis://localhost:6379")
