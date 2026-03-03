@@ -84,6 +84,21 @@ class InMemoryBackend:
             state.deque.append(item_id)
             state.condition.notify_all()
 
+    def _remove_item_and_raise_timeout(
+        self,
+        state: _QueueState,
+        item_id: str,
+    ) -> None:
+        """
+        Remove item_id from deque if present, notify waiters and raise QueueTimeoutError.
+        """
+        try:
+            state.deque.remove(item_id)
+        except ValueError:
+            pass
+        state.condition.notify_all()
+        raise QueueTimeoutError()
+
     async def _wait_until_at_head(
         self,
         state: _QueueState,
@@ -100,24 +115,14 @@ class InMemoryBackend:
             if deadline is not None:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    try:
-                        state.deque.remove(item_id)
-                    except ValueError:
-                        pass
-                    state.condition.notify_all()
-                    raise QueueTimeoutError()
+                    self._remove_item_and_raise_timeout(state, item_id)
             try:
                 if remaining is not None:
                     await asyncio.wait_for(state.condition.wait(), timeout=remaining)
                 else:
                     await state.condition.wait()
             except asyncio.TimeoutError:
-                try:
-                    state.deque.remove(item_id)
-                except ValueError:
-                    pass
-                state.condition.notify_all()
-                raise QueueTimeoutError()
+                self._remove_item_and_raise_timeout(state, item_id)
 
     async def _acquire_semaphore(
         self, state: _QueueState, deadline: Optional[float]
