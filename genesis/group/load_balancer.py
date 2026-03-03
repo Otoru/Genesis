@@ -7,15 +7,64 @@ Load balancing backends for ring groups.
 
 from __future__ import annotations
 
-from typing import Any, List, Optional, Protocol
+import asyncio
+import sys
+from typing import Protocol, List, Optional, Any, Awaitable
 from abc import ABC, abstractmethod
 
-import redis.asyncio as redis
+redis: Optional[Any] = None
+try:
+    import redis.asyncio as _redis_module
+
+    redis = _redis_module
+except ImportError:
+    redis = None
 
 
 async def _create_redis_client(url: str = "redis://localhost:6379") -> Any:
-    """Create a Redis async client."""
-    return await redis.from_url(url)
+    """
+    Create a Redis async client, installing redis package if needed.
+
+    Internal helper function.
+
+    Args:
+        url: Redis connection URL (default: "redis://localhost:6379")
+
+    Returns:
+        Redis async client instance
+
+    Raises:
+        RuntimeError: If redis package cannot be installed or imported
+    """
+    # Import here to handle optional dependency
+    try:
+        import redis.asyncio as redis_module
+    except ImportError:
+        # Try to install redis automatically
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "redis>=5.0.0",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await proc.wait()
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    "Redis package is required for RedisLoadBalancer. "
+                    "Install it with: pip install redis"
+                )
+            import redis.asyncio as redis_module
+        except (OSError, ImportError):
+            raise RuntimeError(
+                "Redis package is required for RedisLoadBalancer. "
+                "Install it with: pip install redis"
+            )
+
+    return await redis_module.from_url(url)
 
 
 class LoadBalancerBackend(Protocol):
@@ -158,7 +207,7 @@ class RedisLoadBalancer:
         key = self._key(destination)
         try:
             await redis_client.incr(key)
-        except Exception as e:
+        except Exception:
             # Reset connection to retry on next call
             self._redis = None
             raise
@@ -172,7 +221,7 @@ class RedisLoadBalancer:
             # Clean up if count reaches zero
             if count <= 0:
                 await redis_client.delete(key)
-        except Exception as e:
+        except Exception:
             # Reset connection to retry on next call
             self._redis = None
             raise
@@ -203,7 +252,7 @@ class RedisLoadBalancer:
                     return dest
 
             return None
-        except Exception as e:
+        except Exception:
             # Reset connection to retry on next call
             self._redis = None
             raise
@@ -215,7 +264,7 @@ class RedisLoadBalancer:
         try:
             value = await redis_client.get(key)
             return int(value) if value is not None else 0
-        except Exception as e:
+        except Exception:
             # Reset connection to retry on next call
             self._redis = None
             raise

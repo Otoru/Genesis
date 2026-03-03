@@ -8,7 +8,7 @@ mod_audio_stream_play = dedent(
     Core-UUID: 5f1c2da2-9958-44b2-ae1b-bce99d38f971
     FreeSWITCH-Hostname: freeswitch-01
     FreeSWITCH-Switchname: freeswitch-01
-    FreeSWITCH-IPv4: 10.10.10.23
+    FreeSWITCH-IPv4: 192.0.2.2
     FreeSWITCH-IPv6: ::1
     Event-Date-Local: 2024-08-16%2013:46:02
     Event-Date-GMT: Fri,%2016%20Aug%202024%2016:46:02%20GMT
@@ -20,12 +20,12 @@ mod_audio_stream_play = dedent(
     Channel-State: CS_EXECUTE
     Channel-Call-State: ACTIVE
     Channel-State-Number: 4
-    Channel-Name: sofia/internal/1000%4010.10.10.23
+    Channel-Name: sofia/internal/1000%40192.0.2.2
     Unique-ID: 84e7dad0-dc1e-4234-8c56-5688e2069d99
     Call-Direction: inbound
     Presence-Call-Direction: inbound
     Channel-HIT-Dialplan: true
-    Channel-Presence-ID: 1000%4010.10.10.23
+    Channel-Presence-ID: 1000%40192.0.2.2
     Channel-Call-UUID: 84e7dad0-dc1e-4234-8c56-5688e2069d99
     Answer-State: answered
     Channel-Read-Codec-Name: opus
@@ -42,13 +42,13 @@ mod_audio_stream_play = dedent(
     Caller-Caller-ID-Number: 1000
     Caller-Orig-Caller-ID-Name: 1000
     Caller-Orig-Caller-ID-Number: 1000
-    Caller-Network-Addr: 10.10.10.4
+    Caller-Network-Addr: 192.0.2.3
     Caller-ANI: 1000
     Caller-Destination-Number: 4001
     Caller-Unique-ID: 84e7dad0-dc1e-4234-8c56-5688e2069d99
     Caller-Source: mod_sofia
     Caller-Context: default
-    Caller-Channel-Name: sofia/internal/1000%4010.10.10.23
+    Caller-Channel-Name: sofia/internal/1000%40192.0.2.2
     Caller-Profile-Index: 1
     Caller-Profile-Created-Time: 1723826754130221
     Caller-Channel-Created-Time: 1723826754130221
@@ -68,17 +68,17 @@ mod_audio_stream_play = dedent(
     variable_uuid: 84e7dad0-dc1e-4234-8c56-5688e2069d99
     variable_session_id: 46
     variable_sip_from_user: 1000
-    variable_sip_from_uri: 1000%4010.10.10.23
-    variable_sip_from_host: 10.10.10.23
+    variable_sip_from_uri: 1000%40192.0.2.2
+    variable_sip_from_host: 192.0.2.2
     variable_video_media_flow: disabled
     variable_text_media_flow: disabled
-    variable_channel_name: sofia/internal/1000%4010.10.10.23
+    variable_channel_name: sofia/internal/1000%40192.0.2.2
     variable_sip_call_id: nRVIux7E3nnbt4PrQw63Ir8tVRew3rTJ
-    variable_sip_local_network_addr: 170.247.5.105
-    variable_sip_network_ip: 10.10.10.4
+    variable_sip_local_network_addr: 192.0.2.4
+    variable_sip_network_ip: 192.0.2.3
     variable_sip_network_port: 65154
     variable_sip_invite_stamp: 1723826754130221
-    variable_sip_received_ip: 10.10.10.4
+    variable_sip_received_ip: 192.0.2.3
     variable_sip_received_port: 65154
     variable_sip_via_protocol: udp
     variable_sip_authorized: true
@@ -86,7 +86,7 @@ mod_audio_stream_play = dedent(
     variable_Core-UUID: 5f1c2da2-9958-44b2-ae1b-bce99d38f971
     variable_FreeSWITCH-Hostname: freeswitch-01
     variable_FreeSWITCH-Switchname: freeswitch-01
-    variable_FreeSWITCH-IPv4: 10.10.10.23
+    variable_FreeSWITCH-IPv4: 192.0.2.2
     variable_FreeSWITCH-IPv6: ::1
     variable_Event-Date-Local: 2024-08-16%2013:45:54
     variable_Event-Date-GMT: Fri,%2016%20Aug%202024%2016:45:54%20GMT
@@ -97,10 +97,10 @@ mod_audio_stream_play = dedent(
     variable_Event-Sequence: 5591
     variable_sip_number_alias: 1000
     variable_sip_auth_username: 1000
-    variable_sip_auth_realm: 10.10.10.23
+    variable_sip_auth_realm: 192.0.2.2
     variable_number_alias: 1000
     variable_requested_user_name: 1000
-    variable_requested_domain_name: 10.10.10.23
+    variable_requested_domain_name: 192.0.2.2
     variable_record_stereo: true
     variable_default_gateway: example.com
     variable_default_areacode: 918
@@ -114,35 +114,35 @@ mod_audio_stream_play = dedent(
     variable_outbound_caller_id_number: 0000000000
     variable_callgroup: techsupport
     variable_user_name: 1000
-    variable_domain_name: 10.10.10.23
+    variable_domain_name: 192.0.2.2
     variable_sip_from_user_stripped: 1000
     variable_sip_from_tag: ctd4Q7kZX1X-ymiaOZW75CCNoctiyssB
     variable_sofia_profile_name: internal
-    variable_sofia_profile_url: sip:mod_sofia%40170.247.5.105:5060
+    variable_sofia_profile_url: sip:mod_sofia%40192.0.2.4:5060
     variable_recovery_profile_name: internal
-    variable_sip_full_via: SIP/2.0/UDP%2010.10.10.4:65154%3Brport%3D65154%3Bbranch%3Dz9hG4bKPjUtX7iY.6-KV2faycxhzseZiQy-KTpp9v
+    variable_sip_full_via: SIP/2.0/UDP%20192.0.2.3:65154%3Brport%3D65154%3Bbranch%3Dz9hG4bKPjUtX7iY.6-KV2faycxhzseZiQy-KTpp9v
     variable_sip_from_display: 1000
-    variable_sip_full_from: %221000%22%20%3Csip:1000%4010.10.10.23%3E%3Btag%3Dctd4Q7kZX1X-ymiaOZW75CCNoctiyssB
-    variable_sip_full_to: sip:4001%4010.10.10.23
+    variable_sip_full_from: %221000%22%20%3Csip:1000%40192.0.2.2%3E%3Btag%3Dctd4Q7kZX1X-ymiaOZW75CCNoctiyssB
+    variable_sip_full_to: sip:4001%40192.0.2.2
     variable_sip_allow: PRACK,%20INVITE,%20ACK,%20BYE,%20CANCEL,%20UPDATE,%20INFO,%20SUBSCRIBE,%20NOTIFY,%20REFER,%20MESSAGE,%20OPTIONS
     variable_sip_req_user: 4001
-    variable_sip_req_uri: 4001%4010.10.10.23
-    variable_sip_req_host: 10.10.10.23
+    variable_sip_req_uri: 4001%40192.0.2.2
+    variable_sip_req_host: 192.0.2.2
     variable_sip_to_user: 4001
-    variable_sip_to_uri: 4001%4010.10.10.23
-    variable_sip_to_host: 10.10.10.23
+    variable_sip_to_uri: 4001%40192.0.2.2
+    variable_sip_to_host: 192.0.2.2
     variable_sip_contact_params: ob
     variable_sip_contact_user: 1000
     variable_sip_contact_port: 65154
-    variable_sip_contact_uri: 1000%4010.10.10.4:65154
-    variable_sip_contact_host: 10.10.10.4
+    variable_sip_contact_uri: 1000%40192.0.2.3:65154
+    variable_sip_contact_host: 192.0.2.3
     variable_sip_user_agent: Telephone%201.6
-    variable_sip_via_host: 10.10.10.4
+    variable_sip_via_host: 192.0.2.3
     variable_sip_via_port: 65154
     variable_sip_via_rport: 65154
     variable_max_forwards: 70
-    variable_presence_id: 1000%4010.10.10.23
-    variable_switch_r_sdp: v%3D0%0D%0Ao%3D-%203932815554%203932815554%20IN%20IP4%2010.10.10.4%0D%0As%3Dpjmedia%0D%0Ab%3DAS:117%0D%0At%3D0%200%0D%0Aa%3DX-nat:0%0D%0Am%3Daudio%204004%20RTP/AVP%2096%209%208%200%20101%20102%0D%0Ac%3DIN%20IP4%2010.10.10.4%0D%0Ab%3DTIAS:96000%0D%0Aa%3Drtpmap:96%20opus/48000/2%0D%0Aa%3Dfmtp:96%20useinbandfec%3D1%0D%0Aa%3Drtpmap:9%20G722/8000%0D%0Aa%3Drtpmap:8%20PCMA/8000%0D%0Aa%3Drtpmap:0%20PCMU/8000%0D%0Aa%3Drtpmap:101%20telephone-event/48000%0D%0Aa%3Dfmtp:101%200-16%0D%0Aa%3Drtpmap:102%20telephone-event/8000%0D%0Aa%3Dfmtp:102%200-16%0D%0Aa%3Drtcp:4005%20IN%20IP4%2010.10.10.4%0D%0Aa%3Dssrc:1491843177%20cname:242da6923112cdcc%0D%0A
+    variable_presence_id: 1000%40192.0.2.2
+    variable_switch_r_sdp: v%3D0%0D%0Ao%3D-%203932815554%203932815554%20IN%20IP4%20192.0.2.3%0D%0As%3Dpjmedia%0D%0Ab%3DAS:117%0D%0At%3D0%200%0D%0Aa%3DX-nat:0%0D%0Am%3Daudio%204004%20RTP/AVP%2096%209%208%200%20101%20102%0D%0Ac%3DIN%20IP4%20192.0.2.3%0D%0Ab%3DTIAS:96000%0D%0Aa%3Drtpmap:96%20opus/48000/2%0D%0Aa%3Dfmtp:96%20useinbandfec%3D1%0D%0Aa%3Drtpmap:9%20G722/8000%0D%0Aa%3Drtpmap:8%20PCMA/8000%0D%0Aa%3Drtpmap:0%20PCMU/8000%0D%0Aa%3Drtpmap:101%20telephone-event/48000%0D%0Aa%3Dfmtp:101%200-16%0D%0Aa%3Drtpmap:102%20telephone-event/8000%0D%0Aa%3Dfmtp:102%200-16%0D%0Aa%3Drtcp:4005%20IN%20IP4%20192.0.2.3%0D%0Aa%3Dssrc:1491843177%20cname:242da6923112cdcc%0D%0A
     variable_ep_codec_string: mod_opus.opus%4048000h%4020i%402c,mod_spandsp.G722%408000h%4020i%4064000b,CORE_PCM_MODULE.PCMA%408000h%4020i%4064000b,CORE_PCM_MODULE.PCMU%408000h%4020i%4064000b
     variable_DP_MATCH: ARRAY::DELAYED%20NEGOTIATION%7C:DELAYED%20NEGOTIATION
     variable_call_uuid: 84e7dad0-dc1e-4234-8c56-5688e2069d99
@@ -169,17 +169,17 @@ mod_audio_stream_play = dedent(
     variable_write_codec: opus
     variable_write_rate: 48000
     variable_dtmf_type: rfc2833
-    variable_local_media_ip: 10.10.10.23
+    variable_local_media_ip: 192.0.2.2
     variable_local_media_port: 19072
-    variable_advertised_media_ip: 10.10.10.23
+    variable_advertised_media_ip: 192.0.2.2
     variable_rtp_use_timer_name: soft
     variable_rtp_use_pt: 96
     variable_rtp_use_ssrc: 3539919802
     variable_rtp_2833_send_payload: 101
     variable_rtp_2833_recv_payload: 101
-    variable_remote_media_ip: 10.10.10.4
+    variable_remote_media_ip: 192.0.2.3
     variable_remote_media_port: 4004
-    variable_rtp_local_sdp_str: v%3D0%0D%0Ao%3DFreeSWITCH%201723807682%201723807683%20IN%20IP4%2010.10.10.23%0D%0As%3DFreeSWITCH%0D%0Ac%3DIN%20IP4%2010.10.10.23%0D%0At%3D0%200%0D%0Am%3Daudio%2019072%20RTP/AVP%2096%20101%0D%0Aa%3Drtpmap:96%20opus/48000/2%0D%0Aa%3Dfmtp:96%20useinbandfec%3D1%0D%0Aa%3Drtpmap:101%20telephone-event/48000%0D%0Aa%3Dfmtp:101%200-15%0D%0Aa%3Dptime:20%0D%0Aa%3Dsendrecv%0D%0Aa%3Drtcp:19073%20IN%20IP4%2010.10.10.23%0D%0A
+    variable_rtp_local_sdp_str: v%3D0%0D%0Ao%3DFreeSWITCH%201723807682%201723807683%20IN%20IP4%20192.0.2.2%0D%0As%3DFreeSWITCH%0D%0Ac%3DIN%20IP4%20192.0.2.2%0D%0At%3D0%200%0D%0Am%3Daudio%2019072%20RTP/AVP%2096%20101%0D%0Aa%3Drtpmap:96%20opus/48000/2%0D%0Aa%3Dfmtp:96%20useinbandfec%3D1%0D%0Aa%3Drtpmap:101%20telephone-event/48000%0D%0Aa%3Dfmtp:101%200-15%0D%0Aa%3Dptime:20%0D%0Aa%3Dsendrecv%0D%0Aa%3Drtcp:19073%20IN%20IP4%20192.0.2.2%0D%0A
     variable_endpoint_disposition: ANSWER
     variable_send_silence_when_idle: -1
     variable_hangup_after_bridge: false
@@ -201,7 +201,7 @@ heartbeat = dedent(
         Core-UUID: cb2d5146-9a99-11e4-9291-092b1a87b375
         FreeSWITCH-Hostname: evoluxdev
         FreeSWITCH-Switchname: freeswitch
-        FreeSWITCH-IPv4: 172.16.7.47
+        FreeSWITCH-IPv4: 192.0.2.1
         FreeSWITCH-IPv6: ::1
         Event-Date-Local: 2015-01-19%2012:06:19
         Event-Date-GMT: Mon,%2019%20Jan%202015%2015:06:19%20GMT
@@ -334,7 +334,7 @@ channel_create = dedent(
     variable_sip_from_tag: ocZZPAo1FTdXA10orlmCaYeqc4mzYem1
     variable_sofia_profile_name: internal
     variable_recovery_profile_name: internal
-    variable_sip_full_via: SIP/2.0/UDP 172.16.7.70:58588;rport=58588;branch=z9hG4bKPj-0Wi47Dyiq1mz3t.Bm8aluRrPEHF7-6C;received=192.168.50.1
+    variable_sip_full_via: SIP/2.0/UDP 192.0.2.2:58588;rport=58588;branch=z9hG4bKPj-0Wi47Dyiq1mz3t.Bm8aluRrPEHF7-6C;received=192.168.50.1
     variable_sip_from_display: edev - 100
     variable_sip_full_from: "edev - 100" <sip:100@192.168.50.4>;tag=ocZZPAo1FTdXA10orlmCaYeqc4mzYem1
     variable_sip_full_to: <sip:101@192.168.50.4>
@@ -351,19 +351,19 @@ channel_create = dedent(
     variable_sip_contact_host: 192.168.50.1
     variable_rtp_use_codec_string: G722,PCMA,PCMU,GSM,G729
     variable_sip_user_agent: Telephone 1.1.4
-    variable_sip_via_host: 172.16.7.70
+    variable_sip_via_host: 192.0.2.2
     variable_sip_via_port: 58588
     variable_sip_via_rport: 58588
     variable_max_forwards: 70
     variable_presence_id: 100@192.168.50.4
     variable_switch_r_sdp: v=0
-    o=- 3631463817 3631463817 IN IP4 172.16.7.70
+    o=- 3631463817 3631463817 IN IP4 192.0.2.2
     s=pjmedia
     b=AS:84
     t=0 0
     a=X-nat:0
     m=audio 4016 RTP/AVP 103 102 104 109 3 0 8 9 101
-    c=IN IP4 172.16.7.70
+    c=IN IP4 192.0.2.2
     b=AS:64000
     a=rtpmap:103 speex/16000
     a=rtpmap:102 speex/8000
@@ -376,7 +376,7 @@ channel_create = dedent(
     a=rtpmap:9 G722/8000
     a=rtpmap:101 telephone-event/8000
     a=fmtp:101 0-15
-    a=rtcp:4017 IN IP4 172.16.7.70
+    a=rtcp:4017 IN IP4 192.0.2.2
 
     variable_endpoint_disposition: DELAYED NEGOTIATION"""
 )
@@ -384,7 +384,7 @@ channel_create = dedent(
 
 background_job = dedent(
     """\
-    Content-Length: 582
+    Content-Length: 579
     Content-Type: text/event-plain
 
     Job-UUID: 7f4db78a-17d7-11dd-b7a0-db4edd065621
@@ -393,7 +393,7 @@ background_job = dedent(
     Event-Name: BACKGROUND_JOB
     Core-UUID: 42bdf272-16e6-11dd-b7a0-db4edd065621
     FreeSWITCH-Hostname: ser
-    FreeSWITCH-IPv4: 192.168.1.104
+    FreeSWITCH-IPv4: 192.0.2.1
     FreeSWITCH-IPv6: 127.0.0.1
     Event-Date-Local: 2008-05-02%2007%3A37%3A03
     Event-Date-GMT: Thu,%2001%20May%202008%2023%3A37%3A03%20GMT
@@ -412,7 +412,7 @@ custom = dedent(
     Event-Name: RELOADXML
     Core-UUID: 6c6def18-9562-de11-a8e0-001fc6ab49e2
     FreeSWITCH-Hostname: localhost.localdomain
-    FreeSWITCH-IPv4: 10.0.1.250
+    FreeSWITCH-IPv4: 192.0.2.3
     FreeSWITCH-IPv6: ::1
     Event-Date-Local: 2009-06-26%2017:06:33
     Event-Date-GMT: Fri,%2026%20Jun%202009%2021:06:33%20GMT
@@ -466,12 +466,12 @@ connect = dedent(
     Channel-Dialplan: XML
     Channel-Caller-ID-Name: 1001
     Channel-Caller-ID-Number: 1001
-    Channel-Network-Addr: 10.0.1.241
+    Channel-Network-Addr: 192.0.2.2
     Channel-Destination-Number: 886
     Channel-Unique-ID: 40117b0a-186e-11dd-bbcd-7b74b6b4d31e
     Channel-Source: mod_sofia
     Channel-Context: default
-    Channel-Channel-Name: sofia/default/1001%4010.0.1.100
+    Channel-Channel-Name: sofia/default/1001%40192.0.2.1
     Channel-Profile-Index: 1
     Channel-Channel-Created-Time: 1209749769132614
     Channel-Channel-Answered-Time: 0
@@ -482,7 +482,7 @@ connect = dedent(
     Channel-Privacy-Hide-Number: no
     Channel-State: CS_EXECUTE
     Channel-State-Number: 4
-    Channel-Name: sofia/default/1001%4010.0.1.100
+    Channel-Name: sofia/default/1001%40192.0.2.1
     Unique-ID: 40117b0a-186e-11dd-bbcd-7b74b6b4d31e
     Call-Direction: inbound
     Answer-State: early
@@ -494,12 +494,12 @@ connect = dedent(
     Caller-Dialplan: XML
     Caller-Caller-ID-Name: 1001
     Caller-Caller-ID-Number: 1001
-    Caller-Network-Addr: 10.0.1.241
+    Caller-Network-Addr: 192.0.2.2
     Caller-Destination-Number: 886
     Caller-Unique-ID: 40117b0a-186e-11dd-bbcd-7b74b6b4d31e
     Caller-Source: mod_sofia
     Caller-Context: default
-    Caller-Channel-Name: sofia/default/1001%4010.0.1.100
+    Caller-Channel-Name: sofia/default/1001%40192.0.2.1
     Caller-Profile-Index: 1
     Caller-Channel-Created-Time: 1209749769132614
     Caller-Channel-Answered-Time: 0
@@ -511,45 +511,45 @@ connect = dedent(
     variable_sip_authorized: true
     variable_sip_mailbox: 1001
     variable_sip_auth_username: 1001
-    variable_sip_auth_realm: 10.0.1.100
+    variable_sip_auth_realm: 192.0.2.1
     variable_mailbox: 1001
     variable_user_name: 1001
-    variable_domain_name: 10.0.1.100
+    variable_domain_name: 192.0.2.1
     variable_accountcode: 1001
     variable_user_context: default
     variable_effective_caller_id_name: Extension%201001
     variable_effective_caller_id_number: 1001
     variable_sip_from_user: 1001
-    variable_sip_from_uri: 1001%4010.0.1.100
-    variable_sip_from_host: 10.0.1.100
+    variable_sip_from_uri: 1001%40192.0.2.1
+    variable_sip_from_host: 192.0.2.1
     variable_sip_from_user_stripped: 1001
     variable_sip_from_tag: wrgb4s5idf
     variable_sofia_profile_name: default
-    variable_sofia_profile_domain_name: 10.0.1.100
-    variable_sofia_profile_domain_name: 10.0.1.100
+    variable_sofia_profile_domain_name: 192.0.2.1
+    variable_sofia_profile_domain_name: 192.0.2.1
     variable_sip_req_params: user%3Dphone
     variable_sip_req_user: 886
-    variable_sip_req_uri: 886%4010.0.1.100
-    variable_sip_req_host: 10.0.1.100
+    variable_sip_req_uri: 886%40192.0.2.1
+    variable_sip_req_host: 192.0.2.1
     variable_sip_to_params: user%3Dphone
     variable_sip_to_user: 886
-    variable_sip_to_uri: 886%4010.0.1.100
-    variable_sip_to_host: 10.0.1.100
+    variable_sip_to_uri: 886%40192.0.2.1
+    variable_sip_to_host: 192.0.2.1
     variable_sip_contact_params: line%3Dnc7obl5w
     variable_sip_contact_user: 1001
     variable_sip_contact_port: 2048
-    variable_sip_contact_uri: 1001%4010.0.1.241:2048
-    variable_sip_contact_host: 10.0.1.241
-    variable_channel_name: sofia/default/1001%4010.0.1.100
+    variable_sip_contact_uri: 1001%40192.0.2.2:2048
+    variable_sip_contact_host: 192.0.2.2
+    variable_channel_name: sofia/default/1001%40192.0.2.1
     variable_sip_call_id: 3c2bb21af10b-ogphkonpwqet
     variable_sip_user_agent: snom300/7.1.30
-    variable_sip_via_host: 10.0.1.241
+    variable_sip_via_host: 192.0.2.2
     variable_sip_via_port: 2048
     variable_sip_via_rport: 2048
     variable_max_forwards: 70
-    variable_presence_id: 1001%4010.0.1.100
+    variable_presence_id: 1001%40192.0.2.1
     variable_sip_h_P-Key-Flags: keys%3D%223%22
-    variable_remote_media_ip: 10.0.1.241
+    variable_remote_media_ip: 192.0.2.2
     variable_remote_media_port: 62258
     variable_read_codec: G722
     variable_read_rate: 16000
@@ -557,7 +557,7 @@ connect = dedent(
     variable_write_rate: 16000
     variable_open: true
     variable_socket_host: 127.0.0.1
-    variable_local_media_ip: 10.0.1.100
+    variable_local_media_ip: 192.0.2.1
     variable_local_media_port: 62258
     variable_endpoint_disposition: EARLY%20MEDIA
     Content-Type: command/reply

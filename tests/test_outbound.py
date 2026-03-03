@@ -32,12 +32,12 @@ async def test_outbound_session_has_context(host, port, dialplan):
         "Caller-Channel-Answered-Time": "0",
         "Caller-Channel-Created-Time": "1209749769132614",
         "Caller-Channel-Hangup-Time": "0",
-        "Caller-Channel-Name": "sofia/default/1001@10.0.1.100",
+        "Caller-Channel-Name": "sofia/default/1001@192.0.2.1",
         "Caller-Channel-Transfer-Time": "0",
         "Caller-Context": "default",
         "Caller-Destination-Number": "886",
         "Caller-Dialplan": "XML",
-        "Caller-Network-Addr": "10.0.1.241",
+        "Caller-Network-Addr": "192.0.2.2",
         "Caller-Privacy-Hide-Name": "no",
         "Caller-Privacy-Hide-Number": "no",
         "Caller-Profile-Index": "1",
@@ -50,13 +50,13 @@ async def test_outbound_session_has_context(host, port, dialplan):
         "Channel-Channel-Answered-Time": "0",
         "Channel-Channel-Created-Time": "1209749769132614",
         "Channel-Channel-Hangup-Time": "0",
-        "Channel-Channel-Name": "sofia/default/1001@10.0.1.100",
+        "Channel-Channel-Name": "sofia/default/1001@192.0.2.1",
         "Channel-Channel-Transfer-Time": "0",
         "Channel-Context": "default",
         "Channel-Destination-Number": "886",
         "Channel-Dialplan": "XML",
-        "Channel-Name": "sofia/default/1001@10.0.1.100",
-        "Channel-Network-Addr": "10.0.1.241",
+        "Channel-Name": "sofia/default/1001@192.0.2.1",
+        "Channel-Network-Addr": "192.0.2.2",
         "Channel-Privacy-Hide-Name": "no",
         "Channel-Privacy-Hide-Number": "no",
         "Channel-Profile-Index": "1",
@@ -75,51 +75,51 @@ async def test_outbound_session_has_context(host, port, dialplan):
         "Socket-Mode": "async",
         "Unique-ID": "40117b0a-186e-11dd-bbcd-7b74b6b4d31e",
         "variable_accountcode": "1001",
-        "variable_channel_name": "sofia/default/1001@10.0.1.100",
-        "variable_domain_name": "10.0.1.100",
+        "variable_channel_name": "sofia/default/1001@192.0.2.1",
+        "variable_domain_name": "192.0.2.1",
         "variable_effective_caller_id_name": "Extension 1001",
         "variable_effective_caller_id_number": "1001",
         "variable_endpoint_disposition": "EARLY MEDIA",
-        "variable_local_media_ip": "10.0.1.100",
+        "variable_local_media_ip": "192.0.2.1",
         "variable_local_media_port": "62258",
         "variable_mailbox": "1001",
         "variable_max_forwards": "70",
         "variable_open": "true",
-        "variable_presence_id": "1001@10.0.1.100",
+        "variable_presence_id": "1001@192.0.2.1",
         "variable_read_codec": "G722",
         "variable_read_rate": "16000",
-        "variable_remote_media_ip": "10.0.1.241",
+        "variable_remote_media_ip": "192.0.2.2",
         "variable_remote_media_port": "62258",
-        "variable_sip_auth_realm": "10.0.1.100",
+        "variable_sip_auth_realm": "192.0.2.1",
         "variable_sip_auth_username": "1001",
         "variable_sip_authorized": "true",
         "variable_sip_call_id": "3c2bb21af10b-ogphkonpwqet",
-        "variable_sip_contact_host": "10.0.1.241",
+        "variable_sip_contact_host": "192.0.2.2",
         "variable_sip_contact_params": "line=nc7obl5w",
         "variable_sip_contact_port": "2048",
-        "variable_sip_contact_uri": "1001@10.0.1.241:2048",
+        "variable_sip_contact_uri": "1001@192.0.2.2:2048",
         "variable_sip_contact_user": "1001",
-        "variable_sip_from_host": "10.0.1.100",
+        "variable_sip_from_host": "192.0.2.1",
         "variable_sip_from_tag": "wrgb4s5idf",
-        "variable_sip_from_uri": "1001@10.0.1.100",
+        "variable_sip_from_uri": "1001@192.0.2.1",
         "variable_sip_from_user": "1001",
         "variable_sip_from_user_stripped": "1001",
         "variable_sip_h_P-Key-Flags": 'keys="3"',
         "variable_sip_mailbox": "1001",
-        "variable_sip_req_host": "10.0.1.100",
+        "variable_sip_req_host": "192.0.2.1",
         "variable_sip_req_params": "user=phone",
-        "variable_sip_req_uri": "886@10.0.1.100",
+        "variable_sip_req_uri": "886@192.0.2.1",
         "variable_sip_req_user": "886",
-        "variable_sip_to_host": "10.0.1.100",
+        "variable_sip_to_host": "192.0.2.1",
         "variable_sip_to_params": "user=phone",
-        "variable_sip_to_uri": "886@10.0.1.100",
+        "variable_sip_to_uri": "886@192.0.2.1",
         "variable_sip_to_user": "886",
         "variable_sip_user_agent": "snom300/7.1.30",
-        "variable_sip_via_host": "10.0.1.241",
+        "variable_sip_via_host": "192.0.2.2",
         "variable_sip_via_port": "2048",
         "variable_sip_via_rport": "2048",
         "variable_socket_host": "127.0.0.1",
-        "variable_sofia_profile_domain_name": ["10.0.1.100", "10.0.1.100"],
+        "variable_sofia_profile_domain_name": ["192.0.2.1", "192.0.2.1"],
         "variable_sofia_profile_name": "default",
         "variable_user_context": "default",
         "variable_user_name": "1001",
@@ -227,27 +227,27 @@ async def test_outbound_session_sendmsg_parameters(
 
     test_cases: list[dict[str, Any]] = [
         {
-            "args": ("execute", "playback", "/tmp/test.wav"),
+            "args": ("execute", "playback", "test.wav"),
             "kwargs": {"lock": True},
             "desc": "with lock",
         },
         {
-            "args": ("execute", "playback", "/tmp/test.wav"),
+            "args": ("execute", "playback", "test.wav"),
             "kwargs": {"uuid": "test-uuid-1234"},
             "desc": "with uuid",
         },
         {
-            "args": ("execute", "playback", "/tmp/test.wav"),
+            "args": ("execute", "playback", "test.wav"),
             "kwargs": {"event_uuid": "test-event-5678"},
             "desc": "with event_uuid",
         },
         {
-            "args": ("execute", "playback", "/tmp/test.wav"),
+            "args": ("execute", "playback", "test.wav"),
             "kwargs": {"block": True},
             "desc": "with block",
         },
         {
-            "args": ("execute", "playback", "/tmp/test.wav"),
+            "args": ("execute", "playback", "test.wav"),
             "kwargs": {"headers": {"X-Test": "value"}},
             "desc": "with headers",
         },
@@ -289,7 +289,7 @@ async def test_outbound_handler_options(host, port, dialplan, monkeypatch, gener
 
     semaphore = Event()
 
-    async def handler(session: Session) -> None:
+    def handler(session: Session) -> None:
         semaphore.set()
 
     address = (host(), port())
@@ -327,7 +327,7 @@ async def test_outbound_session_helpers(host, port, dialplan, monkeypatch, gener
         await session.channel.log("INFO", "test message")
 
         # Test playback
-        await session.channel.playback("/tmp/file.wav")
+        await session.channel.playback("file.wav")
 
         # Test say
         await session.channel.say("123", kind="NUMBER", method="pronounced")
@@ -337,7 +337,7 @@ async def test_outbound_session_helpers(host, port, dialplan, monkeypatch, gener
             tries=3,
             timeout=5000,
             terminators="#",
-            file="/tmp/prompt.wav",
+            file="prompt.wav",
             minimal=1,
             maximum=4,
             var_name="my_digits",
@@ -361,9 +361,7 @@ async def test_outbound_session_helpers(host, port, dialplan, monkeypatch, gener
     spider.assert_any_call(
         "execute", "log", "INFO test message", block=False, timeout=None
     )
-    spider.assert_any_call(
-        "execute", "playback", "/tmp/file.wav", block=True, timeout=None
-    )
+    spider.assert_any_call("execute", "playback", "file.wav", block=True, timeout=None)
     spider.assert_any_call(
         "execute",
         "say",
@@ -374,7 +372,7 @@ async def test_outbound_session_helpers(host, port, dialplan, monkeypatch, gener
 
     # Expected arguments for play_and_get_digits based on the call above
     # ordered_arguments in source: minimal, maximum, tries, timeout, terminators, file, invalid_file, var_name, regexp, digit_timeout, transfer_on_failure
-    expected_pagd_args = "1 4 3 5000 # /tmp/prompt.wav  my_digits \\d+ 2000 "
+    expected_pagd_args = "1 4 3 5000 # prompt.wav  my_digits \\d+ 2000 "
     spider.assert_any_call(
         "execute",
         "play_and_get_digits",
@@ -415,7 +413,7 @@ async def test_outbound_blocking_command(host, port, dialplan, generic):
 
     async def handler(session: Session) -> None:
         playback_task = asyncio.create_task(
-            session.channel.playback("/tmp/blocking.wav", block=True)
+            session.channel.playback("blocking.wav", block=True)
         )
 
         event_uuid = await wait_for_execute_event_uuid(dialplan, timeout=1.0)
@@ -450,9 +448,7 @@ async def test_outbound_blocking_command_timeout(host, port, dialplan, generic):
 
     async def handler(session: Session) -> None:
         try:
-            await session.channel.playback(
-                "/tmp/timeout.wav", block=True, timeout=0.001
-            )
+            await session.channel.playback("timeout.wav", block=True, timeout=0.001)
         except TimeoutError:
             test_complete.set()
         except Exception as e:

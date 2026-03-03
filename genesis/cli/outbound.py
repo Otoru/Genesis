@@ -119,7 +119,7 @@ async def _run_with_reload(app: Outbound, path: Path) -> None:
     queue: asyncio.Queue = asyncio.Queue()
 
     observability.set_app_type(AppType.OUTBOUND)
-    task = loop.create_task(observability.start())
+    _observability_task = loop.create_task(observability.start())
 
     async def consume(queue: asyncio.Queue) -> None:
         await app.start(block=False)
@@ -147,7 +147,7 @@ async def _run_with_reload(app: Outbound, path: Path) -> None:
 
 async def _run_production(app: Outbound) -> None:
     observability.set_app_type(AppType.OUTBOUND)
-    asyncio.create_task(observability.start())
+    _observability_task = asyncio.create_task(observability.start())
     await app.start()
 
 

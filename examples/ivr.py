@@ -20,7 +20,7 @@ async def play(channel, filename: str) -> None:
 async def handler(session: Session) -> None:
     logger.info(f"New call received - Channel UUID: {session.channel.uuid}")
 
-    @session.channel.onDTMF()
+    @session.channel.on_dtmf()
     async def on_dtmf(digit: str) -> None:
         logger.info(f"DTMF pressed: {digit}")
         await session.channel.say(digit, lang="en", kind="NUMBER")

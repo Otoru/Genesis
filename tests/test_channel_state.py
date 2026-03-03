@@ -15,9 +15,9 @@ async def wait_for_state(client, channel, expected_state: ChannelState, timeout=
             if (
                 event.get("Unique-ID") == channel.uuid
                 and channel.state == expected_state
+                and not future.done()
             ):
-                if not future.done():
-                    future.set_result(True)
+                future.set_result(True)
         except Exception as e:
             if not future.done():
                 future.set_exception(e)

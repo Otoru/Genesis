@@ -28,7 +28,9 @@ def host():
 
 
 async def wait_for_span(
-    exporter: InMemorySpanExporter, span_name: str, timeout: float = 1.0
+    exporter: InMemorySpanExporter,
+    span_name: str,
+    timeout: float = 1.0,
 ) -> None:
     """Wait for a span to appear in the exporter using event-based polling."""
     start_time = asyncio.get_event_loop().time()
@@ -58,19 +60,18 @@ async def wait_for_span(
         try:
             await check_task
         except asyncio.CancelledError:
-            pass
+            raise
 
     spans = exporter.get_finished_spans()
     if not any(s.name == span_name for s in spans):
-        elapsed = asyncio.get_event_loop().time() - start_time
         raise TimeoutError(f"Span '{span_name}' not found within {timeout}s")
 
 
 async def test_inbound_connection_spans(freeswitch, memory_exporter):
     """Verify that connecting to FreeSWITCH generates an 'inbound_connect' span."""
     async with freeswitch:
-        async with Inbound(*freeswitch.address) as client:
-            pass
+        async with Inbound(*freeswitch.address) as _client:
+            pass  # connect only, span verified below
 
     await wait_for_span(memory_exporter, "inbound_connect", timeout=1.0)
 

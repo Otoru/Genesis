@@ -63,7 +63,7 @@ async def _setup_session(session: Session, server: "Outbound") -> None:
     if session.uuid:
 
         try:
-            session.channel = await Channel.from_session(session)
+            session.channel = Channel.from_session(session)
             logger.debug("Channel initialized for session: %s", session.channel.uuid)
         except Exception as e:
             logger.warning("Failed to initialize channel for session: %s", e)

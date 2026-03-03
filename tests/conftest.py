@@ -21,7 +21,7 @@ def heartbeat() -> str:
 
 @pytest.fixture
 def channel() -> Dict[str, str]:
-    events = dict()
+    events = {}
     events["create"] = payloads.channel_create
     return events
 

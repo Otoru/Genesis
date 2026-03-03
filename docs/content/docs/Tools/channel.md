@@ -144,7 +144,7 @@ app = Outbound(handler, "127.0.0.1", 5000)
 
 ## Handling DTMF Input
 
-The `onDTMF()` decorator allows you to handle DTMF (touch-tone) input from the caller. You can register handlers for specific digits or a wildcard handler for any digit.
+The `on_dtmf()` decorator allows you to handle DTMF (touch-tone) input from the caller. You can register handlers for specific digits or a wildcard handler for any digit.
 
 ### Basic Usage
 
@@ -155,12 +155,12 @@ async def handler(session: Session):
     await session.channel.answer()
     
     # Handle specific digit
-    @session.channel.onDTMF("1")
+    @session.channel.on_dtmf("1")
     async def on_one(digit: str) -> None:
         await session.channel.say("1", lang="en", kind="NUMBER")
     
     # Handle any digit (wildcard)
-    @session.channel.onDTMF()
+    @session.channel.on_dtmf()
     async def on_any_digit(digit: str) -> None:
         print(f"Received DTMF: {digit}")
         await session.channel.say(digit, lang="en", kind="NUMBER")
@@ -176,17 +176,17 @@ app = Outbound(handler, "127.0.0.1", 5000)
 You can register multiple handlers for different digits:
 
 ```python
-@session.channel.onDTMF("1")
+@session.channel.on_dtmf("1")
 async def handle_option_one(digit: str) -> None:
     await session.channel.playback("ivr/8000/ivr-option.wav")
     await session.channel.say("1", lang="en", kind="NUMBER")
 
-@session.channel.onDTMF("2")
+@session.channel.on_dtmf("2")
 async def handle_option_two(digit: str) -> None:
     await session.channel.playback("ivr/8000/ivr-option.wav")
     await session.channel.say("2", lang="en", kind="NUMBER")
 
-@session.channel.onDTMF("0")
+@session.channel.on_dtmf("0")
 async def handle_exit(digit: str) -> None:
     await session.channel.hangup()
 ```
@@ -196,13 +196,13 @@ async def handle_exit(digit: str) -> None:
 A handler without arguments will catch all DTMF digits that don't have a specific handler:
 
 ```python
-@session.channel.onDTMF()
+@session.channel.on_dtmf()
 async def handle_any_dtmf(digit: str) -> None:
     if digit not in ["1", "2", "3", "0"]:
         await session.channel.playback("ivr/8000/ivr-that_was_an_invalid_entry.wav")
 ```
 
-**Note:** Specific handlers (e.g., `onDTMF("1")`) take precedence over the wildcard handler.
+**Note:** Specific handlers (e.g., `on_dtmf("1")`) take precedence over the wildcard handler.
 
 ## Hanging Up
 

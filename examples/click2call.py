@@ -18,7 +18,13 @@ class Request(BaseModel):
     bridge: str
 
 
-@app.post("/")
+@app.post(
+    "/",
+    responses={
+        408: {"description": "Call timeout"},
+        500: {"description": "Internal error"},
+    },
+)
 async def click2call(request: Request):
     try:
         async with Inbound(FS_HOST, FS_PORT, FS_PASSWORD) as client:

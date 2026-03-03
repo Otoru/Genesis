@@ -25,7 +25,7 @@ def mock_metrics_server(monkeypatch):
     # Patch logger.info to use simple print to avoid rich formatting issues
     import genesis.cli
 
-    original_logger_info = genesis.cli.logger.info
+    _original_logger_info = genesis.cli.logger.info
 
     def simple_info(msg, *args, **kwargs):
         # Simple print without rich formatting

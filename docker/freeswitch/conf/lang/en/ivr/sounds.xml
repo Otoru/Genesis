@@ -43,7 +43,6 @@
     <input pattern="^1$" break_on_match="true">
       <match>
         <action function="sleep" data="500"/>
-        <!--<action function="play-file" data="ivr/ivr-there_is.wav"/>-->
         <action function="play-file" data="digits/1.wav"/>
         <action function="sleep" data="100"/>
         <action function="play-file" data="conference/conf-listener_in_conference.wav"/>
