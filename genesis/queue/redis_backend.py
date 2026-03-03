@@ -105,8 +105,6 @@ class RedisBackend:
                 if msg.get("type") == "message":
                     return
                 await asyncio.sleep(0)
-        except asyncio.CancelledError:
-            raise
         finally:
             await sub.unsubscribe(channel)
             await sub.close()
@@ -149,7 +147,7 @@ class RedisBackend:
                 if deadline is not None and time.monotonic() >= deadline:
                     await client.lrem(waiting_key, 1, item_id)
                     raise QueueTimeoutError()
-                pass
+                # retry loop
 
     async def release(self, queue_id: str) -> None:
         """Release one slot for the queue."""

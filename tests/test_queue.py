@@ -47,7 +47,7 @@ async def test_in_memory_backend_fifo_order():
     try:
         await t1
     except asyncio.CancelledError:
-        pass
+        raise
 
 
 @pytest.mark.asyncio
@@ -168,16 +168,14 @@ async def test_queue_slot_timeout_raises_and_removes_from_queue():
                 pass
             pytest.fail("expected QueueTimeoutError")
         except QueueTimeoutError:
-            pass
+            pass  # expected
 
     t_holder = asyncio.create_task(holder())
     t_waiter = asyncio.create_task(waiter())
     await asyncio.wait_for(t_waiter, timeout=2.0)
     t_holder.cancel()
-    try:
+    with pytest.raises(asyncio.CancelledError):
         await t_holder
-    except asyncio.CancelledError:
-        pass
 
 
 @pytest.mark.asyncio

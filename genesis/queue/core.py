@@ -30,6 +30,9 @@ queue_wait_duration = meter.create_histogram(
     unit="s",
 )
 
+ATTR_QUEUE_ID = "queue.id"
+ATTR_QUEUE_ITEM_ID = "queue.item_id"
+
 
 class QueueSlot:
     """
@@ -73,8 +76,8 @@ class QueueSlot:
         with tracer.start_as_current_span(
             "queue.wait_and_acquire",
             attributes={
-                "queue.id": self._queue_id,
-                "queue.item_id": self._item_id,
+                ATTR_QUEUE_ID: self._queue_id,
+                ATTR_QUEUE_ITEM_ID: self._item_id,
             },
         ):
             await self._queue._backend.wait_and_acquire(
@@ -85,9 +88,9 @@ class QueueSlot:
             )
         self._acquired = True
         elapsed = time.monotonic() - start
-        queue_wait_duration.record(elapsed, attributes={"queue.id": self._queue_id})
+        queue_wait_duration.record(elapsed, attributes={ATTR_QUEUE_ID: self._queue_id})
         queue_operations_counter.add(
-            1, attributes={"queue.id": self._queue_id, "op": "acquire"}
+            1, attributes={ATTR_QUEUE_ID: self._queue_id, "op": "acquire"}
         )
         return self
 
@@ -96,7 +99,7 @@ class QueueSlot:
             self._released = True
             await self._queue._release(self._queue_id)
             queue_operations_counter.add(
-                1, attributes={"queue.id": self._queue_id, "op": "release"}
+                1, attributes={ATTR_QUEUE_ID: self._queue_id, "op": "release"}
             )
 
 

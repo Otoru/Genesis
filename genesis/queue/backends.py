@@ -84,6 +84,57 @@ class InMemoryBackend:
             state.deque.append(item_id)
             state.condition.notify_all()
 
+    async def _wait_until_at_head(
+        self,
+        state: _QueueState,
+        item_id: str,
+        deadline: Optional[float],
+    ) -> None:
+        """Wait until item_id is at head of deque; on timeout remove item and raise."""
+        while True:
+            if state.deque and state.deque[0] == item_id:
+                state.deque.popleft()
+                state.condition.notify_all()
+                return
+            remaining = None
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    try:
+                        state.deque.remove(item_id)
+                    except ValueError:
+                        pass
+                    state.condition.notify_all()
+                    raise QueueTimeoutError()
+            try:
+                if remaining is not None:
+                    await asyncio.wait_for(state.condition.wait(), timeout=remaining)
+                else:
+                    await state.condition.wait()
+            except asyncio.TimeoutError:
+                try:
+                    state.deque.remove(item_id)
+                except ValueError:
+                    pass
+                state.condition.notify_all()
+                raise QueueTimeoutError()
+
+    async def _acquire_semaphore(
+        self, state: _QueueState, deadline: Optional[float]
+    ) -> None:
+        """Acquire one semaphore slot; raise QueueTimeoutError if deadline exceeded."""
+        assert state.semaphore is not None  # set in wait_and_acquire before calling
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise QueueTimeoutError()
+            try:
+                await asyncio.wait_for(state.semaphore.acquire(), timeout=remaining)
+            except asyncio.TimeoutError:
+                raise QueueTimeoutError()
+        else:
+            await state.semaphore.acquire()
+
     async def wait_and_acquire(
         self,
         queue_id: str,
@@ -101,45 +152,8 @@ class InMemoryBackend:
             state.semaphore = asyncio.Semaphore(max_concurrent)
         deadline = time.monotonic() + timeout if timeout is not None else None
         async with state.lock:
-            while True:
-                if state.deque and state.deque[0] == item_id:
-                    state.deque.popleft()
-                    state.condition.notify_all()
-                    break
-                remaining = None
-                if deadline is not None:
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        try:
-                            state.deque.remove(item_id)
-                        except ValueError:
-                            pass
-                        state.condition.notify_all()
-                        raise QueueTimeoutError()
-                try:
-                    if remaining is not None:
-                        await asyncio.wait_for(
-                            state.condition.wait(), timeout=remaining
-                        )
-                    else:
-                        await state.condition.wait()
-                except asyncio.TimeoutError:
-                    try:
-                        state.deque.remove(item_id)
-                    except ValueError:
-                        pass
-                    state.condition.notify_all()
-                    raise QueueTimeoutError()
-        if deadline is not None:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise QueueTimeoutError()
-            try:
-                await asyncio.wait_for(state.semaphore.acquire(), timeout=remaining)
-            except asyncio.TimeoutError:
-                raise QueueTimeoutError()
-        else:
-            await state.semaphore.acquire()
+            await self._wait_until_at_head(state, item_id, deadline)
+        await self._acquire_semaphore(state, deadline)
 
     async def release(self, queue_id: str) -> None:
         """Release one slot for the queue."""
