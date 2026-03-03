@@ -34,10 +34,7 @@ def mock_metrics_server(monkeypatch):
     monkeypatch.setattr(genesis.cli.logger, "info", simple_info)
     monkeypatch.setattr(genesis.cli.logger, "warning", lambda *args, **kwargs: None)
 
-    # We still keep the patch to avoid actual network binding if possible,
-    # but the env var ensures if it DOES bind, it won't conflict.
-    with patch("genesis.cli.start_http_server"):
-        yield
+    yield
 
 
 runner = CliRunner()

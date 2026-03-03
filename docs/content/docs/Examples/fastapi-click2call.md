@@ -64,20 +64,20 @@ The example uses a **per-request connection**, opening a new connection to FreeS
 
 {{% steps %}}
 
-### 1. Clone the Repository
+### Clone the Repository
 
 ```bash
 git clone https://github.com/Otoru/Genesis.git
 cd Genesis
 ```
 
-### 2. Install Dependencies
+### Install Dependencies
 
 ```bash
 poetry install --with examples
 ```
 
-### 3. Configure FreeSWITCH Connection
+### Configure FreeSWITCH Connection
 
 Set environment variables for your FreeSWITCH connection:
 
@@ -87,7 +87,7 @@ export FS_PORT=8021
 export FS_PASSWORD=ClueCon
 ```
 
-### 4. Run the Server
+### Run the Server
 
 ```bash
 uvicorn examples.click2call:app --reload
@@ -95,7 +95,7 @@ uvicorn examples.click2call:app --reload
 
 The API will be available at `http://localhost:8000`.
 
-### 5. Test the Endpoint
+### Test the Endpoint
 
 ```bash
 curl -X POST "http://localhost:8000/" \

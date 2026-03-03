@@ -171,7 +171,6 @@ class RedisLoadBalancer:
     Redis-based load balancer backend.
 
     Tracks call counts in Redis. Suitable for horizontal scaling.
-    The redis package is automatically installed when needed.
 
     Args:
         url: Redis connection URL (default: "redis://localhost:6379")

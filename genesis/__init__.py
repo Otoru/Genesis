@@ -6,12 +6,22 @@ from .session import Session
 from .protocol.parser import ESLEvent
 from .inbound import Inbound
 from .channel import Channel
+from .exceptions import QueueTimeoutError
 from .group import (
     RingGroup,
     RingMode,
     InMemoryLoadBalancer,
     RedisLoadBalancer,
 )
+from .queue import (
+    Queue,
+    QueueBackend,
+    QueueSemaphore,
+    QueueSlot,
+    InMemoryBackend,
+    RedisBackend,
+)
+from .loop import use_uvloop
 
 __all__ = [
     "Inbound",
@@ -25,5 +35,13 @@ __all__ = [
     "RingMode",
     "InMemoryLoadBalancer",
     "RedisLoadBalancer",
+    "Queue",
+    "QueueBackend",
+    "QueueSemaphore",
+    "QueueSlot",
+    "QueueTimeoutError",
+    "InMemoryBackend",
+    "RedisBackend",
+    "use_uvloop",
 ]
 __version__ = importlib.metadata.version("genesis")

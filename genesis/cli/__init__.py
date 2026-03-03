@@ -11,15 +11,24 @@ from typing import Annotated, Union
 
 import typer
 from rich import print
-from opentelemetry import metrics
+from opentelemetry import metrics, trace
 from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.prometheus import PrometheusMetricReader
-from prometheus_client import start_http_server
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
 from genesis.cli.consumer import consumer
 from genesis.cli.outbound import outbound
 from genesis.observability import reconfigure_logger, logger
+from genesis.observability.otel_config import (
+    create_resource,
+    get_otel_exporter_otlp_metrics_endpoint,
+    get_otel_exporter_otlp_traces_endpoint,
+    is_otel_sdk_disabled,
+)
 
 
 app = typer.Typer(rich_markup_mode="rich")
@@ -49,14 +58,26 @@ def callback(
     reconfigure_logger(json)
 
     try:
-        # Setup OpenTelemetry
-        metric_reader = PrometheusMetricReader()
-        provider = MeterProvider(
-            resource=Resource.create({"service.name": "genesis"}),
-            metric_readers=[metric_reader],
-        )
-        metrics.set_meter_provider(provider)
-
+        # Setup OpenTelemetry (honors OTEL_SDK_DISABLED, OTEL_* env vars)
+        if not is_otel_sdk_disabled():
+            resource = create_resource()
+            metric_readers: list = [PrometheusMetricReader()]
+            if get_otel_exporter_otlp_metrics_endpoint():
+                metric_readers.append(
+                    PeriodicExportingMetricReader(
+                        OTLPMetricExporter(),
+                        export_interval_millis=60_000,
+                    )
+                )
+            metrics.set_meter_provider(
+                MeterProvider(resource=resource, metric_readers=metric_readers)
+            )
+            if get_otel_exporter_otlp_traces_endpoint():
+                tracer_provider = TracerProvider(resource=resource)
+                tracer_provider.add_span_processor(
+                    BatchSpanProcessor(OTLPSpanExporter())
+                )
+                trace.set_tracer_provider(tracer_provider)
     except Exception as e:
         logger.warning(f"Failed to setup OpenTelemetry: {e}")
 
