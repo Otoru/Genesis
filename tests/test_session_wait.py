@@ -73,7 +73,7 @@ async def test_wait_dtmf_timeout(host, port, dialplan):
 
 @mark.asyncio
 async def test_wait_with_on_dtmf_handler(host, port, dialplan):
-    """Test wait() works correctly with onDTMF() handlers."""
+    """Test wait() works correctly with on_dtmf() handlers."""
     handler_called = asyncio.Event()
     wait_completed = asyncio.Event()
     handler_started = asyncio.Event()
@@ -83,7 +83,7 @@ async def test_wait_with_on_dtmf_handler(host, port, dialplan):
     async def handler(session: Session) -> None:
         nonlocal received_digit, received_event
 
-        @session.channel.onDTMF("1")
+        @session.channel.on_dtmf("1")
         async def on_digit_one(digit: str):
             nonlocal received_digit
             received_digit = digit
@@ -123,7 +123,7 @@ async def test_wait_with_on_dtmf_handler(host, port, dialplan):
 
 @mark.asyncio
 async def test_wait_multiple_handlers(host, port, dialplan):
-    """Test wait() with multiple onDTMF handlers."""
+    """Test wait() with multiple on_dtmf handlers."""
     handler1_called = asyncio.Event()
     handler2_called = asyncio.Event()
     wait_completed = asyncio.Event()
@@ -133,11 +133,11 @@ async def test_wait_multiple_handlers(host, port, dialplan):
     async def handler(session: Session) -> None:
         nonlocal received_event
 
-        @session.channel.onDTMF("1")
+        @session.channel.on_dtmf("1")
         async def option1(digit: str):
             handler1_called.set()
 
-        @session.channel.onDTMF("2")
+        @session.channel.on_dtmf("2")
         async def option2(digit: str):
             handler2_called.set()
 

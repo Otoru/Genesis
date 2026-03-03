@@ -23,7 +23,7 @@ async def _run_with_reload(app: Consumer, path: Path) -> None:
     queue: asyncio.Queue = asyncio.Queue()
 
     observability.set_app_type(AppType.CONSUMER)
-    task = loop.create_task(observability.start())
+    _observability_task = loop.create_task(observability.start())
 
     async def consume(queue: asyncio.Queue) -> None:
         await app.start()
@@ -49,7 +49,7 @@ async def _run_with_reload(app: Consumer, path: Path) -> None:
 
 async def _run_production(app: Consumer) -> None:
     observability.set_app_type(AppType.CONSUMER)
-    asyncio.create_task(observability.start())
+    _observability_task = asyncio.create_task(observability.start())
     await app.start()
 
 
@@ -109,7 +109,8 @@ def dev(
     password: Annotated[
         str,
         typer.Option(
-            help="The password to authenticate on host.", envvar="ESL_PASSWORD"
+            help="The password to authenticate on host (default: FreeSWITCH dev).",
+            envvar="ESL_PASSWORD",
         ),
     ] = "ClueCon",
     app: Annotated[
@@ -170,7 +171,8 @@ def run(
     password: Annotated[
         str,
         typer.Option(
-            help="The password to authenticate on host.", envvar="ESL_PASSWORD"
+            help="The password to authenticate on host (default: FreeSWITCH dev).",
+            envvar="ESL_PASSWORD",
         ),
     ] = "ClueCon",
     app: Annotated[

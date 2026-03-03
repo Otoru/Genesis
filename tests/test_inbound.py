@@ -26,7 +26,7 @@ async def test_send_command_without_connection():
 async def test_connect_without_freeswitch(port):
     with pytest.raises((ConnectionRefusedError, OSError)):
         async with Inbound("0.0.0.0", port(), "ClueCon"):
-            pass
+            pass  # expect connection to fail
 
 
 async def test_connect_timeout_with_freesswitch(freeswitch):
@@ -34,14 +34,14 @@ async def test_connect_timeout_with_freesswitch(freeswitch):
         async with Inbound(
             freeswitch.host, freeswitch.port, freeswitch.password, timeout=0
         ):
-            pass
+            pass  # expect timeout
 
 
 async def test_inbound_client_with_invalid_password(freeswitch):
     async with freeswitch:
         with pytest.raises(AuthenticationError):
             async with Inbound(freeswitch.host, freeswitch.port, "invalid"):
-                pass
+                pass  # expect auth failure
 
 
 async def test_inbound_client_send_command(freeswitch):
@@ -79,7 +79,7 @@ async def test_event_handler_on_inbound_client(freeswitch, heartbeat):
         async with Inbound(*freeswitch.address) as client:
             semaphore = asyncio.Event()
 
-            async def effect(*args, **kwargs):
+            def effect(*args, **kwargs):
                 semaphore.set()
 
             handler = AsyncMock(side_effect=effect)
@@ -97,7 +97,7 @@ async def test_custom_event_handler_on_inbound_client(freeswitch, register):
         async with Inbound(*freeswitch.address) as client:
             semaphore = asyncio.Event()
 
-            async def effect(*args, **kwargs):
+            def effect(*args, **kwargs):
                 semaphore.set()
 
             handler = AsyncMock(side_effect=effect)

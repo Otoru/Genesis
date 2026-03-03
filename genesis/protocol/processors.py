@@ -6,18 +6,18 @@ Processors run for each event before routing. Use them to add protocol-level
 behavior (auth, command reply, disconnect) or to plug in use-case adapters.
 """
 
-from typing import TYPE_CHECKING, List, Callable, Awaitable
+from typing import TYPE_CHECKING, List, Callable, Awaitable, Union
 
 from genesis.protocol.parser import ESLEvent
 
 if TYPE_CHECKING:
     from genesis.protocol.base import Protocol
 
-# Type for a processor: (protocol, event) -> None (async)
-EventProcessor = Callable[["Protocol", ESLEvent], Awaitable[None]]
+# Type for a processor: sync or async (protocol, event) -> None
+EventProcessor = Callable[["Protocol", ESLEvent], Union[None, Awaitable[None]]]
 
 
-async def auth_request_processor(protocol: "Protocol", event: ESLEvent) -> None:
+def auth_request_processor(protocol: "Protocol", event: ESLEvent) -> None:
     """Signal that auth/request was received (e.g. for Inbound authenticate())."""
     if event.get("Content-Type") == "auth/request":
         protocol.authentication_event.set()
@@ -40,12 +40,10 @@ async def disconnect_processor(protocol: "Protocol", event: ESLEvent) -> None:
     if event.get("Content-Type") in [
         "text/rude-rejection",
         "text/disconnect-notice",
-    ]:
-        if not (
-            "Content-Disposition" in event
-            and event.get("Content-Disposition") == "linger"
-        ):
-            await protocol.stop()
+    ] and not (
+        "Content-Disposition" in event and event.get("Content-Disposition") == "linger"
+    ):
+        await protocol.stop()
 
 
 def default_processors() -> List[EventProcessor]:
