@@ -7,14 +7,14 @@ from genesis import Outbound, Session
 
 @mark.asyncio
 async def test_on_dtmf_specific_digit(host, port, dialplan):
-    """Test onDTMF decorator with specific digit filter."""
+    """Test on_dtmf decorator with specific digit filter."""
     received = asyncio.Event()
     handler_started = asyncio.Event()
     test_complete = asyncio.Event()
     captured_digits = []
 
     async def handler(session: Session) -> None:
-        @session.channel.onDTMF("1")
+        @session.channel.on_dtmf("1")
         async def on_digit(digit: str):
             captured_digits.append(digit)
             received.set()
@@ -71,14 +71,14 @@ async def test_on_dtmf_specific_digit(host, port, dialplan):
 
 @mark.asyncio
 async def test_on_dtmf_wildcard(host, port, dialplan):
-    """Test onDTMF decorator without arguments (wildcard)."""
+    """Test on_dtmf decorator without arguments (wildcard)."""
     received = asyncio.Event()
     handler_started = asyncio.Event()
     test_complete = asyncio.Event()
     captured_digits = []
 
     async def handler(session: Session) -> None:
-        @session.channel.onDTMF()
+        @session.channel.on_dtmf()
         async def on_any_digit(digit: str):
             captured_digits.append(digit)
             received.set()
@@ -118,7 +118,7 @@ async def test_on_dtmf_wildcard(host, port, dialplan):
 
 @mark.asyncio
 async def test_on_dtmf_multiple_handlers(host, port, dialplan):
-    """Test multiple onDTMF decorators on the same session."""
+    """Test multiple on_dtmf decorators on the same session."""
     event_1 = asyncio.Event()
     event_2 = asyncio.Event()
     handler_started = asyncio.Event()
@@ -126,12 +126,12 @@ async def test_on_dtmf_multiple_handlers(host, port, dialplan):
     results = {"1": 0, "2": 0}
 
     async def handler(session: Session) -> None:
-        @session.channel.onDTMF("1")
+        @session.channel.on_dtmf("1")
         async def on_digit_one(digit: str):
             results["1"] += 1
             event_1.set()
 
-        @session.channel.onDTMF("2")
+        @session.channel.on_dtmf("2")
         async def on_digit_two(digit: str):
             results["2"] += 1
             event_2.set()

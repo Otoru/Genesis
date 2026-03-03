@@ -1,5 +1,5 @@
 # Multi-stage build: download sounds in an image with wget
-FROM alpine:latest AS downloader
+FROM alpine:3.19.2 AS downloader
 RUN apk add --no-cache wget
 RUN mkdir -p /sounds && \
     cd /sounds && \
@@ -16,7 +16,7 @@ RUN mkdir -p /sounds && \
         rm -rf /sounds-extracted/digits/8000; \
     fi
 
-FROM safarov/freeswitch
+FROM safarov/freeswitch:1.10.11
 
 # Install termcap for interactive CLI support
 # Try both apt-get (Debian/Ubuntu) and apk (Alpine)

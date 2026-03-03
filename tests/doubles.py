@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from uuid import uuid4
+import asyncio
+import secrets
 import socket
 import string
-import asyncio
+from uuid import uuid4
 from abc import ABC, abstractmethod
 from asyncio import (
     Future,
@@ -16,11 +17,13 @@ from asyncio import (
 from asyncio.base_events import Server
 from contextlib import closing
 from copy import copy
-from functools import partial
-from random import choices
 from typing import Awaitable, Callable, Dict, List, Optional, Union
 
 from genesis.protocol.parser import parse_headers
+
+# ESL reply headers (S1192: avoid duplicated literals)
+CONTENT_TYPE_COMMAND_REPLY = "Content-Type: command/reply"
+REPLY_TEXT_OK = "Reply-Text: +OK"
 
 
 def get_free_tcp_port() -> int:
@@ -32,8 +35,7 @@ def get_free_tcp_port() -> int:
 
 def get_random_password(length: int) -> str:
     options = string.ascii_letters + string.digits + string.punctuation
-    result = "".join(choices(options, k=length))
-    return result
+    return "".join(secrets.choice(options) for _ in range(length))
 
 
 class ESLMixin(ABC):
@@ -114,13 +116,13 @@ class Freeswitch(ESLMixin):
         self.port = port
         self.password = password
         self.is_running = False
-        self.commands = dict()
-        self.events: List[str] = list()
-        self.received_commands: List[str] = list()
-        self.filters: List[tuple[str, str]] = list()
-        self.calls: Dict[str, str] = dict()
-        self.hangups: List[tuple[str, str]] = list()
-        self.bridges: List[tuple[str, str]] = list()
+        self.commands = {}
+        self.events = []
+        self.received_commands = []
+        self.filters = []
+        self.calls = {}
+        self.hangups = []
+        self.bridges = []
         self.server: Optional[Server] = None
         self.processor: Optional[Future] = None
         self._stop_lock = asyncio.Lock()
@@ -144,7 +146,7 @@ class Freeswitch(ESLMixin):
                 key, value = line.split(": ", 1)
                 event_dict[key] = value
 
-        for writer in self.writers:
+        for writer in list(self.writers):
             if not writer.is_closing():
                 # Check if event matches any filter
                 if self.filters:
@@ -208,10 +210,7 @@ class Freeswitch(ESLMixin):
                     except (Exception, asyncio.CancelledError):
                         pass
 
-            # 3. Wait for server to fully close
-            if self.server:
-                pass
-
+            # 3. Wait for server to fully close (no extra wait needed)
             # 4. Close all connection writers
             for writer in list(self.writers):
                 if not writer.is_closing():
@@ -229,9 +228,7 @@ class Freeswitch(ESLMixin):
         await self.stop()
 
     async def command(self, writer: StreamWriter, command: str) -> None:
-        await self.send(
-            writer, ["Content-Type: command/reply", f"Reply-Text: {command}"]
-        )
+        await self.send(writer, [CONTENT_TYPE_COMMAND_REPLY, f"Reply-Text: {command}"])
 
     async def api(self, writer: StreamWriter, content: str) -> None:
         length = len(content)
@@ -265,8 +262,7 @@ class Freeswitch(ESLMixin):
             await writer.wait_closed()
 
     async def process(self, writer: StreamWriter, request: str) -> None:
-        # Use genesis parser to parse the request headers
-        parsed = parse_headers(request)
+        parse_headers(request)  # validate request format
         payload = copy(request)
 
         # Store received command for verification
@@ -412,7 +408,7 @@ class Freeswitch(ESLMixin):
 class Dialplan(ESLMixin):
     def __init__(self) -> None:
         super().__init__()
-        self.commands = dict()
+        self.commands = {}
         self.is_running = False
         self.worker: Optional[Future] = None
         self.reader: Optional[StreamReader] = None
@@ -455,7 +451,7 @@ class Dialplan(ESLMixin):
                     headers[key] = value
 
             # Send +OK reply
-            await self.send(writer, ["Content-Type: command/reply", "Reply-Text: +OK"])
+            await self.send(writer, [CONTENT_TYPE_COMMAND_REPLY, REPLY_TEXT_OK])
 
             # If it's an execute command with Event-UUID, store it for potential completion
             # Events are sent explicitly via broadcast() method, not automatically
@@ -469,11 +465,11 @@ class Dialplan(ESLMixin):
             return
 
         if payload.startswith("filter"):
-            await self.send(writer, ["Content-Type: command/reply", "Reply-Text: +OK"])
+            await self.send(writer, [CONTENT_TYPE_COMMAND_REPLY, REPLY_TEXT_OK])
             return
 
         if payload.startswith("event"):
-            await self.send(writer, ["Content-Type: command/reply", "Reply-Text: +OK"])
+            await self.send(writer, [CONTENT_TYPE_COMMAND_REPLY, REPLY_TEXT_OK])
             return
 
         if payload in self.commands:
@@ -504,7 +500,6 @@ class Dialplan(ESLMixin):
             self.client_connected.set()
             await self.handler(self, reader, writer, dial=True)
 
-        handler = partial(self.handler, self, dial=True)  # Kept for reference if needed
         self.reader, self.writer = await open_connection(host, port)
         # Fix: the previous attempt defined _handler but didn't use it correctly with ensure_future
         # The _handler needs the reader/writer from open_connection

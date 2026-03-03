@@ -89,7 +89,7 @@ The session remains active until the call ends.
 
 ## Advanced Example
 
-Building an IVR with `onDTMF()` and `wait()`:
+Building an IVR with `on_dtmf()` and `wait()`:
 
 ```python
 import asyncio
@@ -100,19 +100,19 @@ async def handler(session):
     await session.channel.answer()
     
     # Register handlers for each menu option
-    @session.channel.onDTMF("1")
+    @session.channel.on_dtmf("1")
     async def option1(dtmf: str):
         await session.channel.playback('ivr/ivr-option-1')
     
-    @session.channel.onDTMF("2")
+    @session.channel.on_dtmf("2")
     async def option2(dtmf: str):
         await session.channel.playback('ivr/ivr-option-2')
     
-    @session.channel.onDTMF("3")
+    @session.channel.on_dtmf("3")
     async def option3(dtmf: str):
         await session.channel.playback('ivr/ivr-option-3')
     
-    @session.channel.onDTMF("4")
+    @session.channel.on_dtmf("4")
     async def option4(dtmf: str):
         await session.channel.playback('ivr/ivr-option-4')
     

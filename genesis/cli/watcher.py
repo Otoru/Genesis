@@ -23,7 +23,7 @@ class EventHandler(FileSystemEventHandler):
     ):
         self._loop = loop
         self._queue = queue
-        super(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def on_any_event(self, event: FileSystemEvent) -> None:
         if fnmatch.fnmatch(event.src_path, "*.py"):

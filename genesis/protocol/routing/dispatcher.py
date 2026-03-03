@@ -12,15 +12,16 @@ from genesis.protocol.parser import ESLEvent
 from genesis.types import EventHandler
 
 
-async def dispatch_to_handlers(handlers: List[EventHandler], event: ESLEvent) -> None:
-    """Dispatch event to all handlers asynchronously.
+def dispatch_to_handlers(handlers: List[EventHandler], event: ESLEvent) -> None:
+    """Dispatch event to all handlers asynchronously (fire-and-forget tasks).
 
     Args:
         handlers: List of event handlers
         event: The ESL event to dispatch
     """
+    _tasks: list = []
     for handler in handlers:
         if iscoroutinefunction(handler):
-            create_task(handler(event))
+            _tasks.append(create_task(handler(event)))
         else:
-            create_task(to_thread(handler, event))
+            _tasks.append(create_task(to_thread(handler, event)))

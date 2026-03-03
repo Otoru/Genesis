@@ -69,7 +69,7 @@ class Session(Protocol):
 
     def __init__(self, reader: StreamReader, writer: StreamWriter) -> None:
         super().__init__()
-        self.context: Dict[str, str] = dict()
+        self.context: Dict[str, str] = {}
         self.reader = reader
         self.writer = writer
         self.fifo: Queue[ESLEvent] = Queue()
@@ -88,7 +88,7 @@ class Session(Protocol):
         """Interface used to implement a context manager."""
         await self.stop()
 
-    async def _awaitable_complete_command(
+    def _awaitable_complete_command(
         self, event_uuid: str, timeout: Optional[float] = None
     ) -> Event:
         """
@@ -109,31 +109,31 @@ class Session(Protocol):
             []
         )  # (channel_uuid?, key, handler)
 
+        def cleanup() -> None:
+            for channel_uid, key, handler in registrations:
+                if channel_uid is None:
+                    self.remove(key, handler)
+                else:
+                    self.unregister_channel_handler(channel_uid, key, handler)
+
         async def execute_complete_handler(session: Session, event: ESLEvent) -> None:
             logger.debug("Received channel execute complete event: %s", event)
             if event.get("Application-UUID") == event_uuid:
                 await session.fifo.put(event)
                 semaphore.set()
-                await cleanup()
+                cleanup()
 
         async def hangup_complete_handler(session: Session, event: ESLEvent) -> None:
             logger.debug("Received hangup event: %s", event)
             if session.context.get("Channel-Unique-ID") == event.get("Unique-ID"):
                 await session.fifo.put(event)
                 semaphore.set()
-                await cleanup()
+                cleanup()
 
         handlers = {
             "CHANNEL_EXECUTE_COMPLETE": execute_complete_handler,
             "CHANNEL_HANGUP_COMPLETE": hangup_complete_handler,
         }
-
-        async def cleanup() -> None:
-            for channel_uid, key, handler in registrations:
-                if channel_uid is None:
-                    self.remove(key, handler)
-                else:
-                    self.unregister_channel_handler(channel_uid, key, handler)
 
         channel_uuid = self.uuid
         for key, handler_fn in handlers.items():
@@ -200,7 +200,7 @@ class Session(Protocol):
                 "Waiting for command completion with Application-UUID: %s",
                 resolved_event_uuid,
             )
-            command_is_complete = await self._awaitable_complete_command(
+            command_is_complete = self._awaitable_complete_command(
                 resolved_event_uuid, timeout
             )
             response = await self.send(cmd)

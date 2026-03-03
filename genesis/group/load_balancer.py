@@ -7,21 +7,18 @@ Load balancing backends for ring groups.
 
 from __future__ import annotations
 
-import subprocess
+import asyncio
 import sys
-from typing import TYPE_CHECKING, Protocol, List, Optional, Any, Awaitable
+from typing import Protocol, List, Optional, Any, Awaitable
 from abc import ABC, abstractmethod
 
-if TYPE_CHECKING:
-    try:
-        import redis.asyncio as redis
-    except ImportError:
-        redis = None
-else:
-    try:
-        import redis.asyncio as redis
-    except ImportError:
-        redis = None
+redis: Optional[Any] = None
+try:
+    import redis.asyncio as _redis_module
+
+    redis = _redis_module
+except ImportError:
+    redis = None
 
 
 async def _create_redis_client(url: str = "redis://localhost:6379") -> Any:
@@ -45,14 +42,23 @@ async def _create_redis_client(url: str = "redis://localhost:6379") -> Any:
     except ImportError:
         # Try to install redis automatically
         try:
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", "redis>=5.0.0"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "redis>=5.0.0",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
             )
-            # Re-import after installation
+            await proc.wait()
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    "Redis package is required for RedisLoadBalancer. "
+                    "Install it with: pip install redis"
+                )
             import redis.asyncio as redis_module
-        except (subprocess.CalledProcessError, ImportError):
+        except (OSError, ImportError):
             raise RuntimeError(
                 "Redis package is required for RedisLoadBalancer. "
                 "Install it with: pip install redis"
@@ -202,7 +208,7 @@ class RedisLoadBalancer:
         key = self._key(destination)
         try:
             await redis_client.incr(key)
-        except Exception as e:
+        except Exception:
             # Reset connection to retry on next call
             self._redis = None
             raise
@@ -216,7 +222,7 @@ class RedisLoadBalancer:
             # Clean up if count reaches zero
             if count <= 0:
                 await redis_client.delete(key)
-        except Exception as e:
+        except Exception:
             # Reset connection to retry on next call
             self._redis = None
             raise
@@ -247,7 +253,7 @@ class RedisLoadBalancer:
                     return dest
 
             return None
-        except Exception as e:
+        except Exception:
             # Reset connection to retry on next call
             self._redis = None
             raise
@@ -259,7 +265,7 @@ class RedisLoadBalancer:
         try:
             value = await redis_client.get(key)
             return int(value) if value is not None else 0
-        except Exception as e:
+        except Exception:
             # Reset connection to retry on next call
             self._redis = None
             raise

@@ -6,6 +6,7 @@ Base Protocol class for ESL (Event Socket Layer) communication.
 Handles common functionality for inbound and outbound connections.
 """
 
+import asyncio
 from asyncio import (
     iscoroutinefunction,
     StreamWriter,
@@ -83,7 +84,7 @@ class Protocol(ABC):
         self.event_processors = default_processors()
 
     async def start(self) -> None:
-        """Initiates a connection to a freeswitch."""
+        """Initiates a connection to a freeswitch (starts producer/consumer tasks)."""
         self.is_connected = True
 
         logger.debug("Create tasks to work with ESL events.")
@@ -137,7 +138,7 @@ class Protocol(ABC):
                     self.is_connected = False
                     break
 
-                if buffer[-2:] == "\n\n" or buffer[-4:] == "\r\n\r\n":
+                if buffer.endswith("\n\n") or buffer.endswith("\r\n\r\n"):
                     request = buffer
                     logger.trace(f"Complete message received: {repr(request)}")
                     break
@@ -166,34 +167,30 @@ class Protocol(ABC):
         """Arm all event processors."""
         while self.is_connected:
             event = await self.events.get()
-
             try:
-                # Telemetry and logging
-                try:
-                    attributes = build_event_attributes(event)
-                    with tracer.start_as_current_span(
-                        "process_event", attributes=attributes
-                    ):
-                        record_event_metrics(event)
-                        log_event(event)
-                except Exception:
-                    # OTel not initialized - continue without tracing
-                    record_event_metrics(event)
-                    log_event(event)
-
-                # Run event processors (adapters) then route
-                for processor in self.event_processors:
-                    await processor(self, event)
-
-                # Route to event handlers using Strategy Pattern
-                handlers, _ = await self.routing_strategy.route(event)
-
-                if handlers:
-                    await dispatch_to_handlers(handlers, event)
-
+                await self._process_one_event(event)
             except Exception as outer_e:
                 logger.error(f"Error in consumer loop: {outer_e}", exc_info=True)
-                # Continue loop to avoid freezing connection
+
+    async def _process_one_event(self, event: ESLEvent) -> None:
+        """Run telemetry, processors, and dispatch for one event."""
+        try:
+            attributes = build_event_attributes(event)
+            with tracer.start_as_current_span("process_event", attributes=attributes):
+                record_event_metrics(event)
+                log_event(event)
+        except Exception:
+            record_event_metrics(event)
+            log_event(event)
+
+        for processor in self.event_processors:
+            result = processor(self, event)
+            if asyncio.iscoroutine(result):
+                await result
+
+        handlers, _ = await self.routing_strategy.route(event)
+        if handlers:
+            dispatch_to_handlers(handlers, event)
 
     def on(
         self,
@@ -202,7 +199,7 @@ class Protocol(ABC):
     ) -> None:
         """Associate a handler with an event key."""
         logger.debug(f"Register handler to '{key}' event.")
-        self.handlers.setdefault(key, list()).append(handler)
+        self.handlers.setdefault(key, []).append(handler)
 
     def remove(
         self,
@@ -275,6 +272,17 @@ class Protocol(ABC):
             # OTel not initialized - run without tracing
             return await self._execute_send(cmd, command_name, start_time, None)
 
+    def _record_command_error(self, command_name: str, error: str) -> None:
+        """Record command error metric (best-effort)."""
+        if not command_name:
+            return
+        try:
+            command_errors_counter.add(
+                1, attributes={"command": command_name, "error": error}
+            )
+        except Exception:
+            pass
+
     async def _execute_send(
         self,
         cmd: str,
@@ -298,14 +306,8 @@ class Protocol(ABC):
             result = await self.commands.get()
 
             reply = result.get("Reply-Text", "")
-            if reply.startswith("-ERR") and command_name:
-                try:
-                    command_errors_counter.add(
-                        1,
-                        attributes={"command": command_name, "error": "protocol_error"},
-                    )
-                except Exception:
-                    pass
+            if reply.startswith("-ERR"):
+                self._record_command_error(command_name, "protocol_error")
 
             if span is not None:
                 reply_text = result.get("Reply-Text")
@@ -314,14 +316,7 @@ class Protocol(ABC):
 
             return result
         except Exception as e:
-            if command_name:
-                try:
-                    command_errors_counter.add(
-                        1,
-                        attributes={"command": command_name, "error": type(e).__name__},
-                    )
-                except Exception:
-                    pass
+            self._record_command_error(command_name, type(e).__name__)
             raise
         finally:
             if command_name:

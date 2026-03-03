@@ -52,7 +52,7 @@ async def wait_for_state_event_processed(
     """Wait for a CHANNEL_STATE event to be processed using event-based waiting."""
     event_processed = asyncio.Event()
 
-    async def state_handler(event):
+    def state_handler(event):
         if (
             event.get("Unique-ID") == channel_uuid
             and event.get("Channel-State") == state
@@ -298,17 +298,15 @@ async def test_ring_group_balancing_shared_destination(freeswitch):
 
             created_channels2 = await wait_for_channels(freeswitch, 2)
 
-            all_channels = list(freeswitch.calls.keys())
-            new_channels = [ch for ch in all_channels if ch not in created_channels1]
+            new_channels = [
+                ch for ch in created_channels2 if ch not in created_channels1
+            ]
             assert len(new_channels) == 1
 
             dest2 = freeswitch.calls[new_channels[0]]
             assert await lb.get_count(dest2) == 1
 
-            if dest1 == "user/1002":
-                assert await lb.get_count("user/1002") == 1
-            else:
-                assert await lb.get_count("user/1002") == 1
+            assert await lb.get_count("user/1002") == 1
 
             second_channel_uuid = new_channels[0]
             await send_state_and_answer_events(freeswitch, client, second_channel_uuid)
