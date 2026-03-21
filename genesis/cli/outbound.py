@@ -16,7 +16,6 @@ from genesis.cli.discover import get_import_string
 from genesis.types import WatcherProtocol
 from genesis.observability import observability, AppType
 
-
 outbound = typer.Typer(rich_markup_mode="rich")
 
 

@@ -30,7 +30,6 @@ from genesis.observability.otel_config import (
     is_otel_sdk_disabled,
 )
 
-
 app = typer.Typer(rich_markup_mode="rich")
 app.add_typer(consumer, name="consumer", short_help="Run you ESL events consumer.")
 app.add_typer(outbound, name="outbound", short_help="Run you outbound services.")

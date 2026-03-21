@@ -1,6 +1,5 @@
 from textwrap import dedent
 
-
 mod_audio_stream_play = dedent(
     """\
     Event-Subclass: mod_audio_stream::play
@@ -195,8 +194,7 @@ mod_audio_stream_play = dedent(
 )
 
 
-heartbeat = dedent(
-    """\
+heartbeat = dedent("""\
         Event-Name: HEARTBEAT
         Core-UUID: cb2d5146-9a99-11e4-9291-092b1a87b375
         FreeSWITCH-Hostname: evoluxdev
@@ -222,12 +220,10 @@ heartbeat = dedent(
         Session-Since-Startup: 34
         Session-Peak-Max: 4
         Session-Peak-FiveMin: 0
-        Idle-CPU: 98.700000"""
-)
+        Idle-CPU: 98.700000""")
 
 
-channel_create = dedent(
-    """\
+channel_create = dedent("""\
     Event-Name: CHANNEL_CREATE
     Core-UUID: ed56dab6-a6fc-11e4-960f-6f83a2e5e50a
     FreeSWITCH-Hostname: evoluxdev
@@ -378,12 +374,10 @@ channel_create = dedent(
     a=fmtp:101 0-15
     a=rtcp:4017 IN IP4 192.0.2.2
 
-    variable_endpoint_disposition: DELAYED NEGOTIATION"""
-)
+    variable_endpoint_disposition: DELAYED NEGOTIATION""")
 
 
-background_job = dedent(
-    """\
+background_job = dedent("""\
     Content-Length: 579
     Content-Type: text/event-plain
 
@@ -403,12 +397,10 @@ background_job = dedent(
     Event-Calling-Line-Number: 609
     Content-Length: 40
     
-    +OK 7f4de4bc-17d7-11dd-b7a0-db4edd065621"""
-)
+    +OK 7f4de4bc-17d7-11dd-b7a0-db4edd065621""")
 
 
-custom = dedent(
-    """\
+custom = dedent("""\
     Event-Name: RELOADXML
     Core-UUID: 6c6def18-9562-de11-a8e0-001fc6ab49e2
     FreeSWITCH-Hostname: localhost.localdomain
@@ -423,12 +415,10 @@ custom = dedent(
     Content-Length: 41
     Content-Length: 42
     Content-Length: 43
-    """
-)
+    """)
 
 
-register = dedent(
-    """\
+register = dedent("""\
     Event-Subclass: sofia::register
     Event-Name: CUSTOM
     Core-UUID: 662db344-5ecc-4eaa-9002-9992b7ab7c4d
@@ -456,12 +446,10 @@ register = dedent(
     network-port: 5060
     username: 1000
     realm: dev-cs2.fusedsolutions.com
-    user-agent: SIPPER%20for%20PhonerLite"""
-)
+    user-agent: SIPPER%20for%20PhonerLite""")
 
 
-connect = dedent(
-    """\
+connect = dedent("""\
     Channel-Username: 1001
     Channel-Dialplan: XML
     Channel-Caller-ID-Name: 1001
@@ -562,42 +550,33 @@ connect = dedent(
     variable_endpoint_disposition: EARLY%20MEDIA
     Content-Type: command/reply
     Socket-Mode: async
-    Control: full"""
-)
+    Control: full""")
 
 
-generic = dedent(
-    """\
+generic = dedent("""\
     Content-Type: command/reply
     Reply-Text: Reply generic command
-    """
-)
+    """)
 
 
-channel_state = dedent(
-    """\
+channel_state = dedent("""\
     Event-Name: CHANNEL_STATE
     Unique-ID: {unique_id}
     Channel-State: {state}
     variable_test_key: {variable_test_key}
     Content-Type: text/event-plain
     Content-Length: 0
-    """
-)
+    """)
 
 
-dtmf = dedent(
-    """\
+dtmf = dedent("""\
     Event-Name: DTMF
     DTMF-Digit: {digit}
     Unique-ID: {unique_id}
-    """
-)
+    """)
 
 
-channel_answer = dedent(
-    """\
+channel_answer = dedent("""\
     Event-Name: CHANNEL_ANSWER
     Unique-ID: {unique_id}
-    """
-)
+    """)

@@ -8,7 +8,6 @@ Load balancing backends for ring groups.
 from __future__ import annotations
 
 import asyncio
-import sys
 from typing import Protocol, List, Optional, Any, Awaitable
 from abc import ABC, abstractmethod
 
@@ -23,7 +22,7 @@ except ImportError:
 
 async def _create_redis_client(url: str = "redis://localhost:6379") -> Any:
     """
-    Create a Redis async client, installing redis package if needed.
+    Create a Redis async client.
 
     Internal helper function.
 
@@ -34,35 +33,15 @@ async def _create_redis_client(url: str = "redis://localhost:6379") -> Any:
         Redis async client instance
 
     Raises:
-        RuntimeError: If redis package cannot be installed or imported
+        ImportError: If redis package is not installed
     """
-    # Import here to handle optional dependency
     try:
         import redis.asyncio as redis_module
     except ImportError:
-        # Try to install redis automatically
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                "redis>=5.0.0",
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await proc.wait()
-            if proc.returncode != 0:
-                raise RuntimeError(
-                    "Redis package is required for RedisLoadBalancer. "
-                    "Install it with: pip install redis"
-                )
-            import redis.asyncio as redis_module
-        except (OSError, ImportError):
-            raise RuntimeError(
-                "Redis package is required for RedisLoadBalancer. "
-                "Install it with: pip install redis"
-            )
+        raise ImportError(
+            "The redis package is required for RedisLoadBalancer. "
+            "Install it with: pip install genesis[redis]"
+        )
 
     return await redis_module.from_url(url)
 
@@ -171,6 +150,7 @@ class RedisLoadBalancer:
     Redis-based load balancer backend.
 
     Tracks call counts in Redis. Suitable for horizontal scaling.
+    Requires the redis extra: pip install genesis[redis]
 
     Args:
         url: Redis connection URL (default: "redis://localhost:6379")
