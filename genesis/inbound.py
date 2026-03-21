@@ -94,18 +94,13 @@ class Inbound(Protocol):
     async def start(self) -> None:
         """Initiates an authenticated connection to a freeswitch server."""
         try:
-            try:
-                with tracer.start_as_current_span(
-                    "inbound_connect",
-                    attributes={
-                        "net.peer.name": self.host,
-                        "net.peer.port": self.port,
-                    },
-                ):
-                    await self._connect()
-            except Exception as e:
-                if "tracer" not in str(e).lower():
-                    raise
+            with tracer.start_as_current_span(
+                "inbound_connect",
+                attributes={
+                    "net.peer.name": self.host,
+                    "net.peer.port": self.port,
+                },
+            ):
                 await self._connect()
         except TimeoutError:
             logger.debug("A timeout occurred when trying to connect to the freeswitch.")

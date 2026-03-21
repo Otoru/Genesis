@@ -72,6 +72,7 @@ class Protocol(ABC):
         self.writer: Optional[StreamWriter] = None
         self.handlers: Dict[str, List[EventHandler]] = {}
         self.channel_registry: Dict[str, List[EventHandler]] = {}
+        self.handler_tasks: set[Task[Any]] = set()
 
         # Initialize routing strategy (Strategy Pattern)
         self.routing_strategy = CompositeRoutingStrategy(
@@ -100,6 +101,9 @@ class Protocol(ABC):
         self.is_connected = False
         await self._cancel_task(self.producer, "event producer")
         await self._cancel_task(self.consumer, "event consumer")
+        for task in list(self.handler_tasks):
+            await self._cancel_task(task, "handler task")
+        self.handler_tasks.clear()
 
     async def _cancel_task(
         self, task: Optional[Task[Any]], label: str = "task"
@@ -190,7 +194,7 @@ class Protocol(ABC):
 
         handlers, _ = await self.routing_strategy.route(event)
         if handlers:
-            dispatch_to_handlers(handlers, event)
+            dispatch_to_handlers(handlers, event, self.handler_tasks)
 
     def on(
         self,
