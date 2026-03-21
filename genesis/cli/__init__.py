@@ -54,6 +54,13 @@ def callback(
         typer.Option("--json", help="Output logs in JSON format."),
     ] = False,
 ) -> None:
+    """
+    Genesis - [blue]FreeSWITCH Event Socket protocol[/blue] implementation with [bold]asyncio[/bold].
+
+    Run yours freeswitch apps without any external dependencies.
+
+    ℹ️ Read more in the docs: [link]https://otoru.github.io/Genesis/[/link].
+    """
     reconfigure_logger(json)
 
     try:
@@ -79,11 +86,3 @@ def callback(
                 trace.set_tracer_provider(tracer_provider)
     except Exception as e:
         logger.warning(f"Failed to setup OpenTelemetry: {e}")
-
-    """
-    Genesis - [blue]FreeSWITCH Event Socket protocol[/blue] implementation with [bold]asyncio[/bold].
-
-    Run yours freeswitch apps without any external dependencies.
-
-    ℹ️ Read more in the docs: [link]https://otoru.github.io/Genesis/[/link].
-    """

@@ -1,10 +1,12 @@
 """Tests for genesis queue (slot, semaphore, backends)."""
 
 import asyncio
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from genesis.queue import InMemoryBackend, Queue, QueueSemaphore, QueueTimeoutError
+from genesis.queue.redis_backend import RedisBackend
 
 
 @pytest.mark.asyncio
@@ -227,3 +229,120 @@ async def test_queue_default_in_memory_backend():
     t = asyncio.create_task(use_slot())
     await asyncio.wait_for(entered.wait(), timeout=2.0)
     await asyncio.wait_for(t, timeout=2.0)
+
+
+@pytest.mark.asyncio
+async def test_in_memory_backend_max_concurrent_mismatch_raises():
+    """Backend: different max_concurrent for the same queue_id raises ValueError."""
+    backend = InMemoryBackend()
+    await backend.enqueue("q1", "item1")
+    await backend.wait_and_acquire("q1", "item1", max_concurrent=2)
+    await backend.release("q1")
+
+    await backend.enqueue("q1", "item2")
+    with pytest.raises(ValueError, match="max_concurrent"):
+        await backend.wait_and_acquire("q1", "item2", max_concurrent=5)
+
+
+# ---------------------------------------------------------------------------
+# RedisBackend (mock-based)
+# ---------------------------------------------------------------------------
+
+
+def _make_redis_mock(script_result: int = 1) -> MagicMock:
+    """Return a mock redis client where the Lua script returns script_result."""
+    mock_script = AsyncMock(return_value=script_result)
+    client = AsyncMock()
+    client.register_script = MagicMock(return_value=mock_script)
+    return client
+
+
+@pytest.mark.asyncio
+async def test_redis_backend_enqueue():
+    """RedisBackend.enqueue pushes to the correct Redis key."""
+    client = _make_redis_mock()
+    backend = RedisBackend()
+    backend._client = client
+
+    await backend.enqueue("q1", "item1")
+    client.rpush.assert_called_once_with("genesis:queue:q1:waiting", "item1")
+
+
+@pytest.mark.asyncio
+async def test_redis_backend_wait_and_acquire_success():
+    """RedisBackend: acquire succeeds immediately when Lua script returns 1."""
+    client = _make_redis_mock(script_result=1)
+    backend = RedisBackend()
+    backend._client = client
+
+    await backend.wait_and_acquire("q1", "item1", max_concurrent=1)
+    client.register_script.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_redis_backend_release():
+    """RedisBackend.release decrements counter and publishes to release channel."""
+    client = _make_redis_mock()
+    backend = RedisBackend()
+    backend._client = client
+
+    await backend.release("q1")
+    client.decr.assert_called_once_with("genesis:queue:q1:in_use")
+    client.publish.assert_called_once_with("genesis:queue:q1:release", "1")
+
+
+@pytest.mark.asyncio
+async def test_redis_backend_wait_and_acquire_timeout():
+    """RedisBackend: raises QueueTimeoutError when deadline passes without acquiring."""
+    client = _make_redis_mock(script_result=0)  # never acquires
+
+    # pubsub() is synchronous; listen() must hang so wait_for can time it out
+    async def _never_yields():
+        await asyncio.Future()
+        yield  # pragma: no cover
+
+    pubsub = MagicMock()
+    pubsub.subscribe = AsyncMock()
+    pubsub.unsubscribe = AsyncMock()
+    pubsub.close = AsyncMock()
+    pubsub.listen = _never_yields
+    client.pubsub = MagicMock(return_value=pubsub)
+
+    backend = RedisBackend()
+    backend._client = client
+
+    with pytest.raises(QueueTimeoutError):
+        await backend.wait_and_acquire("q1", "item1", max_concurrent=1, timeout=0.1)
+
+
+@pytest.mark.asyncio
+async def test_redis_backend_close():
+    """RedisBackend.close() calls aclose on the client and clears the reference."""
+    client = AsyncMock()
+    backend = RedisBackend()
+    backend._client = client
+
+    await backend.close()
+    client.aclose.assert_called_once()
+    assert backend._client is None
+
+
+@pytest.mark.asyncio
+async def test_redis_backend_close_when_no_client():
+    """RedisBackend.close() is a no-op when no client exists."""
+    backend = RedisBackend()
+    await backend.close()  # must not raise
+
+
+@pytest.mark.asyncio
+async def test_redis_backend_context_manager():
+    """RedisBackend used as async context manager closes on exit."""
+    client = AsyncMock()
+    backend = RedisBackend()
+    backend._client = client
+
+    async with backend:
+        pass
+
+    client.aclose.assert_called_once()
+    assert backend._client is None

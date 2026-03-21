@@ -18,13 +18,14 @@ from genesis.exceptions import QueueTimeoutError
 class _QueueState:
     """Per-queue state: FIFO deque, lock, condition; semaphore created on first acquire."""
 
-    __slots__ = ("deque", "lock", "condition", "semaphore")
+    __slots__ = ("deque", "lock", "condition", "semaphore", "max_concurrent")
 
     def __init__(self) -> None:
         self.deque: deque[str] = deque()
         self.lock = asyncio.Lock()
         self.condition = asyncio.Condition(self.lock)
         self.semaphore: asyncio.Semaphore | None = None
+        self.max_concurrent: int | None = None
 
 
 @runtime_checkable
@@ -153,10 +154,16 @@ class InMemoryBackend:
         If timeout (seconds) expires, remove item from queue and raise QueueTimeoutError.
         """
         state = self._get_or_create_state(queue_id)
-        if state.semaphore is None:
-            state.semaphore = asyncio.Semaphore(max_concurrent)
         deadline = time.monotonic() + timeout if timeout is not None else None
         async with state.lock:
+            if state.semaphore is None:
+                state.semaphore = asyncio.Semaphore(max_concurrent)
+                state.max_concurrent = max_concurrent
+            elif state.max_concurrent != max_concurrent:
+                raise ValueError(
+                    f"Queue '{queue_id}' was initialized with max_concurrent={state.max_concurrent}, "
+                    f"got {max_concurrent}."
+                )
             await self._wait_until_at_head(state, item_id, deadline)
         await self._acquire_semaphore(state, deadline)
 

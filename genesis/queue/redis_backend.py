@@ -14,7 +14,6 @@ from typing import Any, Optional
 import redis.asyncio as redis
 
 from genesis.exceptions import QueueTimeoutError
-from genesis.queue.backends import QueueBackend
 
 # Lua: try to acquire if we're at head and slots available. Keys: waiting_list, in_use_key. Args: item_id, max_concurrent.
 SCRIPT_ACQUIRE = """
@@ -105,6 +104,8 @@ class RedisBackend:
                 if msg.get("type") == "message":
                     return
                 await asyncio.sleep(0)
+        except asyncio.CancelledError:
+            raise
         finally:
             await sub.unsubscribe(channel)
             await sub.close()
@@ -156,3 +157,15 @@ class RedisBackend:
         channel = self._channel(queue_id)
         await client.decr(in_use_key)
         await client.publish(channel, "1")
+
+    async def close(self) -> None:
+        """Close the Redis connection."""
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
+    async def __aenter__(self) -> "RedisBackend":
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        await self.close()
