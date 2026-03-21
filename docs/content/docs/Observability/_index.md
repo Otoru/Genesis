@@ -12,4 +12,5 @@ Genesis ships with **OpenTelemetry** for tracing, logging, and metrics. You get 
   {{< card link="logging/" title="Logging" icon="terminal" subtitle="Structured logs with trace correlation and optional JSON output." >}}
   {{< card link="server/" title="Server" icon="server" subtitle="Health, readiness, and metrics over HTTP." >}}
   {{< card link="metrics/" title="Metrics" icon="chart-bar" subtitle="Counters and histograms for commands, events, channels, and ring groups." >}}
+  {{< card link="otel-config/" title="OTEL configuration" icon="cog" subtitle="Configure OpenTelemetry via OTEL_SDK_DISABLED, OTEL_SERVICE_NAME, and OTEL_RESOURCE_ATTRIBUTES." >}}
 {{< /cards >}}

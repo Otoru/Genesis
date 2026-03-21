@@ -24,6 +24,8 @@ Install Genesis using `pip`:
 pip install genesis
 ```
 
+For better asyncio performance on Unix (Linux and macOS), use the optional uvloop extra: `pip install genesis[uvloop]`. See the [Installation Guide](https://otoru.github.io/Genesis/docs/installation/) for details.
+
 ## Quickstart
 
 ### Inbound Socket Mode
