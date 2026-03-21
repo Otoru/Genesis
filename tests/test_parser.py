@@ -38,8 +38,7 @@ def test_parse_heartbeat_event(heartbeat):
 def test_parse_channel_create_event_with_multiline_field(channel):
     headers = parse_headers(channel["create"])
     got = headers["variable_switch_r_sdp"]
-    expected = dedent(
-        """\
+    expected = dedent("""\
             v=0
             o=- 3631463817 3631463817 IN IP4 192.0.2.2
             s=pjmedia
@@ -60,8 +59,7 @@ def test_parse_channel_create_event_with_multiline_field(channel):
             a=rtpmap:9 G722/8000
             a=rtpmap:101 telephone-event/8000
             a=fmtp:101 0-15
-            a=rtcp:4017 IN IP4 192.0.2.2"""
-    )
+            a=rtcp:4017 IN IP4 192.0.2.2""")
 
     assert got == expected, "Event parsing did not happen as expected"
 

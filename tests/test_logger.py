@@ -22,7 +22,6 @@ from genesis.observability.logger import (
     TRACE_LEVEL_NUM,
 )
 
-
 log_level_cases = [
     {"env_value": None, "expected": logging.INFO, "description": "default"},
     {"env_value": "TRACE", "expected": TRACE_LEVEL_NUM, "description": "trace"},

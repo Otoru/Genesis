@@ -54,8 +54,7 @@ async def test_inbound_client_send_command(freeswitch):
 
 
 async def test_send_api_command_with_large_reponse(freeswitch):
-    status = dedent(
-        """\
+    status = dedent("""\
         UP 0 years, 80 days, 8 hours, 25 minutes, 5 seconds, 869 milliseconds, 87 microseconds
         FreeSWITCH (Version 1.10.3-release git e52b1a8 2020-09-09 12:16:24Z 64bit) is ready
         "7653 session(s) since startup
@@ -63,8 +62,7 @@ async def test_send_api_command_with_large_reponse(freeswitch):
         0 session(s) per Sec out of max 30, peak 14, last 5min 0
         1000 session(s) max
         min idle cpu 0.00/99.00
-        Current Stack Size/Max 240K/8192K"""
-    )
+        Current Stack Size/Max 240K/8192K""")
     async with freeswitch as server:
         server.oncommand("api status", status)
         async with Inbound(*freeswitch.address) as client:
