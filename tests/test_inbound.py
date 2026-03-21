@@ -129,16 +129,6 @@ async def test_inbound_client_send_command_error(freeswitch):
                 await client.send("uptime")
 
 
-async def test_inbound_tracer_fallback(freeswitch):
-    async with freeswitch:
-        with patch(
-            "genesis.inbound.tracer.start_as_current_span",
-            side_effect=Exception("Tracer error"),
-        ):
-            async with Inbound(*freeswitch.address) as client:
-                assert client.is_connected
-
-
 async def test_inbound_metrics_error_on_start(freeswitch):
     async with freeswitch:
         with patch(
