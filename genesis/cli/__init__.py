@@ -21,7 +21,6 @@ from genesis.cli.consumer import consumer
 from genesis.cli.outbound import outbound
 from genesis.observability import reconfigure_logger, logger
 
-
 app = typer.Typer(rich_markup_mode="rich")
 app.add_typer(consumer, name="consumer", short_help="Run you ESL events consumer.")
 app.add_typer(outbound, name="outbound", short_help="Run you outbound services.")

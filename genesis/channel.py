@@ -771,7 +771,7 @@ class Channel:
         """
 
         def decorator(
-            func: Callable[[str], Awaitable[None]]
+            func: Callable[[str], Awaitable[None]],
         ) -> Callable[[str], Awaitable[None]]:
             async def dtmf_handler(event: ESLEvent) -> None:
                 dtmf_digit = event.get("DTMF-Digit")
