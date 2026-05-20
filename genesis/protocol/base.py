@@ -118,6 +118,45 @@ class Protocol(ABC):
         except (Exception, CancelledError):
             pass
 
+    async def _read_header_block(self) -> Optional[str]:
+        """Read lines from self.reader until a complete header block is received.
+
+        Accumulates lines into a buffer until the block ends with ``\\n\\n`` or
+        ``\\r\\n\\r\\n``.  Sets ``self.is_connected = False`` on EOF or any I/O
+        error and returns ``None`` in those cases.
+        """
+        buffer = ""
+        while self.is_connected:
+            try:
+                content = await self.reader.readline()  # type: ignore[union-attr]
+                if not content:
+                    self.is_connected = False
+                    return None
+                buffer += content.decode("utf-8")
+            except Exception as e:
+                logger.error(f"Error reading from stream. {str(e)}")
+                self.is_connected = False
+                return None
+
+            if buffer.endswith("\n\n") or buffer.endswith("\r\n\r\n"):
+                logger.trace(f"Complete message received: {repr(buffer)}")
+                return buffer
+
+        return None
+
+    async def _read_body_bytes(self, content_length: int) -> Optional[bytes]:
+        """Read exactly *content_length* bytes from self.reader.
+
+        Sets ``self.is_connected = False`` on any I/O error and returns ``None``
+        in that case.
+        """
+        try:
+            return await self.reader.readexactly(content_length)  # type: ignore[union-attr]
+        except Exception as e:
+            logger.error(f"Error reading body: {str(e)}")
+            self.is_connected = False
+            return None
+
     async def handler(self) -> None:
         """Defines intelligence to treat received events (state machine driven)."""
         if self.reader is None:
@@ -127,25 +166,7 @@ class Protocol(ABC):
 
         while self.is_connected:
             # State: READING_HEADERS — accumulate until end of header block
-            request: Optional[str] = None
-            buffer = ""
-
-            while self.is_connected:
-                try:
-                    content = await self.reader.readline()
-                    if not content:
-                        self.is_connected = False
-                        break
-                    buffer += content.decode("utf-8")
-                except Exception as e:
-                    logger.error(f"Error reading from stream. {str(e)}")
-                    self.is_connected = False
-                    break
-
-                if buffer.endswith("\n\n") or buffer.endswith("\r\n\r\n"):
-                    request = buffer
-                    logger.trace(f"Complete message received: {repr(request)}")
-                    break
+            request = await self._read_header_block()
 
             if not request or not self.is_connected:
                 break
@@ -157,11 +178,8 @@ class Protocol(ABC):
 
             if content_length > 0:
                 logger.trace(f"Total content length: {content_length} bytes")
-                try:
-                    data = await self.reader.readexactly(content_length)
-                except Exception as e:
-                    logger.error(f"Error reading body: {str(e)}")
-                    self.is_connected = False
+                data = await self._read_body_bytes(content_length)
+                if data is None:
                     break
                 body_events = fsm.process_body(data)
                 for ev in body_events:

@@ -103,13 +103,9 @@ class InMemoryLoadBalancer:
         if not destinations:
             return None
 
-        # Get counts for all destinations
         counts = {dest: self._counts.get(dest, 0) for dest in destinations}
-
-        # Find minimum count
         min_count = min(counts.values())
 
-        # Return first destination with minimum count
         for dest in destinations:
             if counts[dest] == min_count:
                 return dest

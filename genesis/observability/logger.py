@@ -59,18 +59,16 @@ class CorrelationIdFilter(logging.Filter):
     def filter(self, record):
         try:
             span = trace.get_current_span()
-            if span == trace.INVALID_SPAN:
-                return True
+            if span != trace.INVALID_SPAN:
+                ctx = span.get_span_context()
+                trace_id = trace.format_trace_id(ctx.trace_id)
+                span_id = trace.format_span_id(ctx.span_id)
 
-            ctx = span.get_span_context()
-            trace_id = trace.format_trace_id(ctx.trace_id)
-            span_id = trace.format_span_id(ctx.span_id)
+                record.otelTraceID = trace_id
+                record.otelSpanID = span_id
 
-            record.otelTraceID = trace_id
-            record.otelSpanID = span_id
-
-            if isinstance(record.msg, str):
-                record.msg = f"{record.msg} (trace_id={trace_id} span_id={span_id})"
+                if isinstance(record.msg, str):
+                    record.msg = f"{record.msg} (trace_id={trace_id} span_id={span_id})"
         except Exception:
             pass
 

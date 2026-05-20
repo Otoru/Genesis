@@ -68,6 +68,7 @@ venv.bak/
 .ropeproject
 /site
 .mypy_cache/
+.scannerwork/
 .dmypy.json
 dmypy.json
 .pyre/

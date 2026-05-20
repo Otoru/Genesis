@@ -1,6 +1,5 @@
 import sys
 import importlib
-from typing import Union
 from pathlib import Path
 
 from genesis.observability import logger
@@ -8,7 +7,7 @@ from genesis.cli.exceptions import CLIExcpetion
 
 
 def get_app_name(
-    cls: type, module_import_str: str, app_name: Union[str, None] = None
+    cls: type, module_import_str: str, app_name: str | None = None
 ) -> str:
     """Get the app name from the module."""
     try:
@@ -44,7 +43,7 @@ def get_app_name(
 
 
 def get_import_string(
-    cls: type, path: Union[Path, None] = None, app_name: Union[str, None] = None
+    cls: type, path: Path | None = None, app_name: str | None = None
 ) -> str:
     """Get the import string for the given module path."""
     if not path:

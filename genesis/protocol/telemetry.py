@@ -85,6 +85,37 @@ def record_event_metrics(event: ESLEvent) -> None:
         pass
 
 
+def _log_channel_event(event: ESLEvent, name: str, uuid: str) -> None:
+    logger.debug(f"Received an event: '{name}' for call '{uuid}'. ")
+    if name == "CHANNEL_EXECUTE_COMPLETE":
+        application = event.get("Application")
+        response = event.get("Application-Response")
+        logger.debug(f"Application: '{application}' - Response: '{response}'.")
+
+
+def _log_command_reply(event: ESLEvent) -> None:
+    if "Content-Type" not in event:
+        return
+    if event["Content-Type"] not in ["command/reply", "auth/request"]:
+        return
+    reply = event.get("Reply-Text", None)
+    if reply and event["Content-Type"] == "command/reply":
+        logger.debug(f"Received an command reply: '{reply}'.")
+    if reply and event["Content-Type"] == "auth/request":
+        logger.debug(f"Received an authentication reply: '{event}'.")
+
+
+def _log_event_debug(event: ESLEvent) -> None:
+    name = event.get("Event-Name", None)
+    uuid = event.get("Unique-ID", None)
+    if uuid:
+        _log_channel_event(event, name, uuid)
+    elif name:
+        logger.debug(f"Received an event: '{name}'.")
+    else:
+        _log_command_reply(event)
+
+
 def log_event(event: ESLEvent) -> None:
     """Log an ESL event with appropriate detail level.
 
@@ -95,34 +126,7 @@ def log_event(event: ESLEvent) -> None:
         if logger.isEnabledFor(TRACE_LEVEL_NUM):
             logger.trace(f"Received an event: '{event}'.")
             return
-
-        if not logger.isEnabledFor(logging.DEBUG):
-            return
-
-        name = event.get("Event-Name", None)
-        uuid = event.get("Unique-ID", None)
-
-        if uuid:
-            logger.debug(f"Received an event: '{name}' for call '{uuid}'. ")
-
-            if name == "CHANNEL_EXECUTE_COMPLETE":
-                application = event.get("Application")
-                response = event.get("Application-Response")
-                logger.debug(f"Application: '{application}' - Response: '{response}'.")
-        else:
-            if name:
-                logger.debug(f"Received an event: '{name}'.")
-            elif "Content-Type" in event and event["Content-Type"] in [
-                "command/reply",
-                "auth/request",
-            ]:
-                reply = event.get("Reply-Text", None)
-
-                if reply and event["Content-Type"] == "command/reply":
-                    logger.debug(f"Received an command reply: '{reply}'.")
-
-                if reply and event["Content-Type"] == "auth/request":
-                    logger.debug(f"Received an authentication reply: '{event}'.")
-
+        if logger.isEnabledFor(logging.DEBUG):
+            _log_event_debug(event)
     except Exception as e:
         logger.error(f"Error logging event: {str(e)} - Event: {event}")
