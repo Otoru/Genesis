@@ -108,7 +108,7 @@ def _log_command_reply(event: ESLEvent) -> None:
 def _log_event_debug(event: ESLEvent) -> None:
     name = event.get("Event-Name", None)
     uuid = event.get("Unique-ID", None)
-    if uuid:
+    if uuid and name:
         _log_channel_event(event, name, uuid)
     elif name:
         logger.debug(f"Received an event: '{name}'.")
