@@ -6,9 +6,7 @@ from genesis.observability import logger
 from genesis.cli.exceptions import CLIExcpetion
 
 
-def get_app_name(
-    cls: type, module_import_str: str, app_name: str | None = None
-) -> str:
+def get_app_name(cls: type, module_import_str: str, app_name: str | None = None) -> str:
     """Get the app name from the module."""
     try:
         mod = importlib.import_module(module_import_str)

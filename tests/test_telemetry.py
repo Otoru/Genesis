@@ -130,12 +130,14 @@ def test_log_channel_event_regular():
 
 
 def test_log_channel_event_execute_complete():
-    event = _make_event(**{
-        "Unique-ID": "uuid-2",
-        "Event-Name": "CHANNEL_EXECUTE_COMPLETE",
-        "Application": "playback",
-        "Application-Response": "200 OK",
-    })
+    event = _make_event(
+        **{
+            "Unique-ID": "uuid-2",
+            "Event-Name": "CHANNEL_EXECUTE_COMPLETE",
+            "Application": "playback",
+            "Application-Response": "200 OK",
+        }
+    )
     with patch("genesis.protocol.telemetry.logger") as mock_logger:
         mock_logger.isEnabledFor.return_value = True
         _log_channel_event(event, "CHANNEL_EXECUTE_COMPLETE", "uuid-2")
@@ -153,7 +155,9 @@ def test_log_command_reply_no_content_type():
 
 
 def test_log_command_reply_command_reply():
-    event = _make_event(**{"Content-Type": "command/reply", "Reply-Text": "+OK accepted"})
+    event = _make_event(
+        **{"Content-Type": "command/reply", "Reply-Text": "+OK accepted"}
+    )
     with patch("genesis.protocol.telemetry.logger") as mock_logger:
         _log_command_reply(event)
     mock_logger.debug.assert_called_once()
@@ -168,7 +172,9 @@ def test_log_command_reply_auth_request():
 
 
 def test_log_command_reply_irrelevant_content_type():
-    event = _make_event(**{"Content-Type": "text/event-plain", "Reply-Text": "something"})
+    event = _make_event(
+        **{"Content-Type": "text/event-plain", "Reply-Text": "something"}
+    )
     with patch("genesis.protocol.telemetry.logger") as mock_logger:
         _log_command_reply(event)
     mock_logger.debug.assert_not_called()

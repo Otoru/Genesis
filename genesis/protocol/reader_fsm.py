@@ -103,9 +103,13 @@ class ESLReaderFSM:
         content_type = self._content_type
 
         if content_type and content_type not in self._API_RESPONSE_TYPES:
-            events_out = self._parse_event_content(event, content_type, complete_content)
+            events_out = self._parse_event_content(
+                event, content_type, complete_content
+            )
         else:
-            events_out = self._parse_headeronly_content(event, content_type, complete_content)
+            events_out = self._parse_headeronly_content(
+                event, content_type, complete_content
+            )
 
         self._reset_to_headers()
         return events_out

@@ -91,9 +91,13 @@ class RingGroup:
         balancer: Optional[LoadBalancerBackend],
     ) -> Optional[Channel]:
         if mode == RingMode.PARALLEL:
-            return await RingGroup._ring_parallel(protocol, group, timeout, variables or {})
+            return await RingGroup._ring_parallel(
+                protocol, group, timeout, variables or {}
+            )
         elif mode == RingMode.SEQUENTIAL:
-            return await RingGroup._ring_sequential(protocol, group, timeout, variables or {})
+            return await RingGroup._ring_sequential(
+                protocol, group, timeout, variables or {}
+            )
         elif mode == RingMode.BALANCING:
             if not balancer:
                 raise ValueError("Load balancer is required for BALANCING mode")
