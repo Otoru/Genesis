@@ -40,38 +40,45 @@ class Observability:
 
         self._setup_routes()
 
+    def _health_check(self, response: Response) -> dict:
+        if self.app_type == AppType.CONSUMER:
+            if self.last_heartbeat and (time() - self.last_heartbeat < 30):
+                return {"status": "ok"}
+            response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+            return {"status": "unhealthy"}
+        # Outbound: server up means healthy
+        return {"status": "ok"}
+
+    def _ready_check(self, response: Response) -> dict:
+        is_ready = False
+
+        if self.app_type == AppType.CONSUMER:
+            # For Consumer, we check if we received a heartbeat recently (e.g., in the last 30s)
+            if self.last_heartbeat and (time() - self.last_heartbeat < 30):
+                is_ready = True
+        elif self.app_type == AppType.OUTBOUND:
+            # For Outbound, we check if the server is marked as ready (running)
+            is_ready = self.outbound_ready
+
+        if is_ready:
+            return {"status": "ready"}
+        else:
+            response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+            return {"status": "not ready"}
+
     def _setup_routes(self) -> None:
-        # Metrics endpoint
         metrics_app = make_asgi_app()
         self.app.mount("/metrics", metrics_app)
 
+        instance = self
+
         @self.app.get("/health")
         async def health(response: Response) -> dict:
-            if self.app_type == AppType.CONSUMER:
-                if self.last_heartbeat and (time() - self.last_heartbeat < 30):
-                    return {"status": "ok"}
-                response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-                return {"status": "unhealthy"}
-            # Outbound: server up means healthy
-            return {"status": "ok"}
+            return instance._health_check(response)
 
         @self.app.get("/ready")
         async def ready(response: Response) -> dict:
-            is_ready = False
-
-            if self.app_type == AppType.CONSUMER:
-                # For Consumer, we check if we received a heartbeat recently (e.g., in the last 30s)
-                if self.last_heartbeat and (time() - self.last_heartbeat < 30):
-                    is_ready = True
-            elif self.app_type == AppType.OUTBOUND:
-                # For Outbound, we check if the server is marked as ready (running)
-                is_ready = self.outbound_ready
-
-            if is_ready:
-                return {"status": "ready"}
-            else:
-                response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-                return {"status": "not ready"}
+            return instance._ready_check(response)
 
     def set_app_type(self, app_type: AppType) -> None:
         self.app_type = app_type

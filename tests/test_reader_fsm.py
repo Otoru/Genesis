@@ -107,3 +107,54 @@ def test_process_body_without_pending_raises():
     fsm = ESLReaderFSM()
     with pytest.raises(RuntimeError, match="without pending event"):
         fsm.process_body(b"x")
+
+
+def test_process_body_event_lock_multiple_events():
+    """event-lock body with multiple Event-Name headers produces multiple events."""
+    fsm = ESLReaderFSM()
+    body_content = (
+        "Event-Name: CHANNEL_STATE\n"
+        "Unique-ID: abc-123\n"
+        "Event-Lock: true\n"
+        "Event-Name: CHANNEL_ANSWER\n"
+        "Unique-ID: abc-123\n"
+        "\n"
+        "some body"
+    )
+    body_bytes = body_content.encode("utf-8")
+    block = f"Content-Type: text/event-plain\nContent-Length: {len(body_bytes)}\n\n"
+    fsm.process_headers(block)
+    events = fsm.process_body(body_bytes)
+    assert len(events) >= 2
+
+
+def test_process_body_event_lock_single_part():
+    """event-lock content with only one Event-Name header still returns one event."""
+    fsm = ESLReaderFSM()
+    body_content = "Event-Name: CHANNEL_STATE\nEvent-Lock: true\n\n"
+    body_bytes = body_content.encode("utf-8")
+    block = f"Content-Type: text/event-plain\nContent-Length: {len(body_bytes)}\n\n"
+    fsm.process_headers(block)
+    events = fsm.process_body(body_bytes)
+    assert len(events) == 1
+    assert events[0].get("Event-Name") == "CHANNEL_STATE"
+
+
+def test_assemble_events_multiple_parts_inherit_headers():
+    """Extra events from event-lock inherit Content-Type from the base event."""
+    fsm = ESLReaderFSM()
+    body_content = (
+        "Event-Name: CHANNEL_STATE\n"
+        "Unique-ID: id-1\n"
+        "Event-Lock: true\n"
+        "Event-Name: CHANNEL_EXECUTE\n"
+        "Unique-ID: id-1\n"
+        "\n"
+    )
+    body_bytes = body_content.encode("utf-8")
+    block = f"Content-Type: text/event-plain\nContent-Length: {len(body_bytes)}\n\n"
+    fsm.process_headers(block)
+    events = fsm.process_body(body_bytes)
+    assert len(events) >= 2
+    for event in events[1:]:
+        assert event.get("Content-Type") == "text/event-plain"

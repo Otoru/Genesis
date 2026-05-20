@@ -7,7 +7,7 @@ This module contains the CLI commands for Genesis.
 
 import importlib.metadata
 import os
-from typing import Annotated, Union
+from typing import Annotated
 
 import typer
 from rich import print
@@ -46,7 +46,7 @@ def version(show: bool) -> None:
 @app.callback()
 def callback(
     version: Annotated[
-        Union[bool, None],
+        bool | None,
         typer.Option("--version", help="Show the version and exit.", callback=version),
     ] = None,
     json: Annotated[

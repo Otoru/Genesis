@@ -266,6 +266,27 @@ class Channel:
         finally:
             self.protocol.remove(event_name, event_handler)
 
+    def _is_state_reached(
+        self,
+        target_state: ChannelState,
+        answer_received: Optional[Event],
+    ) -> bool:
+        if target_state != ChannelState.EXECUTE:
+            return True
+        return answer_received is not None and answer_received.is_set()
+
+    def _on_answer_received(
+        self,
+        event: ESLEvent,
+        answer_received: Optional[Event],
+        state_reached: Event,
+    ) -> None:
+        if event.get("Unique-ID") != self.uuid or not answer_received:
+            return
+        answer_received.set()
+        if self.state == ChannelState.EXECUTE:
+            state_reached.set()
+
     async def _wait_for_state(
         self,
         target_state: ChannelState,
@@ -284,24 +305,19 @@ class Channel:
             if not state_str:
                 return
             event_state = ChannelState.from_freeswitch(state_str)
-            if event_state == target_state or event_state >= ChannelState.HANGUP:
-                self._state = event_state
-                self.context.update(event)
-                state_event_received = event
-                if target_state != ChannelState.EXECUTE or (
-                    answer_received and answer_received.is_set()
-                ):
-                    state_reached.set()
+            if event_state != target_state and event_state < ChannelState.HANGUP:
+                return
+            self._state = event_state
+            self.context.update(event)
+            state_event_received = event
+            if self._is_state_reached(target_state, answer_received):
+                state_reached.set()
 
         def answer_handler(event: ESLEvent) -> None:
-            if event.get("Unique-ID") == self.uuid and answer_received:
-                answer_received.set()
-                if self.state == ChannelState.EXECUTE:
-                    state_reached.set()
+            self._on_answer_received(event, answer_received, state_reached)
 
         self.protocol.on("CHANNEL_STATE", state_handler)
-        if target_state == ChannelState.EXECUTE:
-            self.protocol.on("CHANNEL_ANSWER", answer_handler)
+        self.protocol.on("CHANNEL_ANSWER", answer_handler)
         try:
             await wait_for(state_reached.wait(), timeout=timeout)
             return state_event_received if self.state == target_state else None
@@ -311,8 +327,7 @@ class Channel:
             )
         finally:
             self.protocol.remove("CHANNEL_STATE", state_handler)
-            if target_state == ChannelState.EXECUTE:
-                self.protocol.remove("CHANNEL_ANSWER", answer_handler)
+            self.protocol.remove("CHANNEL_ANSWER", answer_handler)
 
     def _record_wait_success(
         self,
@@ -364,7 +379,7 @@ class Channel:
 
     async def wait(
         self,
-        target: Union[ChannelState, str],
+        target: ChannelState | str,
         timeout: float = 30.0,
     ) -> Optional[ESLEvent]:
         """
@@ -465,7 +480,7 @@ class Channel:
                 )
             return await self.protocol.send(cmd)
 
-    def _get_peer_uuid(self, other: Union["Channel", "Session"]) -> Optional[str]:
+    def _get_peer_uuid(self, other: Channel | Session) -> Optional[str]:
         """Extract UUID from a Channel or Session for bridge/peer operations."""
         if hasattr(other, "uuid") and other.uuid:
             return other.uuid
@@ -584,7 +599,7 @@ class Channel:
             extra_on_error=on_error,
         )
 
-    async def bridge(self, other: Union["Channel", "Session"]) -> ESLEvent:
+    async def bridge(self, other: Channel | Session) -> ESLEvent:
         """
         Bridges this channel with another channel or session.
 

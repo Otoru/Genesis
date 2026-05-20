@@ -1,4 +1,4 @@
-from typing import Annotated, Union
+from typing import Annotated
 from pathlib import Path
 import importlib
 import logging
@@ -59,7 +59,7 @@ def _run(
     host: str = "127.0.0.1",
     port: int = 8021,
     reload: bool = True,
-    app: Union[str, None] = None,
+    app: str | None = None,
     loglevel: str = "info",
     password: str = "ClueCon",
 ) -> None:
@@ -117,7 +117,7 @@ def dev(
         ),
     ] = "ClueCon",
     app: Annotated[
-        Union[str, None],
+        str | None,
         typer.Option(
             help="Variable that contains the [bold]Consumer[/bold] app in the imported module or package.",
             envvar="ESL_APP_NAME",
@@ -179,7 +179,7 @@ def run(
         ),
     ] = "ClueCon",
     app: Annotated[
-        Union[str, None],
+        str | None,
         typer.Option(
             help="Variable that contains the [bold]Consumer[/bold] app in the imported module or package.",
             envvar="ESL_APP_NAME",

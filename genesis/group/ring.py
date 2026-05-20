@@ -82,6 +82,32 @@ class RingGroup:
     """
 
     @staticmethod
+    async def _dispatch_ring_mode(
+        protocol: Protocol,
+        group: List[str],
+        mode: RingMode,
+        timeout: float,
+        variables: Optional[Dict[str, str]],
+        balancer: Optional[LoadBalancerBackend],
+    ) -> Optional[Channel]:
+        if mode == RingMode.PARALLEL:
+            return await RingGroup._ring_parallel(
+                protocol, group, timeout, variables or {}
+            )
+        elif mode == RingMode.SEQUENTIAL:
+            return await RingGroup._ring_sequential(
+                protocol, group, timeout, variables or {}
+            )
+        elif mode == RingMode.BALANCING:
+            if not balancer:
+                raise ValueError("Load balancer is required for BALANCING mode")
+            return await RingGroup._ring_balancing(
+                protocol, group, timeout, variables or {}, balancer
+            )
+        else:
+            raise ValueError(f"Unknown ring mode: {mode}")
+
+    @staticmethod
     async def ring(
         protocol: Protocol,
         group: List[str],
@@ -122,22 +148,9 @@ class RingGroup:
             },
         ) as span:
             try:
-                if mode == RingMode.PARALLEL:
-                    answered = await RingGroup._ring_parallel(
-                        protocol, group, timeout, variables or {}
-                    )
-                elif mode == RingMode.SEQUENTIAL:
-                    answered = await RingGroup._ring_sequential(
-                        protocol, group, timeout, variables or {}
-                    )
-                elif mode == RingMode.BALANCING:
-                    if not balancer:
-                        raise ValueError("Load balancer is required for BALANCING mode")
-                    answered = await RingGroup._ring_balancing(
-                        protocol, group, timeout, variables or {}, balancer
-                    )
-                else:
-                    raise ValueError(f"Unknown ring mode: {mode}")
+                answered = await RingGroup._dispatch_ring_mode(
+                    protocol, group, mode, timeout, variables, balancer
+                )
 
                 duration = time.time() - start_time
                 span.set_attribute(
@@ -238,13 +251,7 @@ class RingGroup:
             nonlocal answered
 
             # Cancel all pending tasks
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
-                    try:
-                        await task
-                    except (asyncio.CancelledError, TimeoutError):
-                        pass
+            await RingGroup._cancel_pending_tasks(tasks)
 
             # Hang up all channels that didn't answer
             await RingGroup._cleanup_unanswered(callees, answered)
@@ -274,12 +281,7 @@ class RingGroup:
                 return None
 
             # Cancel pending tasks and hang up channels that didn't answer
-            for task in pending:
-                task.cancel()
-                try:
-                    await task
-                except (asyncio.CancelledError, TimeoutError):
-                    pass
+            await RingGroup._cancel_pending_tasks(pending)
 
             # Hang up channels that didn't answer
             await RingGroup._cleanup_unanswered(callees, answered)
@@ -353,6 +355,16 @@ class RingGroup:
                 continue
 
         return None
+
+    @staticmethod
+    async def _cancel_pending_tasks(tasks) -> None:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, TimeoutError):
+                pass
 
     @staticmethod
     async def _cleanup_unanswered(

@@ -80,6 +80,10 @@ class ESLReaderFSM:
         self._state = ReaderState.READING_BODY
         return (events, length)
 
+    _API_RESPONSE_TYPES: frozenset = frozenset(
+        {"api/response", "text/rude-rejection", "log/data"}
+    )
+
     def process_body(self, raw_body: bytes) -> List[ESLEvent]:
         """
         Process body bytes after process_headers returned a content_length > 0.
@@ -98,56 +102,70 @@ class ESLReaderFSM:
         event = self._pending_event
         content_type = self._content_type
 
-        if content_type and content_type not in [
-            "api/response",
-            "text/rude-rejection",
-            "log/data",
-        ]:
-            if "\n\n" in complete_content:
-                headers_part, body = complete_content.split("\n\n", 1)
-                event_parts: List[str] = []
-
-                if "event-lock: true" in headers_part.lower():
-                    parts = headers_part.split("\nEvent-Name: ")
-                    if len(parts) > 1:
-                        event_parts = [parts[0]]
-                        for part in parts[1:]:
-                            event_parts.append(f"Event-Name: {part}")
-                        logger.debug(
-                            f"Split locked event into {len(event_parts)} separate events"
-                        )
-                else:
-                    event_parts = [headers_part]
-
-                events_out: List[ESLEvent] = []
-                body_value: Optional[str] = body if body else None
-                for idx, event_str in enumerate(event_parts):
-                    if idx == 0:
-                        additional = parse_headers(event_str)
-                        event.update(additional)
-                        event.body = body_value
-                        events_out.append(event)
-                    else:
-                        new_event = parse_headers(event_str)
-                        for key in ["Content-Length", "Content-Type"]:
-                            if key in event:
-                                new_event[key] = event[key]
-                        new_event.body = body_value
-                        events_out.append(new_event)
-                self._reset_to_headers()
-                return events_out
-            else:
-                if content_type == "text/event-plain":
-                    additional = parse_headers(complete_content)
-                    event.update(additional)
-                    event.body = None
-                else:
-                    event.body = complete_content if complete_content else None
+        if content_type and content_type not in self._API_RESPONSE_TYPES:
+            events_out = self._parse_event_content(
+                event, content_type, complete_content
+            )
         else:
-            event.body = complete_content if complete_content else None
+            events_out = self._parse_headeronly_content(
+                event, content_type, complete_content
+            )
 
         self._reset_to_headers()
+        return events_out
+
+    def _parse_event_content(
+        self, event: ESLEvent, content_type: Optional[str], complete_content: str
+    ) -> List[ESLEvent]:
+        if "\n\n" in complete_content:
+            headers_part, body = complete_content.split("\n\n", 1)
+            event_parts = self._split_event_lock_parts(headers_part)
+            body_value: Optional[str] = body if body else None
+            return self._assemble_events(event, event_parts, body_value)
+        return self._parse_headeronly_content(event, content_type, complete_content)
+
+    def _parse_headeronly_content(
+        self, event: ESLEvent, content_type: Optional[str], complete_content: str
+    ) -> List[ESLEvent]:
+        if content_type == "text/event-plain":
+            additional = parse_headers(complete_content)
+            event.update(additional)
+            event.body = None
+        else:
+            event.body = complete_content if complete_content else None
         return [event]
+
+    def _split_event_lock_parts(self, headers_part: str) -> List[str]:
+        if "event-lock: true" not in headers_part.lower():
+            return [headers_part]
+        parts = headers_part.split("\nEvent-Name: ")
+        if len(parts) <= 1:
+            return [headers_part]
+        event_parts = [parts[0]] + [f"Event-Name: {p}" for p in parts[1:]]
+        logger.debug(f"Split locked event into {len(event_parts)} separate events")
+        return event_parts
+
+    def _assemble_events(
+        self,
+        base_event: ESLEvent,
+        event_parts: List[str],
+        body_value: Optional[str],
+    ) -> List[ESLEvent]:
+        events_out: List[ESLEvent] = []
+        for idx, event_str in enumerate(event_parts):
+            if idx == 0:
+                additional = parse_headers(event_str)
+                base_event.update(additional)
+                base_event.body = body_value
+                events_out.append(base_event)
+            else:
+                new_event = parse_headers(event_str)
+                for key in ["Content-Length", "Content-Type"]:
+                    if key in base_event:
+                        new_event[key] = base_event[key]
+                new_event.body = body_value
+                events_out.append(new_event)
+        return events_out
 
     def _reset_to_headers(self) -> None:
         self._state = ReaderState.READING_HEADERS

@@ -104,8 +104,6 @@ class RedisBackend:
                 if msg.get("type") == "message":
                     return
                 await asyncio.sleep(0)
-        except asyncio.CancelledError:
-            raise
         finally:
             await sub.unsubscribe(channel)
             await sub.close()
