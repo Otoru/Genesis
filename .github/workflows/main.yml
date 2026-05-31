@@ -22,6 +22,7 @@ jobs:
   check-commit:
     name: Check Commit Source
     runs-on: ubuntu-latest
+    permissions: {}
     if: always()
     outputs:
       should-run: ${{ steps.check.outputs.should-run || steps.check-pr.outputs.should-run }}
@@ -60,6 +61,8 @@ jobs:
   test:
     name: Test & Lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: check-commit
     if: |
       github.event_name == 'pull_request' ||
@@ -180,6 +183,8 @@ jobs:
   build-docs:
     name: Build Documentation
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [check-commit, test]
     if: |
       needs.check-commit.outputs.should-run == 'true' &&
