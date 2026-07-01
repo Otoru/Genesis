@@ -222,7 +222,7 @@ def register_protocol(protocol: Any) -> None:
 
 def _commands_queue_depth(_options: Any) -> Iterable[Observation]:
     total = 0
-    for proto in list(_protocol_registry):
+    for proto in tuple(_protocol_registry):
         try:
             total += proto.commands.qsize()
         except Exception:
@@ -232,7 +232,7 @@ def _commands_queue_depth(_options: Any) -> Iterable[Observation]:
 
 def _events_queue_depth(_options: Any) -> Iterable[Observation]:
     total = 0
-    for proto in list(_protocol_registry):
+    for proto in tuple(_protocol_registry):
         try:
             total += proto.events.qsize()
         except Exception:

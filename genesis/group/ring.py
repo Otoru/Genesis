@@ -28,6 +28,9 @@ from genesis.protocol.metrics import (
 tracer = trace.get_tracer(__name__)
 meter = metrics.get_meter(__name__)
 
+# Repeated metric attribute key (centralised so Sonar S1192 stays quiet).
+_ATTR_LB_BACKEND = "loadbalancer.backend"
+
 # Ring group metrics
 ring_group_operations_counter = meter.create_counter(
     "genesis.ring_group.operations",
@@ -365,7 +368,7 @@ class RingGroup:
                     loadbalancer_errors_counter,
                     1,
                     attributes={
-                        "loadbalancer.backend": backend_name,
+                        _ATTR_LB_BACKEND: backend_name,
                         "error": type(e).__name__,
                     },
                 )
@@ -377,7 +380,7 @@ class RingGroup:
                     loadbalancer_selections_counter,
                     1,
                     attributes={
-                        "loadbalancer.backend": backend_name,
+                        _ATTR_LB_BACKEND: backend_name,
                         "loadbalancer.result": "fallback",
                     },
                 )
@@ -386,7 +389,7 @@ class RingGroup:
                     loadbalancer_selections_counter,
                     1,
                     attributes={
-                        "loadbalancer.backend": backend_name,
+                        _ATTR_LB_BACKEND: backend_name,
                         "loadbalancer.result": "selected",
                     },
                 )

@@ -24,7 +24,7 @@ import time
 
 from opentelemetry import trace
 
-from genesis.exceptions import ConnectionError, UnconnectedError
+from genesis.exceptions import ConnectionError, GenesisError, UnconnectedError
 from genesis.observability import logger, TRACE_LEVEL_NUM
 from genesis.protocol.parser import ESLEvent, parse_headers
 from genesis.protocol.reader_fsm import ESLReaderFSM
@@ -361,7 +361,7 @@ class Protocol(ABC):
                 if span is not None:
                     span.set_attribute("command.error", "protocol_error")
                     span.set_status(trace.Status(trace.StatusCode.ERROR, reply))
-                    span.record_exception(Exception(reply))
+                    span.record_exception(GenesisError(reply))
 
             if span is not None:
                 reply_text = result.get("Reply-Text")

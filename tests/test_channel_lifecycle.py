@@ -52,7 +52,7 @@ def _span(exporter: InMemorySpanExporter, name: str):
 
 async def test_channel_create_emits_span_and_sip_call_id(memory_exporter):
     event = _event(payloads.channel_create)
-    await channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
+    channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
 
     span = _span(memory_exporter, "freeswitch.channel.create")
     # Correlation contract: sip.call_id must be present on the span.
@@ -64,7 +64,7 @@ async def test_channel_create_emits_span_and_sip_call_id(memory_exporter):
 
 async def test_channel_bridge_carries_cross_leg_uuids(memory_exporter):
     event = _event(payloads.channel_bridge)
-    await channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
+    channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
 
     span = _span(memory_exporter, "freeswitch.channel.bridge")
     assert span.attributes["bridge.a_uuid"] == payloads.UUID_A
@@ -76,7 +76,7 @@ async def test_channel_bridge_carries_cross_leg_uuids(memory_exporter):
 
 async def test_channel_unbridge_emits_torn_down_event(memory_exporter):
     event = _event(payloads.channel_unbridge)
-    await channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
+    channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
 
     span = _span(memory_exporter, "freeswitch.channel.unbridge")
     assert span.attributes["sip.call_id"] == payloads.SIP_CALL_ID
@@ -85,7 +85,7 @@ async def test_channel_unbridge_emits_torn_down_event(memory_exporter):
 
 async def test_hangup_complete_records_q850(memory_exporter):
     event = _event(payloads.channel_hangup_complete)
-    await channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
+    channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
 
     span = _span(memory_exporter, "freeswitch.channel.hangup_complete")
     assert span.attributes["hangup.cause.q850"] == "16"
@@ -95,27 +95,27 @@ async def test_hangup_complete_records_q850(memory_exporter):
 
 async def test_channel_destroy_emits_span(memory_exporter):
     event = _event(payloads.channel_destroy)
-    await channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
+    channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
     span = _span(memory_exporter, "freeswitch.channel.destroy")
     assert span.attributes["sip.call_id"] == payloads.SIP_CALL_ID
 
 
 async def test_execute_and_complete_spans(memory_exporter):
     event = _event(payloads.channel_execute)
-    await channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
+    channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
     span = _span(memory_exporter, "freeswitch.channel.execute")
     assert span.attributes["application.name"] == "playback"
     assert span.attributes["application.uuid"] == "app-uuid-1"
 
     event = _event(payloads.channel_execute_complete)
-    await channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
+    channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
     span = _span(memory_exporter, "freeswitch.channel.execute_complete")
     assert span.attributes["application.name"] == "playback"
 
 
 async def test_codec_span(memory_exporter):
     event = _event(payloads.codec)
-    await channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
+    channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
     span = _span(memory_exporter, "freeswitch.channel.codec")
     assert span.attributes["channel.read_codec.name"] == "opus"
     assert span.attributes["sip.call_id"] == payloads.SIP_CALL_ID
@@ -123,20 +123,20 @@ async def test_codec_span(memory_exporter):
 
 async def test_call_update_span(memory_exporter):
     event = _event(payloads.call_update)
-    await channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
+    channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
     span = _span(memory_exporter, "freeswitch.call.update")
     assert span.attributes["sip.call_id"] == payloads.SIP_CALL_ID
 
 
 async def test_sofia_transfer_blind_and_attended(memory_exporter):
     event = _event(payloads.sofia_transferor)
-    await custom_subclass_processor(None, event)  # type: ignore[arg-type]
+    custom_subclass_processor(None, event)  # type: ignore[arg-type]
     span = _span(memory_exporter, "freeswitch.sofia.transfer")
     assert span.attributes["transfer.role"] == "transferor"
     assert span.attributes["transfer.type"] == "blind"
 
     event = _event(payloads.sofia_transferee)
-    await custom_subclass_processor(None, event)  # type: ignore[arg-type]
+    custom_subclass_processor(None, event)  # type: ignore[arg-type]
     span = _span(memory_exporter, "freeswitch.sofia.transfer")
     assert span.attributes["transfer.role"] == "transferee"
     assert span.attributes["transfer.type"] == "attended"
@@ -144,7 +144,7 @@ async def test_sofia_transfer_blind_and_attended(memory_exporter):
 
 async def test_callcenter_info_span(memory_exporter):
     event = _event(payloads.callcenter_info)
-    await custom_subclass_processor(None, event)  # type: ignore[arg-type]
+    custom_subclass_processor(None, event)  # type: ignore[arg-type]
     span = _span(memory_exporter, "freeswitch.callcenter.info")
     assert span.attributes["cc.queue"] == "sales"
     assert span.attributes["cc.action"] == "agent-state-change"
@@ -152,7 +152,7 @@ async def test_callcenter_info_span(memory_exporter):
 
 async def test_conference_maintenance_span(memory_exporter):
     event = _event(payloads.conference_maintenance)
-    await custom_subclass_processor(None, event)  # type: ignore[arg-type]
+    custom_subclass_processor(None, event)  # type: ignore[arg-type]
     span = _span(memory_exporter, "freeswitch.conference.maintenance")
     assert span.attributes["conference.name"] == "3000"
     assert span.attributes["conference.action"] == "add-member"
@@ -160,7 +160,7 @@ async def test_conference_maintenance_span(memory_exporter):
 
 async def test_valet_info_span(memory_exporter):
     event = _event(payloads.valet_info)
-    await custom_subclass_processor(None, event)  # type: ignore[arg-type]
+    custom_subclass_processor(None, event)  # type: ignore[arg-type]
     span = _span(memory_exporter, "freeswitch.valet.info")
     assert span.attributes["valet.lot"] == "default"
     assert span.attributes["bridge.to_uuid"] == payloads.UUID_B
@@ -170,7 +170,7 @@ async def test_no_sip_call_id_event_still_emits_span(memory_exporter):
     """A channel event without the correlation key still traces; the gap is
     counted by the events_without_sip_call_id metric (no crash, no missing span)."""
     event = _event(payloads.channel_create_no_sip)
-    await channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
+    channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
     span = _span(memory_exporter, "freeswitch.channel.create")
     assert "sip.call_id" not in span.attributes
 
@@ -178,7 +178,7 @@ async def test_no_sip_call_id_event_still_emits_span(memory_exporter):
 async def test_non_lifecycle_event_is_noop(memory_exporter):
     """A HEARTBEAT must not produce a lifecycle span."""
     event = _event(payloads.heartbeat)
-    await channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
+    channel_lifecycle_processor(None, event)  # type: ignore[arg-type]
     spans = exporter_names(memory_exporter)
     assert not any(name.startswith("freeswitch.channel.") for name in spans)
 
