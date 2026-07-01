@@ -98,8 +98,47 @@ jobs:
       - name: Run Type Checker (Mypy)
         run: poetry run mypy
 
-      - name: Run tests
-        run: poetry run py.test
+      - name: Run tests (with coverage)
+        run: poetry run pytest --cov=genesis --cov-report=xml:coverage.xml --cov-report=term
+
+      - name: Upload coverage report
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: warn
+          retention-days: 3
+
+  # SonarCloud analysis. Fails the job if the quality gate fails.
+  sonar:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    needs: [check-commit, test]
+    if: |
+      needs.check-commit.outputs.should-run == 'true' &&
+      (github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-xml
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.qualitygate.wait=true
 
   # Version bump (only runs on push to main, not on PRs)
   # Runs after contributors to avoid infinite loops
