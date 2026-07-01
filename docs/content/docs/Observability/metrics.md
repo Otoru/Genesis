@@ -91,30 +91,71 @@ For programmatic access to load counts per destination, use the load balancer's 
   - Description: Number of timeouts
   - Attributes: `timeout.type` (wait, command, connection), `timeout.operation`, `timeout.duration`
 
-**ESL Lifecycle Metrics (sniffer correlation):**
+## Channel lifecycle metrics
 
-These metrics are emitted by the lifecycle/CUSTOM processors. Cardinality rule:
-attributes carry low-cardinality enums only — UUIDs go on spans, never as
-metric labels.
+These metrics describe what a call is doing across its lifecycle — from the
+moment FreeSWITCH creates the channel until it is destroyed. Use them together
+with the [tracing](./tracing) spans to follow a call end to end and to correlate
+it with the passive sniffer (see [Sniffer correlation](./tracing#sniffer-correlation-sipcall_id-join)).
 
-- **`genesis.calls.active`** (UpDownCounter) — Active calls by state and direction; +1 on `CHANNEL_CREATE`, -1 on `CHANNEL_DESTROY`. Attributes: `channel.state`, `direction`
-- **`genesis.channel.bridge.events`** (Counter) — Authoritative bridge state from `CHANNEL_BRIDGE`/`UNBRIDGE`. Attributes: `bridge.result` (`established`/`unbridged`), `hangup.cause`
-- **`genesis.channel.transfers`** (Counter) — Transfers via `sofia::transferor`/`transferee`. Attributes: `transfer.type` (`blind`/`attended`), `transfer.role`
-- **`genesis.channel.codec.changes`** (Counter) — Codec renegotiations from `CODEC` events. Attributes: `channel.read_codec`, `channel.write_codec`
-- **`genesis.dialplan.applications`** (Counter) — Dialplan apps from `CHANNEL_EXECUTE`/`_COMPLETE`. Attributes: `application.name`, `application.result` (`started`/`success`/`fail`)
-- **`genesis.channel.hangup.causes.q850`** (Counter) — Hangup causes by Q.850 code. Attributes: `hangup.cause.q850`
-- **`genesis.event.processing.duration`** (Histogram) — Duration of event dispatch (processors + routing). Attributes: `event.name`
-- **`genesis.events.without_sip_call_id`** (Counter) — Channel events lacking `variable_sip_call_id` (a correlation-gap signal vs the passive sniffer). Attributes: (none)
+- **`genesis.calls.active`** (UpDownCounter)
+  - Description: Number of calls currently active, by state and direction. Goes up when a channel is created and back down when it is destroyed.
+  - Attributes: `channel.state`, `direction`
 
-**Session / Consumer / Load Balancer / Queue Metrics:**
-- **`genesis.session.commands`** (Counter) — Session `sendmsg` commands. Attributes: `application.name`
-- **`genesis.session.command.duration`** (Histogram) — Duration of session `sendmsg` commands. Attributes: `application.name`
-- **`genesis.consumer.handlers`** (Counter) — Consumer handler invocations. Attributes: `event.name`
-- **`genesis.loadbalancer.selections`** (Counter) — Load balancer selections. Attributes: `loadbalancer.backend`, `loadbalancer.result` (`selected`/`fallback`)
-- **`genesis.loadbalancer.errors`** (Counter) — Load balancer errors. Attributes: `loadbalancer.backend`, `error`
-- **`genesis.commands.queue.depth`** (ObservableGauge) — Depth of the pending command-reply queue. Attributes: (none)
-- **`genesis.events.queue.depth`** (ObservableGauge) — Depth of the pending event queue. Attributes: (none)
+- **`genesis.channel.bridge.events`** (Counter)
+  - Description: Bridges established and torn down, from the authoritative `CHANNEL_BRIDGE` / `CHANNEL_UNBRIDGE` events.
+  - Attributes: `bridge.result` (`established`, `unbridged`), `hangup.cause`
 
-> All metric instruments are centralized in `genesis/protocol/metrics.py`.
-> Import them from there rather than re-declaring, and use the `safe_add` /
-> `safe_record` helpers so a missing exporter never crashes the protocol.
+- **`genesis.channel.transfers`** (Counter)
+  - Description: Call transfers observed through the `sofia::transferor` and `sofia::transferee` events.
+  - Attributes: `transfer.type` (`blind`, `attended`), `transfer.role`
+
+- **`genesis.channel.codec.changes`** (Counter)
+  - Description: Codec renegotiations observed through `CODEC` events.
+  - Attributes: `channel.read_codec`, `channel.write_codec`
+
+- **`genesis.dialplan.applications`** (Counter)
+  - Description: Dialplan applications executed, from `CHANNEL_EXECUTE` and `CHANNEL_EXECUTE_COMPLETE`.
+  - Attributes: `application.name`, `application.result` (`started`, `success`, `fail`)
+
+- **`genesis.channel.hangup.causes.q850`** (Counter)
+  - Description: Hangup causes grouped by Q.850 code.
+  - Attributes: `hangup.cause.q850`
+
+- **`genesis.event.processing.duration`** (Histogram)
+  - Description: How long it takes to dispatch a single event through the processors and routing.
+  - Attributes: `event.name`
+
+- **`genesis.events.without_sip_call_id`** (Counter)
+  - Description: Channel events that arrived without a `variable_sip_call_id`. A high value means the Genesis trace and the sniffer trace cannot be joined for those calls.
+  - Attributes: (none)
+
+## Session, consumer, load balancer and queue metrics
+
+- **`genesis.session.commands`** (Counter)
+  - Description: `sendmsg` commands sent through a session, by application.
+  - Attributes: `application.name`
+
+- **`genesis.session.command.duration`** (Histogram)
+  - Description: How long a session `sendmsg` command takes to complete.
+  - Attributes: `application.name`
+
+- **`genesis.consumer.handlers`** (Counter)
+  - Description: How many times a consumer handler was invoked, by event.
+  - Attributes: `event.name`
+
+- **`genesis.loadbalancer.selections`** (Counter)
+  - Description: Destinations picked by the load balancer, including when it falls back to the first available destination.
+  - Attributes: `loadbalancer.backend`, `loadbalancer.result` (`selected`, `fallback`)
+
+- **`genesis.loadbalancer.errors`** (Counter)
+  - Description: Errors raised while selecting a destination.
+  - Attributes: `loadbalancer.backend`, `error`
+
+- **`genesis.commands.queue.depth`** (ObservableGauge)
+  - Description: How many command replies are still pending. Useful to spot backpressure on the command path.
+  - Attributes: (none)
+
+- **`genesis.events.queue.depth`** (ObservableGauge)
+  - Description: How many events are waiting to be processed. Useful to spot backpressure on the event path.
+  - Attributes: (none)
