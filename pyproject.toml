@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "genesis"
-version = "2026.6.17"
+version = "2026.7.1"
 description = "Async Python library for FreeSWITCH Event Socket Layer (ESL) - Build high-performance telephony applications with asyncio"
 authors = ["Vitor <vitor.hov@gmail.com>"]
 license = "MIT"
