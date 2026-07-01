@@ -60,6 +60,10 @@ class QueueBackend(Protocol):
         """Release one slot for the queue."""
         ...
 
+    def depth(self, queue_id: str) -> int:
+        """Return the number of items waiting in the queue (not yet acquired)."""
+        ...
+
 
 class InMemoryBackend:
     """
@@ -175,3 +179,9 @@ class InMemoryBackend:
                 state.semaphore.release()
             async with state.lock:
                 state.condition.notify_all()
+
+    def depth(self, queue_id: str) -> int:
+        """Return the number of items waiting in the queue (not yet acquired)."""
+        if queue_id in self._states:
+            return len(self._states[queue_id].deque)
+        return 0

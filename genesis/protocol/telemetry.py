@@ -37,6 +37,34 @@ def build_event_attributes(event: ESLEvent) -> Dict[str, Any]:
         if isinstance(value, (str, int, float, bool, list, tuple)):
             attributes[attr_name] = value
 
+    # Routing / correlation attributes (explicit, low-cardinality keys) so the
+    # ``process_event`` span carries routing info and the sniffer join key.
+    _EXPLICIT = {
+        "Call-Direction": "event.direction",
+        "Channel-State": "event.channel_state",
+        "Answer-State": "event.answer_state",
+        "Hangup-Cause": "event.hangup_cause",
+        "Event-Subclass": "event.subclass",
+        "Channel-Call-UUID": "event.call_uuid",
+        "Other-Leg-Unique-ID": "event.other_leg",
+        "Caller-Context": "event.context",
+        "Caller-Destination-Number": "event.destination_number",
+    }
+    for src, dst in _EXPLICIT.items():
+        if src in event:
+            value = event[src]
+            if isinstance(value, list):
+                value = value[0] if value else ""
+            attributes[dst] = value
+
+    # sip.call_id is the PRIMARY correlation key with the sniffer
+    # (sniffer emits voip.call_id = SIP Call-ID). Join happens at the backend.
+    sip_call_id = event.get("variable_sip_call_id")
+    if sip_call_id:
+        attributes["sip.call_id"] = (
+            sip_call_id[0] if isinstance(sip_call_id, list) else sip_call_id
+        )
+
     return attributes
 
 

@@ -21,28 +21,18 @@ from functools import partial
 from collections.abc import Callable
 from typing import Any, Awaitable, Optional
 
-from opentelemetry import metrics, trace
+from opentelemetry import trace
 
 from genesis.observability import logger, observability
 from genesis.channel import Channel
 from genesis.session import Session
-
-tracer = trace.get_tracer(__name__)
-meter = metrics.get_meter(__name__)
-
-active_connections_counter = meter.create_up_down_counter(
-    "genesis.connections.active",
-    description="Number of active connections",
-    unit="1",
+from genesis.protocol.metrics import (
+    connection_errors_counter,
+    connections_active_counter,
+    safe_add,
 )
 
-
-def _safe_connection_metric(counter: object, *args: object, **kwargs: object) -> None:
-    """Add to a counter, swallowing OTel/metrics errors."""
-    try:
-        getattr(counter, "add")(*args, **kwargs)
-    except Exception:
-        pass
+tracer = trace.get_tracer(__name__)
 
 
 async def _setup_session(session: Session, server: "Outbound") -> None:
@@ -159,9 +149,9 @@ class Outbound:
                     "net.peer.name": server.host,
                     "net.peer.port": server.port,
                 },
-            ):
-                _safe_connection_metric(
-                    active_connections_counter,
+            ) as span:
+                safe_add(
+                    connections_active_counter,
                     1,
                     attributes={"type": "outbound"},
                 )
@@ -169,9 +159,20 @@ class Outbound:
                     async with Session(reader, writer) as session:
                         await _setup_session(session, server)
                         await server.app(session)
+                except Exception as e:
+                    # Record the outbound connection error (gap from mapping:
+                    # outbound previously had no error counter).
+                    safe_add(
+                        connection_errors_counter,
+                        1,
+                        attributes={"error": type(e).__name__, "type": "outbound"},
+                    )
+                    span.record_exception(e)
+                    span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+                    raise
                 finally:
-                    _safe_connection_metric(
-                        active_connections_counter,
+                    safe_add(
+                        connections_active_counter,
                         -1,
                         attributes={"type": "outbound"},
                     )

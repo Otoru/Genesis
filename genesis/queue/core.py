@@ -78,14 +78,22 @@ class QueueSlot:
             attributes={
                 ATTR_QUEUE_ID: self._queue_id,
                 ATTR_QUEUE_ITEM_ID: self._item_id,
+                # queue.depth as a SPAN attribute (not a metric label) keeps
+                # backpressure observable without metric cardinality blow-up.
+                "queue.depth": self._queue._backend.depth(self._queue_id),
             },
-        ):
-            await self._queue._backend.wait_and_acquire(
-                self._queue_id,
-                self._item_id,
-                self._max_concurrent,
-                timeout=self._timeout,
-            )
+        ) as span:
+            try:
+                await self._queue._backend.wait_and_acquire(
+                    self._queue_id,
+                    self._item_id,
+                    self._max_concurrent,
+                    timeout=self._timeout,
+                )
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+                raise
         self._acquired = True
         elapsed = time.monotonic() - start
         queue_wait_duration.record(elapsed, attributes={ATTR_QUEUE_ID: self._queue_id})

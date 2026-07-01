@@ -73,6 +73,54 @@ Genesis automatically creates spans for the following operations:
   - Description: Ringing a group of destinations
   - Attributes: `ring_group.mode`, `ring_group.size`, `ring_group.timeout`, `ring_group.has_balancer`, `ring_group.has_variables`, `ring_group.balanced`, `ring_group.result`, `ring_group.duration`, `ring_group.answered_uuid`, `ring_group.answered_dial_path`, `ring_group.error` (if error)
 
+**ESL Channel Lifecycle Spans (`freeswitch.channel.*`):**
+- Emitted by the `channel_lifecycle_processor` for the semantic FreeSWITCH channel lifecycle. They carry the channel UUIDs and the sniffer correlation key on the span (see [Sniffer correlation](#sniffer-correlation-sipcall_id-join)).
+- **`freeswitch.channel.create`** — `channel.uuid`, `channel.call_uuid`, `channel.direction`, `sip.call_id`, `channel.destination_number`, `channel.context`
+- **`freeswitch.channel.progress`** / **`.progress_media`** — `channel.state`, `answer.state`, codec names
+- **`freeswitch.channel.answer`** — `channel.state`, `answer.state`, codec names
+- **`freeswitch.channel.bridge`** — `bridge.a_uuid`, `bridge.b_uuid`, `other_leg.*`, span event `bridge.established`
+- **`freeswitch.channel.unbridge`** — `bridge.a_uuid`, `bridge.b_uuid`, `hangup.cause`, span event `bridge.torn_down`
+- **`freeswitch.channel.hangup`** — `hangup.cause`, `channel.state`, span event `hangup.cause.<normalized>`
+- **`freeswitch.channel.hangup_complete`** — `hangup.cause`, `hangup.cause.q850`, span event `call.finalized`
+- **`freeswitch.channel.destroy`** — `channel.uuid`, `sip.call_id`
+- **`freeswitch.channel.execute`** / **`.execute_complete`** — `application.name`, `application.uuid`, `application.data`/`application.response`, span event `app.<name>.done`
+- **`freeswitch.channel.codec`** — `channel.read_codec.*`, `channel.write_codec.*`
+- **`freeswitch.call.update`** — `bridged.to`, `caller.transfer_source`, span event `caller_id.mutated`
+
+**CUSTOM Subclass Spans:**
+- Emitted by the `custom_subclass_processor` for `CUSTOM` events.
+- **`freeswitch.sofia.transfer`** — `transfer.role` (`transferor`/`transferee`), `transfer.type` (`blind`/`attended`), span event `transfer.initiated`
+- **`freeswitch.sofia.register`** / **`.reinvite`** / **`.replaced`** — `register.aor`, `register.action`, `gateway.name`/`gateway.state`, `sofia.profile`
+- **`freeswitch.callcenter.info`** — `cc.queue`, `cc.action`, `cc.agent`, `cc.member_uuid`, `cc.count`, `cc.selection`
+- **`freeswitch.conference.maintenance`** / **`.cdr`** — `conference.name`, `conference.profile`, `conference.action`, `conference.member_id`
+- **`freeswitch.valet.info`** — `valet.lot`, `valet.extension`, `valet.action`, `bridge.to_uuid`
+
+**Session / Consumer / Queue Spans:**
+- **`session.sendmsg`** (`Session` module) — `channel.uuid`, `application.name`, `application.uuid`, `application.block`
+- **`session.await_complete`** (`Session` module) — child span of `session.sendmsg` when `block=True`; `channel.uuid`, `application.uuid`
+- **`consumer.start`** / **`consumer.stop`** (`Consumer` module) — `consumer.host`, `consumer.port`
+- **`queue.wait_and_acquire`** (`Queue` module) — `queue.id`, `queue.item_id`, `queue.depth` (span attribute, not a metric label)
+
+## Sniffer correlation (sip.call_id join)
+
+Correlation with the passive sniffer (Otoru/sniffer) is **attribute-based and
+happens at the observability backend (Grafana/Tempo), not in code**:
+
+- Every `freeswitch.channel.*` span carries **`sip.call_id`** (= the ESL
+  `variable_sip_call_id` header), which matches the sniffer's **`voip.call_id`**.
+- Join the two traces in Grafana/Tempo by filtering/grouping on that attribute.
+- Cross-leg grouping: bridge spans carry **`bridge.a_uuid`** and
+  **`bridge.b_uuid`**, so the a-leg and b-leg of a call can be tied together.
+- The `genesis.events.without_sip_call_id` metric counts channel events that
+  lack the correlation key (a correlation-gap signal).
+
+W3C `traceparent` / `X-Tracespan` propagation to the sniffer is intentionally
+**out of scope**; the attribute join is sufficient and requires no sniffer
+changes.
+
+The lifecycle/CUSTOM processors are on by default. Opt out with
+`GENESIS_TRACE_ESL_LIFECYCLE=0` or `GENESIS_TRACE_CUSTOM_SUBCLASSES=0`.
+
 ## Configuration
 
 Install the OpenTelemetry SDK:

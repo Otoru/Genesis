@@ -94,3 +94,6 @@ docker/freeswitch/conf/**/.fsxml
 docker/freeswitch/conf/**/*.fsxml
 docker/freeswitch-test/config/logs/
 docker/freeswitch-test/config/recordings/freeswitch/
+
+# Local FreeSWITCH source checkout (research reference, not part of the project)
+/freeswitch/

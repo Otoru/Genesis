@@ -43,6 +43,9 @@ from genesis.protocol.metrics import (
     timeout_counter,
     channel_routing_counter,
     global_routing_counter,
+    event_processing_duration,
+    register_protocol,
+    safe_record,
 )
 from genesis.protocol.routing import (
     CompositeRoutingStrategy,
@@ -73,6 +76,8 @@ class Protocol(ABC):
         self.handlers: Dict[str, List[EventHandler]] = {}
         self.channel_registry: Dict[str, List[EventHandler]] = {}
         self.handler_tasks: set[Task[Any]] = set()
+        # Register so the ObservableGauges can report this protocol's queue depth.
+        register_protocol(self)
 
         # Initialize routing strategy (Strategy Pattern)
         self.routing_strategy = CompositeRoutingStrategy(
@@ -195,24 +200,42 @@ class Protocol(ABC):
                 logger.error(f"Error in consumer loop: {outer_e}", exc_info=True)
 
     async def _process_one_event(self, event: ESLEvent) -> None:
-        """Run telemetry, processors, and dispatch for one event."""
+        """Run telemetry, processors, and dispatch for one event.
+
+        The ``process_event`` span wraps metrics+logging AND the processor
+        chain + routing, so the new ``freeswitch.channel.*`` lifecycle spans
+        (emitted by processors) become children of it and share its trace.
+        """
         try:
             attributes = build_event_attributes(event)
-            with tracer.start_as_current_span("process_event", attributes=attributes):
+        except Exception:
+            attributes = {}
+
+        start_time = time.perf_counter()
+        with tracer.start_as_current_span("process_event", attributes=attributes):
+            try:
                 record_event_metrics(event)
                 log_event(event)
-        except Exception:
-            record_event_metrics(event)
-            log_event(event)
+            except Exception:
+                record_event_metrics(event)
+                log_event(event)
 
-        for processor in self.event_processors:
-            result = processor(self, event)
-            if asyncio.iscoroutine(result):
-                await result
+            for processor in self.event_processors:
+                result = processor(self, event)
+                if asyncio.iscoroutine(result):
+                    await result
 
-        handlers, _ = await self.routing_strategy.route(event)
-        if handlers:
-            dispatch_to_handlers(handlers, event, self.handler_tasks)
+            handlers, _ = await self.routing_strategy.route(event)
+            if handlers:
+                dispatch_to_handlers(handlers, event, self.handler_tasks)
+
+        safe_record(
+            event_processing_duration,
+            time.perf_counter() - start_time,
+            attributes={
+                "event.name": event.get("Event-Name", "UNKNOWN"),
+            },
+        )
 
     def on(
         self,
@@ -288,7 +311,12 @@ class Protocol(ABC):
 
         try:
             with tracer.start_as_current_span("send_command") as span:
-                span.set_attribute("command.name", cmd)
+                # Use the command verb (first token) as command.name to avoid
+                # high-cardinality span attributes (raw cmd may carry UUIDs).
+                span.set_attribute("command.name", command_name)
+                remainder = cmd[len(command_name) :].strip()
+                if remainder:
+                    span.set_attribute("command.args", remainder[:200])
                 return await self._execute_send(cmd, command_name, start_time, span)
         except Exception:
             # OTel not initialized - run without tracing
@@ -330,6 +358,10 @@ class Protocol(ABC):
             reply = result.get("Reply-Text", "")
             if reply.startswith("-ERR"):
                 self._record_command_error(command_name, "protocol_error")
+                if span is not None:
+                    span.set_attribute("command.error", "protocol_error")
+                    span.set_status(trace.Status(trace.StatusCode.ERROR, reply))
+                    span.record_exception(Exception(reply))
 
             if span is not None:
                 reply_text = result.get("Reply-Text")
