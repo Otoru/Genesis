@@ -128,8 +128,8 @@ class Channel:
                 # channel.call_uuid groups a-leg/b-leg within the Genesis trace;
                 # at originate time it equals the origination UUID.
                 span.set_attribute(ATTR_CHANNEL_CALL_UUID, self.uuid)
-                # sip.call_id is the join key with the sniffer (voip.call_id).
-                # It is usually not known yet at originate; attach when present.
+                # sip.call_id is the standard SIP Call-ID and the cross-system
+                # join key. It is usually not known yet at originate; attach when present.
                 sip_call_id = _context_str(self.context, "variable_sip_call_id")
                 if sip_call_id:
                     span.set_attribute(ATTR_SIP_CALL_ID, sip_call_id)

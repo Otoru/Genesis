@@ -8,10 +8,11 @@ and for CUSTOM subclasses (``sofia::``, ``callcenter::``, ``conference::``,
 ``valet_parking::``). They only enrich telemetry — they never consume events
 that route to user handlers.
 
-Correlation with the passive sniffer (Otoru/sniffer) is attribute-based:
-every channel span carries ``sip.call_id`` (= ``variable_sip_call_id``), which
-matches the sniffer's ``voip.call_id``. The join happens at the observability
-backend (Grafana/Tempo), not in code. No sniffer changes are required.
+Correlation with another system's view of the same call is attribute-based:
+every channel span carries ``sip.call_id`` (= ``variable_sip_call_id``, the
+standard SIP Call-ID). Any other SIP observer of the same call will carry the
+same value, so the join happens at the observability backend (Grafana/Tempo),
+not in code.
 
 Cardinality rule: UUIDs go on spans only; metric attributes use low-cardinality
 enums/labels (channel.state, direction, hangup.cause, application.name, ...).
@@ -74,7 +75,7 @@ def _channel_attrs(event: ESLEvent) -> Dict[str, Any]:
 
 
 def _record_sip_gap(event: ESLEvent, attrs: Dict[str, Any]) -> None:
-    """Count channel events that lack the sniffer correlation key."""
+    """Count channel events that lack the sip.call_id correlation key."""
     if "sip.call_id" not in attrs:
         safe_add(events_without_sip_call_id_counter, 1, attributes={})
 

@@ -95,8 +95,10 @@ For programmatic access to load counts per destination, use the load balancer's 
 
 These metrics describe what a call is doing across its lifecycle — from the
 moment FreeSWITCH creates the channel until it is destroyed. Use them together
-with the [tracing](./tracing) spans to follow a call end to end and to correlate
-it with the passive sniffer (see [Sniffer correlation](./tracing#sniffer-correlation-sipcall_id-join)).
+with the [tracing](./tracing) spans to follow a call end to end, and see
+[Cross-system correlation](./tracing#cross-system-correlation-sipcall_id) for
+how `sip.call_id` lets you join these traces with another system's view of the
+same call.
 
 - **`genesis.calls.active`** (UpDownCounter)
   - Description: Number of calls currently active, by state and direction. Goes up when a channel is created and back down when it is destroyed.
@@ -127,7 +129,7 @@ it with the passive sniffer (see [Sniffer correlation](./tracing#sniffer-correla
   - Attributes: `event.name`
 
 - **`genesis.events.without_sip_call_id`** (Counter)
-  - Description: Channel events that arrived without a `variable_sip_call_id`. A high value means the Genesis trace and the sniffer trace cannot be joined for those calls.
+  - Description: Channel events that arrived without a `variable_sip_call_id`. A high value means those calls cannot be joined to another system's view of the same call via `sip.call_id`.
   - Attributes: (none)
 
 ## Session, consumer, load balancer and queue metrics

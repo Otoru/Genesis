@@ -589,7 +589,7 @@ channel_answer = dedent("""\
 # ---------------------------------------------------------------------------
 UUID_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 UUID_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
-SIP_CALL_ID = "sniffer-correlation-key-123"
+SIP_CALL_ID = "test-sip-call-id-123"
 
 _channel_common = dedent("""\
     Unique-ID: {uuid_a}

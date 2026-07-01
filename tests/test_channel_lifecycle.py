@@ -2,9 +2,10 @@
 
 These processors emit ``freeswitch.channel.*`` and ``freeswitch.sofia.*`` /
 ``freeswitch.callcenter.*`` / ``freeswitch.conference.*`` / ``freeswitch.valet.*``
-spans. The key contract under test is **sniffer correlation**: every channel
-span must carry ``sip.call_id`` (= ``variable_sip_call_id``) so the passive
-sniffer's ``voip.call_id`` can be joined to it at the observability backend.
+spans. The key contract under test is **cross-system correlation**: every channel
+span must carry ``sip.call_id`` (= ``variable_sip_call_id``, the standard SIP
+Call-ID) so another system's view of the same call can be joined to it at the
+observability backend.
 """
 
 from __future__ import annotations

@@ -38,7 +38,7 @@ def build_event_attributes(event: ESLEvent) -> Dict[str, Any]:
             attributes[attr_name] = value
 
     # Routing / correlation attributes (explicit, low-cardinality keys) so the
-    # ``process_event`` span carries routing info and the sniffer join key.
+    # ``process_event`` span carries routing info and the cross-system join key.
     _EXPLICIT = {
         "Call-Direction": "event.direction",
         "Channel-State": "event.channel_state",
@@ -57,8 +57,8 @@ def build_event_attributes(event: ESLEvent) -> Dict[str, Any]:
                 value = value[0] if value else ""
             attributes[dst] = value
 
-    # sip.call_id is the PRIMARY correlation key with the sniffer
-    # (sniffer emits voip.call_id = SIP Call-ID). Join happens at the backend.
+    # sip.call_id is the standard SIP Call-ID and the cross-system join key.
+    # The join happens at the observability backend.
     sip_call_id = event.get("variable_sip_call_id")
     if sip_call_id:
         attributes["sip.call_id"] = (

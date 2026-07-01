@@ -325,13 +325,15 @@ Emitted spans (non-exhaustive): `freeswitch.channel.create`, `.progress`,
 `freeswitch.callcenter.info`, `freeswitch.conference.maintenance`,
 `freeswitch.conference.cdr`, `freeswitch.valet.info`.
 
-### Sniffer correlation (sip.call_id join)
+### Cross-system correlation (sip.call_id)
 
-Correlation with the passive sniffer (Otoru/sniffer) is **attribute-based and
-happens at the observability backend (Grafana/Tempo), not in code**. Every
-channel lifecycle span carries `sip.call_id` (= the ESL `variable_sip_call_id`
-header), which matches the sniffer's `voip.call_id`. The two traces are joined
-in Grafana/Tempo by filtering/grouping on that attribute.
+Every channel lifecycle span carries `sip.call_id` (= the ESL
+`variable_sip_call_id` header), the standard SIP `Call-ID`. This is a stable
+per-call identifier that any other SIP observer of the same call will also
+have, so it is the natural join key when correlating Genesis traces with
+another system's traces of the same call. The join happens **at the
+observability backend** (Grafana/Tempo), by filtering/grouping on `sip.call_id`
+— not in code.
 
 Cross-leg grouping: bridge spans carry `bridge.a_uuid` and `bridge.b_uuid`
 (from `Bridge-A-Unique-ID` / `Bridge-B-Unique-ID`), so the a-leg and b-leg of a
@@ -339,7 +341,8 @@ call can be tied together at the backend.
 
 The `genesis.events.without_sip_call_id` counter tracks channel events that
 lack the correlation key (a correlation-gap signal). W3C `traceparent` /
-`X-Tracespan` propagation to the sniffer is intentionally **out of scope**.
+`X-Tracespan` propagation is intentionally **out of scope**; the attribute join
+is sufficient.
 
 ### Cardinality rule
 

@@ -74,49 +74,120 @@ Genesis automatically creates spans for the following operations:
   - Attributes: `ring_group.mode`, `ring_group.size`, `ring_group.timeout`, `ring_group.has_balancer`, `ring_group.has_variables`, `ring_group.balanced`, `ring_group.result`, `ring_group.duration`, `ring_group.answered_uuid`, `ring_group.answered_dial_path`, `ring_group.error` (if error)
 
 **ESL Channel Lifecycle Spans (`freeswitch.channel.*`):**
-- Emitted by the `channel_lifecycle_processor` for the semantic FreeSWITCH channel lifecycle. They carry the channel UUIDs and the sniffer correlation key on the span (see [Sniffer correlation](#sniffer-correlation-sipcall_id-join)).
-- **`freeswitch.channel.create`** — `channel.uuid`, `channel.call_uuid`, `channel.direction`, `sip.call_id`, `channel.destination_number`, `channel.context`
-- **`freeswitch.channel.progress`** / **`.progress_media`** — `channel.state`, `answer.state`, codec names
-- **`freeswitch.channel.answer`** — `channel.state`, `answer.state`, codec names
-- **`freeswitch.channel.bridge`** — `bridge.a_uuid`, `bridge.b_uuid`, `other_leg.*`, span event `bridge.established`
-- **`freeswitch.channel.unbridge`** — `bridge.a_uuid`, `bridge.b_uuid`, `hangup.cause`, span event `bridge.torn_down`
-- **`freeswitch.channel.hangup`** — `hangup.cause`, `channel.state`, span event `hangup.cause.<normalized>`
-- **`freeswitch.channel.hangup_complete`** — `hangup.cause`, `hangup.cause.q850`, span event `call.finalized`
-- **`freeswitch.channel.destroy`** — `channel.uuid`, `sip.call_id`
-- **`freeswitch.channel.execute`** / **`.execute_complete`** — `application.name`, `application.uuid`, `application.data`/`application.response`, span event `app.<name>.done`
-- **`freeswitch.channel.codec`** — `channel.read_codec.*`, `channel.write_codec.*`
-- **`freeswitch.call.update`** — `bridged.to`, `caller.transfer_source`, span event `caller_id.mutated`
+
+These spans follow a call across its FreeSWITCH lifecycle, from channel
+creation to destruction. They carry the channel UUIDs and the SIP correlation
+key on the span (see [Cross-system correlation](#cross-system-correlation-sipcall_id)).
+
+- **`freeswitch.channel.create`**
+  - Description: A new channel was created
+  - Attributes: `channel.uuid`, `channel.call_uuid`, `channel.direction`, `sip.call_id`, `channel.destination_number`, `channel.context`
+
+- **`freeswitch.channel.progress`** / **`freeswitch.channel.progress_media`**
+  - Description: The call is progressing / early media is flowing
+  - Attributes: `channel.state`, `answer.state`, codec names
+
+- **`freeswitch.channel.answer`**
+  - Description: The call was answered
+  - Attributes: `channel.state`, `answer.state`, codec names
+
+- **`freeswitch.channel.bridge`**
+  - Description: Two channels were bridged together
+  - Attributes: `bridge.a_uuid`, `bridge.b_uuid`, `other_leg.*`
+  - Events: `bridge.established`
+
+- **`freeswitch.channel.unbridge`**
+  - Description: The bridge between two channels was torn down
+  - Attributes: `bridge.a_uuid`, `bridge.b_uuid`, `hangup.cause`
+  - Events: `bridge.torn_down`
+
+- **`freeswitch.channel.hangup`**
+  - Description: The channel is hanging up
+  - Attributes: `hangup.cause`, `channel.state`
+  - Events: `hangup.cause.<normalized>`
+
+- **`freeswitch.channel.hangup_complete`**
+  - Description: Hangup is complete and the call is finalized
+  - Attributes: `hangup.cause`, `hangup.cause.q850`
+  - Events: `call.finalized`
+
+- **`freeswitch.channel.destroy`**
+  - Description: The channel was destroyed
+  - Attributes: `channel.uuid`, `sip.call_id`
+
+- **`freeswitch.channel.execute`** / **`freeswitch.channel.execute_complete`**
+  - Description: A dialplan application started / finished executing
+  - Attributes: `application.name`, `application.uuid`, `application.data` / `application.response`
+  - Events: `app.<name>.done`
+
+- **`freeswitch.channel.codec`**
+  - Description: The channel negotiated (or renegotiated) its codecs
+  - Attributes: `channel.read_codec.*`, `channel.write_codec.*`
+
+- **`freeswitch.call.update`**
+  - Description: The caller ID or bridged state changed
+  - Attributes: `bridged.to`, `caller.transfer_source`
+  - Events: `caller_id.mutated`
 
 **CUSTOM Subclass Spans:**
-- Emitted by the `custom_subclass_processor` for `CUSTOM` events.
-- **`freeswitch.sofia.transfer`** — `transfer.role` (`transferor`/`transferee`), `transfer.type` (`blind`/`attended`), span event `transfer.initiated`
-- **`freeswitch.sofia.register`** / **`.reinvite`** / **`.replaced`** — `register.aor`, `register.action`, `gateway.name`/`gateway.state`, `sofia.profile`
-- **`freeswitch.callcenter.info`** — `cc.queue`, `cc.action`, `cc.agent`, `cc.member_uuid`, `cc.count`, `cc.selection`
-- **`freeswitch.conference.maintenance`** / **`.cdr`** — `conference.name`, `conference.profile`, `conference.action`, `conference.member_id`
-- **`freeswitch.valet.info`** — `valet.lot`, `valet.extension`, `valet.action`, `bridge.to_uuid`
+
+These spans cover the `CUSTOM` event subclasses FreeSWITCH emits for
+transfers, registrations, callcenter, conference and valet parking.
+
+- **`freeswitch.sofia.transfer`**
+  - Description: A call transfer was observed
+  - Attributes: `transfer.role` (`transferor` / `transferee`), `transfer.type` (`blind` / `attended`)
+  - Events: `transfer.initiated`
+
+- **`freeswitch.sofia.register`** / **`freeswitch.sofia.reinvite`** / **`freeswitch.sofia.replaced`**
+  - Description: A SIP registration, reinvite or replace was observed
+  - Attributes: `register.aor`, `register.action`, `gateway.name` / `gateway.state`, `sofia.profile`
+
+- **`freeswitch.callcenter.info`**
+  - Description: A callcenter queue event
+  - Attributes: `cc.queue`, `cc.action`, `cc.agent`, `cc.member_uuid`, `cc.count`, `cc.selection`
+
+- **`freeswitch.conference.maintenance`** / **`freeswitch.conference.cdr`**
+  - Description: A conference maintenance or CDR event
+  - Attributes: `conference.name`, `conference.profile`, `conference.action`, `conference.member_id`
+
+- **`freeswitch.valet.info`**
+  - Description: A valet parking event
+  - Attributes: `valet.lot`, `valet.extension`, `valet.action`, `bridge.to_uuid`
 
 **Session / Consumer / Queue Spans:**
-- **`session.sendmsg`** (`Session` module) — `channel.uuid`, `application.name`, `application.uuid`, `application.block`
-- **`session.await_complete`** (`Session` module) — child span of `session.sendmsg` when `block=True`; `channel.uuid`, `application.uuid`
-- **`consumer.start`** / **`consumer.stop`** (`Consumer` module) — `consumer.host`, `consumer.port`
-- **`queue.wait_and_acquire`** (`Queue` module) — `queue.id`, `queue.item_id`, `queue.depth` (span attribute, not a metric label)
 
-## Sniffer correlation (sip.call_id join)
+- **`session.sendmsg`** (`Session` module)
+  - Description: A `sendmsg` command was sent through a session
+  - Attributes: `channel.uuid`, `application.name`, `application.uuid`, `application.block`
 
-Correlation with the passive sniffer (Otoru/sniffer) is **attribute-based and
-happens at the observability backend (Grafana/Tempo), not in code**:
+- **`session.await_complete`** (`Session` module)
+  - Description: Waits for a blocking `sendmsg` to complete (child of `session.sendmsg` when `block=True`)
+  - Attributes: `channel.uuid`, `application.uuid`
 
-- Every `freeswitch.channel.*` span carries **`sip.call_id`** (= the ESL
-  `variable_sip_call_id` header), which matches the sniffer's **`voip.call_id`**.
-- Join the two traces in Grafana/Tempo by filtering/grouping on that attribute.
+- **`consumer.start`** / **`consumer.stop`** (`Consumer` module)
+  - Description: The consumer subscribed to events / stopped
+  - Attributes: `consumer.host`, `consumer.port`
+
+- **`queue.wait_and_acquire`** (`Queue` module)
+  - Description: Waiting to acquire an item from the queue
+  - Attributes: `queue.id`, `queue.item_id`, `queue.depth` (span attribute, not a metric label)
+
+## Cross-system correlation (sip.call_id)
+
+Every `freeswitch.channel.*` span carries **`sip.call_id`**, taken from the ESL
+`variable_sip_call_id` header. This is the standard SIP `Call-ID` header, a
+stable per-call identifier that any other SIP observer of the same call will
+also have. That makes it a natural join key when you want to correlate Genesis
+traces with traces from another system that observed the same call.
+
+- The join happens **at the observability backend** (Grafana/Tempo or similar),
+  by filtering or grouping on `sip.call_id` — not in code.
 - Cross-leg grouping: bridge spans carry **`bridge.a_uuid`** and
   **`bridge.b_uuid`**, so the a-leg and b-leg of a call can be tied together.
 - The `genesis.events.without_sip_call_id` metric counts channel events that
-  lack the correlation key (a correlation-gap signal).
-
-W3C `traceparent` / `X-Tracespan` propagation to the sniffer is intentionally
-**out of scope**; the attribute join is sufficient and requires no sniffer
-changes.
+  arrived without the correlation key — a signal that those calls cannot be
+  joined to another system's view.
 
 The lifecycle/CUSTOM processors are on by default. Opt out with
 `GENESIS_TRACE_ESL_LIFECYCLE=0` or `GENESIS_TRACE_CUSTOM_SUBCLASSES=0`.
