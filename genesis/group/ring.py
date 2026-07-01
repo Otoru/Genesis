@@ -19,9 +19,17 @@ from genesis.channel import Channel
 from genesis.types import ChannelState, HangupCause
 from genesis.exceptions import TimeoutError
 from genesis.group.load_balancer import LoadBalancerBackend
+from genesis.protocol.metrics import (
+    loadbalancer_selections_counter,
+    loadbalancer_errors_counter,
+    safe_add,
+)
 
 tracer = trace.get_tracer(__name__)
 meter = metrics.get_meter(__name__)
+
+# Repeated metric attribute key (centralised so Sonar S1192 stays quiet).
+_ATTR_LB_BACKEND = "loadbalancer.backend"
 
 # Ring group metrics
 ring_group_operations_counter = meter.create_counter(
@@ -145,6 +153,14 @@ class RingGroup:
                     balancer is not None and mode == RingMode.BALANCING
                 ),
                 "ring_group.has_variables": str(variables is not None),
+                "ring_group.balancer_backend": (
+                    type(balancer).__name__
+                    if balancer is not None and mode == RingMode.BALANCING
+                    else "none"
+                ),
+                "ring_group.context": (
+                    variables.get("user_context", "unknown") if variables else "unknown"
+                ),
             },
         ) as span:
             try:
@@ -163,6 +179,16 @@ class RingGroup:
                     )
                     span.set_attribute(
                         "ring_group.answered_dial_path", answered.dial_path
+                    )
+                    span.set_attribute(
+                        "ring_group.selected_dial_path", answered.dial_path
+                    )
+                    span.add_event(
+                        "ring_group.leg_answered",
+                        attributes={
+                            "ring_group.answered_uuid": answered.uuid or "unknown",
+                            "ring_group.selected_dial_path": answered.dial_path,
+                        },
                     )
 
                 # Record metrics
@@ -203,6 +229,7 @@ class RingGroup:
                 span.set_attribute("ring_group.error", str(e))
                 span.set_attribute("ring_group.duration", duration)
                 span.record_exception(e)
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
 
                 ring_group_results_counter.add(
                     1,
@@ -332,10 +359,40 @@ class RingGroup:
         """Ring destinations sequentially using load balancing, return first to answer."""
 
         remaining = list(group)
+        backend_name = type(balancer).__name__
         while remaining:
-            least_loaded = await balancer.get_least_loaded(remaining)
+            try:
+                least_loaded = await balancer.get_least_loaded(remaining)
+            except Exception as e:
+                safe_add(
+                    loadbalancer_errors_counter,
+                    1,
+                    attributes={
+                        _ATTR_LB_BACKEND: backend_name,
+                        "error": type(e).__name__,
+                    },
+                )
+                least_loaded = None
+
             if not least_loaded:
                 least_loaded = remaining[0]
+                safe_add(
+                    loadbalancer_selections_counter,
+                    1,
+                    attributes={
+                        _ATTR_LB_BACKEND: backend_name,
+                        "loadbalancer.result": "fallback",
+                    },
+                )
+            else:
+                safe_add(
+                    loadbalancer_selections_counter,
+                    1,
+                    attributes={
+                        _ATTR_LB_BACKEND: backend_name,
+                        "loadbalancer.result": "selected",
+                    },
+                )
 
             await balancer.increment(least_loaded)
 

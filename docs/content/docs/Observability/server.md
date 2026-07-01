@@ -3,7 +3,20 @@ title: HTTP Server
 weight: 30
 ---
 
-A built-in HTTP server exposes health, readiness, and metrics. Port **8000** by default; set `GENESIS_OBSERVABILITY_PORT` to change it. With the CLI, the server starts automatically; with the library, you start it yourself (see below).
+Genesis ships a built-in HTTP server that exposes three endpoints:
+
+- **`/health`** — liveness probe (is the process up and connected?)
+- **`/ready`** — readiness probe (can the app accept work yet?)
+- **`/metrics`** — Prometheus scrape endpoint for all Genesis metrics
+
+The server listens on port **8000** by default. Change it with the
+`GENESIS_OBSERVABILITY_PORT` environment variable.
+
+How it starts depends on how you run Genesis:
+
+- **CLI** (`genesis consumer` / `genesis outbound`): the server starts
+  automatically.
+- **Library**: you start the server yourself (see [Library](#library) below).
 
 ## Endpoints
 

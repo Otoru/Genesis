@@ -15,66 +15,34 @@ from collections.abc import Coroutine
 import time
 from asyncio import Event, wait_for, TimeoutError as AsyncioTimeoutError
 
-from opentelemetry import trace, metrics
+from opentelemetry import trace
 
 from genesis.protocol import Protocol
 from genesis.session import Session
 from genesis.inbound import Inbound
 from genesis.protocol.parser import ESLEvent
+from genesis.protocol.metrics import (
+    channel_operations_counter,
+    channel_operation_duration,
+    hangup_causes_counter,
+    bridge_operations_counter,
+    dtmf_received_counter,
+    call_duration_histogram,
+    timeout_counter,
+)
 from genesis.types import HangupCause, ChannelState, ContextType
 from genesis.exceptions import ChannelError, TimeoutError
 from genesis.observability import logger
 
 tracer = trace.get_tracer(__name__)
-meter = metrics.get_meter(__name__)
-
-# Define metrics here to avoid circular imports
-channel_operations_counter = meter.create_counter(
-    "genesis.channel.operations",
-    description="Number of channel operations",
-    unit="1",
-)
-
-channel_operation_duration = meter.create_histogram(
-    "genesis.channel.operation.duration",
-    description="Duration of channel operations",
-    unit="s",
-)
-
-hangup_causes_counter = meter.create_counter(
-    "genesis.channel.hangup.causes",
-    description="Hangup causes",
-    unit="1",
-)
-
-bridge_operations_counter = meter.create_counter(
-    "genesis.channel.bridge.operations",
-    description="Bridge operations",
-    unit="1",
-)
-
-dtmf_received_counter = meter.create_counter(
-    "genesis.channel.dtmf.received",
-    description="DTMF digits received",
-    unit="1",
-)
-
-call_duration_histogram = meter.create_histogram(
-    "genesis.call.duration",
-    description="Total call duration from creation to hangup",
-    unit="s",
-)
-
-timeout_counter = meter.create_counter(
-    "genesis.timeouts",
-    description="Number of timeouts",
-    unit="1",
-)
 
 # Span/attribute names (S1192: avoid duplicated literals)
 ATTR_CHANNEL_UUID = "channel.uuid"
+ATTR_CHANNEL_CALL_UUID = "channel.call_uuid"
+ATTR_SIP_CALL_ID = "sip.call_id"
 ATTR_CHANNEL_STATE = "channel.state"
 ATTR_HANGUP_CAUSE = "hangup.cause"
+ATTR_HANGUP_CAUSE_Q850 = "hangup.cause.q850"
 ATTR_WAIT_TYPE = "wait.type"
 ATTR_WAIT_RESULT = "wait.result"
 ATTR_WAIT_DURATION = "wait.duration"
@@ -157,6 +125,14 @@ class Channel:
                     raise ChannelError("Failed to retrieve UUID from FreeSWITCH")
                 self.uuid = response.body.strip()
                 span.set_attribute(ATTR_CHANNEL_UUID, self.uuid)
+                # channel.call_uuid groups a-leg/b-leg within the Genesis trace;
+                # at originate time it equals the origination UUID.
+                span.set_attribute(ATTR_CHANNEL_CALL_UUID, self.uuid)
+                # sip.call_id is the standard SIP Call-ID and the cross-system
+                # join key. It is usually not known yet at originate; attach when present.
+                sip_call_id = _context_str(self.context, "variable_sip_call_id")
+                if sip_call_id:
+                    span.set_attribute(ATTR_SIP_CALL_ID, sip_call_id)
 
                 self.protocol.on("CHANNEL_STATE", self._state_handler)
                 await self.protocol.send(f"filter Unique-ID {self.uuid}")
@@ -568,9 +544,25 @@ class Channel:
 
         def on_success(span: Any, result: ESLEvent, duration: float) -> None:
             hangup_causes_counter.add(1, attributes={ATTR_HANGUP_CAUSE: cause})
+            # Q.850 code (authoritative) when FreeSWITCH exposed it on the leg.
+            q850 = _context_str(self.context, "variable_hangup_cause_q850")
+            if q850:
+                span.set_attribute(ATTR_HANGUP_CAUSE_Q850, q850)
+            # call.duration recorded with low-cardinality attrs so it can be
+            # partitioned by cause/direction (NO UUID: cardinality rule).
             if call_duration is not None:
                 span.set_attribute("call.duration", call_duration)
-                call_duration_histogram.record(call_duration)
+                direction = _context_str(self.context, "Call-Direction") or "unknown"
+                call_duration_histogram.record(
+                    call_duration,
+                    attributes={ATTR_HANGUP_CAUSE: cause, "direction": direction},
+                )
+            # Mark the command-side hangup span; the authoritative marker comes
+            # from CHANNEL_HANGUP_COMPLETE (see channel_lifecycle_processor).
+            span.add_event(
+                "hangup.command_issued",
+                attributes={ATTR_HANGUP_CAUSE: cause},
+            )
 
         def on_error(exc: Exception) -> None:
             hangup_causes_counter.add(
@@ -616,6 +608,24 @@ class Channel:
         def on_success(span: Any, result: ESLEvent, duration: float) -> None:
             success = result.get("Reply-Text", "").startswith("+OK")
             bridge_operations_counter.add(1, attributes={"success": str(success)})
+            # Correlation attrs: a/b leg UUIDs let the backend cross the two
+            # SIP dialogs of a bridged call (each leg has its own sip.call_id).
+            span.set_attribute("bridge.a_uuid", self.uuid or "unknown")
+            span.set_attribute("bridge.b_uuid", other_uuid or "unknown")
+            call_uuid = _context_str(self.context, "Channel-Call-UUID") or (
+                self.uuid or "unknown"
+            )
+            span.set_attribute(ATTR_CHANNEL_CALL_UUID, call_uuid)
+            sip_call_id = _context_str(self.context, "variable_sip_call_id")
+            if sip_call_id:
+                span.set_attribute(ATTR_SIP_CALL_ID, sip_call_id)
+            span.add_event(
+                "bridge.command_issued",
+                attributes={
+                    "bridge.a_uuid": self.uuid or "unknown",
+                    "bridge.b_uuid": other_uuid or "unknown",
+                },
+            )
 
         def on_error(exc: Exception) -> None:
             bridge_operations_counter.add(

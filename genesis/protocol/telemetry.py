@@ -11,6 +11,36 @@ from genesis.protocol.parser import ESLEvent
 from genesis.protocol.metrics import tracer, events_received_counter
 from genesis.observability import logger, TRACE_LEVEL_NUM
 
+_EXPLICIT_ATTRS = {
+    "Call-Direction": "event.direction",
+    "Channel-State": "event.channel_state",
+    "Answer-State": "event.answer_state",
+    "Hangup-Cause": "event.hangup_cause",
+    "Event-Subclass": "event.subclass",
+    "Channel-Call-UUID": "event.call_uuid",
+    "Other-Leg-Unique-ID": "event.other_leg",
+    "Caller-Context": "event.context",
+    "Caller-Destination-Number": "event.destination_number",
+}
+
+
+def _header_attr_name(key: str) -> str:
+    """Map an ESL header key to its OpenTelemetry attribute name."""
+    if key == "Event-Name":
+        return "event.name"
+    if key == "Unique-ID":
+        return "event.uuid"
+    if key == "Content-Type":
+        return "event.content_type"
+    return f"event.header.{key.lower().replace('-', '_')}"
+
+
+def _scalar(value: Any) -> Any:
+    """Collapse a single-element list to its element; pass other values through."""
+    if isinstance(value, list):
+        return value[0] if value else ""
+    return value
+
 
 def build_event_attributes(event: ESLEvent) -> Dict[str, Any]:
     """Build OpenTelemetry attributes from an ESL event.
@@ -21,21 +51,23 @@ def build_event_attributes(event: ESLEvent) -> Dict[str, Any]:
     Returns:
         Dictionary of attributes suitable for OTel spans and metrics
     """
-    attributes = {}
+    attributes: Dict[str, Any] = {}
 
     for key, value in event.items():
-        if key == "Event-Name":
-            attr_name = "event.name"
-        elif key == "Unique-ID":
-            attr_name = "event.uuid"
-        elif key == "Content-Type":
-            attr_name = "event.content_type"
-        else:
-            slug = key.lower().replace("-", "_")
-            attr_name = f"event.header.{slug}"
-
         if isinstance(value, (str, int, float, bool, list, tuple)):
-            attributes[attr_name] = value
+            attributes[_header_attr_name(key)] = value
+
+    # Routing / correlation attributes (explicit, low-cardinality keys) so the
+    # ``process_event`` span carries routing info and the cross-system join key.
+    for src, dst in _EXPLICIT_ATTRS.items():
+        if src in event:
+            attributes[dst] = _scalar(event[src])
+
+    # sip.call_id is the standard SIP Call-ID and the cross-system join key.
+    # The join happens at the observability backend.
+    sip_call_id = event.get("variable_sip_call_id")
+    if sip_call_id:
+        attributes["sip.call_id"] = _scalar(sip_call_id)
 
     return attributes
 

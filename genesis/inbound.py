@@ -8,33 +8,18 @@ from __future__ import annotations
 
 from asyncio import TimeoutError, open_connection, wait_for
 
-from opentelemetry import metrics, trace
+from opentelemetry import trace
 
 from genesis.exceptions import AuthenticationError, ConnectionTimeoutError
 from genesis.observability import logger
 from genesis.protocol import Protocol
+from genesis.protocol.metrics import (
+    connection_errors_counter,
+    connections_active_counter,
+    safe_add,
+)
 
 tracer = trace.get_tracer(__name__)
-meter = metrics.get_meter(__name__)
-
-active_connections_counter = meter.create_up_down_counter(
-    "genesis.connections.active",
-    description="Number of active connections",
-    unit="1",
-)
-connection_errors_counter = meter.create_counter(
-    "genesis.connections.errors",
-    description="Number of connection errors",
-    unit="1",
-)
-
-
-def _safe_connection_metric(counter: object, *args: object, **kwargs: object) -> None:
-    """Add to a counter, swallowing OTel/metrics errors."""
-    try:
-        getattr(counter, "add")(*args, **kwargs)
-    except Exception:
-        pass
 
 
 class Inbound(Protocol):
@@ -84,7 +69,7 @@ class Inbound(Protocol):
 
         if response["Reply-Text"] != "+OK accepted":
             logger.debug("Freeswitch said the passed password is incorrect.")
-            _safe_connection_metric(
+            safe_add(
                 connection_errors_counter,
                 1,
                 attributes={"error": "authentication_failed", "type": "inbound"},
@@ -104,7 +89,7 @@ class Inbound(Protocol):
                 await self._connect()
         except TimeoutError:
             logger.debug("A timeout occurred when trying to connect to the freeswitch.")
-            _safe_connection_metric(
+            safe_add(
                 connection_errors_counter,
                 1,
                 attributes={"error": "timeout", "type": "inbound"},
@@ -113,9 +98,7 @@ class Inbound(Protocol):
 
         await super().start()
         try:
-            _safe_connection_metric(
-                active_connections_counter, 1, attributes={"type": "inbound"}
-            )
+            safe_add(connections_active_counter, 1, attributes={"type": "inbound"})
             await self.authenticate()
         except Exception:
             await self.stop()
@@ -124,6 +107,4 @@ class Inbound(Protocol):
     async def stop(self) -> None:
         """Terminates the connection."""
         await super().stop()
-        _safe_connection_metric(
-            active_connections_counter, -1, attributes={"type": "inbound"}
-        )
+        safe_add(connections_active_counter, -1, attributes={"type": "inbound"})

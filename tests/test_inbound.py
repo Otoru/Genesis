@@ -132,7 +132,7 @@ async def test_inbound_client_send_command_error(freeswitch):
 async def test_inbound_metrics_error_on_start(freeswitch):
     async with freeswitch:
         with patch(
-            "genesis.inbound.active_connections_counter.add",
+            "genesis.inbound.connections_active_counter.add",
             side_effect=Exception("Metrics error"),
         ):
             async with Inbound(*freeswitch.address) as client:
@@ -143,7 +143,7 @@ async def test_inbound_metrics_error_on_stop(freeswitch):
     async with freeswitch:
         async with Inbound(*freeswitch.address):
             with patch(
-                "genesis.inbound.active_connections_counter.add",
+                "genesis.inbound.connections_active_counter.add",
                 side_effect=Exception("Metrics error"),
             ):
                 pass

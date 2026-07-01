@@ -287,6 +287,71 @@ async def my_feature():
             raise
 ```
 
+### Centralized metrics
+
+All OTel metric instruments live in `genesis/protocol/metrics.py`. **Do not
+re-declare an instrument that already exists there** — duplicate instrument
+creation for the same metric name trips static analysis and produces OTel SDK
+warnings. Import the instrument (and the `safe_add` / `safe_record` helpers)
+from `genesis.protocol.metrics` instead:
+
+```python
+from genesis.protocol.metrics import (
+    calls_active_counter,
+    safe_add,
+    safe_record,
+    event_processing_duration,
+)
+```
+
+`safe_add(counter, *args, **kwargs)` and `safe_record(histogram, *args, **kwargs)`
+swallow OTel/no-provider errors so a missing exporter never crashes the protocol.
+
+### ESL channel lifecycle spans
+
+`genesis/protocol/lifecycle.py` registers two event processors
+(`channel_lifecycle_processor`, `custom_subclass_processor`) that emit
+`freeswitch.channel.*` and `freeswitch.sofia.*` / `freeswitch.callcenter.*` /
+`freeswitch.conference.*` / `freeswitch.valet.*` spans for the semantic
+FreeSWITCH channel lifecycle. They run after the core protocol processors
+(auth, command reply, disconnect) and only enrich telemetry — they never
+consume events that route to user handlers. They are on by default; opt out
+with `GENESIS_TRACE_ESL_LIFECYCLE=0` / `GENESIS_TRACE_CUSTOM_SUBCLASSES=0`.
+
+Emitted spans (non-exhaustive): `freeswitch.channel.create`, `.progress`,
+`.progress_media`, `.answer`, `.bridge`, `.unbridge`, `.hangup`,
+`.hangup_complete`, `.destroy`, `.execute`, `.execute_complete`, `.codec`,
+`freeswitch.call.update`, `freeswitch.sofia.transfer`, `freeswitch.sofia.register`,
+`freeswitch.callcenter.info`, `freeswitch.conference.maintenance`,
+`freeswitch.conference.cdr`, `freeswitch.valet.info`.
+
+### Cross-system correlation (sip.call_id)
+
+Every channel lifecycle span carries `sip.call_id` (= the ESL
+`variable_sip_call_id` header), the standard SIP `Call-ID`. This is a stable
+per-call identifier that any other SIP observer of the same call will also
+have, so it is the natural join key when correlating Genesis traces with
+another system's traces of the same call. The join happens **at the
+observability backend** (Grafana/Tempo), by filtering/grouping on `sip.call_id`
+— not in code.
+
+Cross-leg grouping: bridge spans carry `bridge.a_uuid` and `bridge.b_uuid`
+(from `Bridge-A-Unique-ID` / `Bridge-B-Unique-ID`), so the a-leg and b-leg of a
+call can be tied together at the backend.
+
+The `genesis.events.without_sip_call_id` counter tracks channel events that
+lack the correlation key (a correlation-gap signal). W3C `traceparent` /
+`X-Tracespan` propagation is intentionally **out of scope**; the attribute join
+is sufficient.
+
+### Cardinality rule
+
+UUIDs go **on spans only**, never as metric attributes. Metric attributes use
+low-cardinality enums/labels (`channel.state`, `direction`, `hangup.cause`,
+`application.name`, `bridge.result`, `transfer.type`, `loadbalancer.backend`,
+...). `queue.depth` is a span attribute (not a metric label) for the same
+reason.
+
 ## Pre-PR Checklist
 
 **CRITICAL: Always run the full CI stack locally before opening a PR.**

@@ -7,17 +7,27 @@ Abstracts a session established between the application and the freeswitch.
 
 from __future__ import annotations
 
+import time
 from asyncio import Event, Queue, StreamReader, StreamWriter, wait_for
 from functools import partial
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
+from opentelemetry import trace
+
 from genesis.observability import logger
 from genesis.protocol import Protocol
 from genesis.protocol.parser import ESLEvent
+from genesis.protocol.metrics import (
+    session_command_duration,
+    session_commands_counter,
+    safe_record,
+)
 
 if TYPE_CHECKING:
     from genesis.channel import Channel
+
+tracer = trace.get_tracer(__name__)
 
 
 def _build_sendmsg_cmd(
@@ -195,23 +205,56 @@ class Session(Protocol):
         )
         logger.debug("Send command to freeswitch: '%s'.", cmd)
 
-        if block and command == "execute" and resolved_event_uuid:
-            logger.debug(
-                "Waiting for command completion with Application-UUID: %s",
-                resolved_event_uuid,
-            )
-            command_is_complete = self._awaitable_complete_command(
-                resolved_event_uuid, timeout
-            )
-            response = await self.send(cmd)
-            logger.debug(
-                "Received response of execute command with block: %s",
-                response,
-            )
-            if timeout is not None:
-                await wait_for(command_is_complete.wait(), timeout=timeout)
-            else:
-                await command_is_complete.wait()
-            return await self.fifo.get()
+        start_time = time.perf_counter()
+        with tracer.start_as_current_span(
+            "session.sendmsg",
+            attributes={
+                "channel.uuid": self.uuid or "unknown",
+                "application.name": application,
+                "application.uuid": resolved_event_uuid or "unknown",
+                "application.block": str(block),
+            },
+        ):
+            safe_add_cmd_attrs = {"application.name": application}
 
-        return await self.send(cmd)
+            if block and command == "execute" and resolved_event_uuid:
+                logger.debug(
+                    "Waiting for command completion with Application-UUID: %s",
+                    resolved_event_uuid,
+                )
+                command_is_complete = self._awaitable_complete_command(
+                    resolved_event_uuid, timeout
+                )
+                response = await self.send(cmd)
+                logger.debug(
+                    "Received response of execute command with block: %s",
+                    response,
+                )
+                with tracer.start_as_current_span(
+                    "session.await_complete",
+                    attributes={
+                        "channel.uuid": self.uuid or "unknown",
+                        "application.uuid": resolved_event_uuid,
+                    },
+                ):
+                    if timeout is not None:
+                        await wait_for(command_is_complete.wait(), timeout=timeout)
+                    else:
+                        await command_is_complete.wait()
+                result = await self.fifo.get()
+                safe_record(
+                    session_command_duration,
+                    time.perf_counter() - start_time,
+                    attributes=safe_add_cmd_attrs,
+                )
+                session_commands_counter.add(1, attributes=safe_add_cmd_attrs)
+                return result
+
+            result = await self.send(cmd)
+            safe_record(
+                session_command_duration,
+                time.perf_counter() - start_time,
+                attributes=safe_add_cmd_attrs,
+            )
+            session_commands_counter.add(1, attributes=safe_add_cmd_attrs)
+            return result

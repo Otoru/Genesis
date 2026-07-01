@@ -9,6 +9,10 @@ behavior (auth, command reply, disconnect) or to plug in use-case adapters.
 from typing import TYPE_CHECKING, List, Callable, Awaitable, Union
 
 from genesis.protocol.parser import ESLEvent
+from genesis.protocol.lifecycle import (
+    channel_lifecycle_processor,
+    custom_subclass_processor,
+)
 
 if TYPE_CHECKING:
     from genesis.protocol.base import Protocol
@@ -47,10 +51,17 @@ async def disconnect_processor(protocol: "Protocol", event: ESLEvent) -> None:
 
 
 def default_processors() -> List[EventProcessor]:
-    """Return the default list of event processors (order matters)."""
+    """Return the default list of event processors (order matters).
+
+    Lifecycle/CUSTOM processors run last so they never interfere with the
+    core protocol adapters (auth, command reply, disconnect). They only emit
+    telemetry — they do not consume events routed to user handlers.
+    """
     return [
         auth_request_processor,
         command_reply_processor,
         api_response_processor,
         disconnect_processor,
+        channel_lifecycle_processor,
+        custom_subclass_processor,
     ]

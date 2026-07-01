@@ -9,8 +9,12 @@ import functools
 import re
 from typing import Any, Callable, Optional
 
+from opentelemetry import trace
+
 from genesis.inbound import Inbound
 from genesis.observability import logger, observability
+
+tracer = trace.get_tracer(__name__)
 
 
 async def _invoke_maybe_coro(func: Callable[..., Any], message: Any) -> Any:
@@ -131,15 +135,25 @@ class Consumer:
             self.protocol.on("HEARTBEAT", observability.record_heartbeat)
 
             async with self.protocol as protocol:
-                logger.debug("Asking freeswitch to send us all events.")
-                await protocol.send("events plain ALL")
+                # The consumer.start span wraps only the setup phase (auth,
+                # events subscription, filter registration) so it finalizes
+                # promptly and is observable; the blocking wait() runs outside.
+                with tracer.start_as_current_span(
+                    "consumer.start",
+                    attributes={
+                        "consumer.host": self.host,
+                        "consumer.port": self.port,
+                    },
+                ):
+                    logger.debug("Asking freeswitch to send us all events.")
+                    await protocol.send("events plain ALL")
 
-                for event in protocol.handlers.keys():
-                    logger.debug(
-                        "Requesting freeswitch to filter events of type '%s'.",
-                        event,
-                    )
-                    await protocol.send(self._filter_command(event))
+                    for event in protocol.handlers.keys():
+                        logger.debug(
+                            "Requesting freeswitch to filter events of type '%s'.",
+                            event,
+                        )
+                        await protocol.send(self._filter_command(event))
 
                 await self.wait()
 
@@ -148,4 +162,5 @@ class Consumer:
             raise
 
     async def stop(self) -> None:
-        await self.protocol.stop()
+        with tracer.start_as_current_span("consumer.stop"):
+            await self.protocol.stop()
