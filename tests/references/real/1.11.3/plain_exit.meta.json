@@ -1,0 +1,9 @@
+{
+  "kind": "real",
+  "freeswitch_version": "1.11.3",
+  "git": "ef32e205295e29f034f1453ad245ba5efb07b94a",
+  "image": "genesis-esl-research-fs:v1.11.3",
+  "source": "captures-out/plain_exit.raw",
+  "captured_at": "2026-10-14",
+  "note": "Non-full outbound: -ERR command not found, then +OK bye and disconnect."
+}

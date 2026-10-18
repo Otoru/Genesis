@@ -13,6 +13,8 @@ In `Outbound` mode, each `Session` automatically has a `channel` attribute that 
 
 Since `Session` (used in Outbound mode) inherits from `Protocol`, you can also create additional channels directly from a `Session` without needing a separate `Inbound` connection.
 
+To attach a channel that is already up, call `Inbound.get_channel()` with its UUID. That returns a new `Channel` on that connection.
+
 ## Basic Example
 
 ```python
@@ -258,6 +260,34 @@ async def handler(session: Session):
 
 app = Outbound(handler, "127.0.0.1", 5000)
 asyncio.run(app.start())
+```
+
+## Live channel lookup
+
+`await client.get_channel(channel_uuid)` returns a new `Channel` for one live UUID on that `Inbound` connection. The lost-socket flow is in [Lost connection]({{< relref "../Quickstart/inbound.md#lost-connection" >}}).
+
+- Pass a UUID of eight, four, four, four, and twelve hexadecimal digits, with hyphens. A different string raises `ChannelError` and is not sent.
+- `ChannelNotFound` means FreeSWITCH has no live channel for that UUID. The error's `uuid` is the id you passed.
+- `context` and `state` come from one `uuid_dump`. The dump is not an atomic view of the call, and it is not a history of applications that already ran.
+- Handlers from an older `Channel` or `Session` are not copied. Events from before the dump are not replayed.
+- Lifecycle event names this connection does not already receive are subscribed. `ALL` and `myevents`, when already accepted, stay as they are. `get_channel` does not send `myevents`.
+- Filters already on this connection stay. A positive `Unique-ID` filter is added only when those positive filters would hide this channel.
+- A negative filter stays in place. Genesis does not delete it.
+- A blocking execute raises `ChannelError` before the command is sent when a negative `Event-Name` or `Unique-ID` filter hides `CHANNEL_EXECUTE_COMPLETE`. The `timeout` argument is not used for that refusal.
+- A negative filter on any other header stays as well. Genesis cannot tell that it hides completion, so that wait has no guarantee.
+- `hangup()` ends that call. On `Inbound` it sends `api uuid_kill`.
+
+```python
+from genesis import Inbound
+from genesis.exceptions import ChannelNotFound
+
+async def hangup_live(call_uuid: str) -> None:
+    async with Inbound("127.0.0.1", 8021, "ClueCon") as client:
+        try:
+            channel = await client.get_channel(call_uuid)
+        except ChannelNotFound:
+            return
+        await channel.hangup()
 ```
 
 ## Use Cases

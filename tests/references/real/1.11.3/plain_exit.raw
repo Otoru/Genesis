@@ -1,0 +1,13 @@
+Content-Type: command/reply
+Reply-Text: -ERR command not found
+
+Content-Type: command/reply
+Reply-Text: +OK bye
+
+Content-Type: text/disconnect-notice
+Controlled-Session-UUID: 68680c99-add9-48bb-a4a1-3ea7639fbcab
+Content-Disposition: disconnect
+Content-Length: 67
+
+Disconnected, goodbye.
+See you at ClueCon! http://www.cluecon.com/

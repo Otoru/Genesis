@@ -22,3 +22,25 @@ To ensure code quality, we enforce strict typing and automated testing.
 2. **Testing**: We use `pytest` for testing and `tox` for cross-environment verification.
    - Run `poetry run tox` to validate your changes against supported Python versions.
    - Ensure all tests pass and no regression warnings are introduced.
+
+## Running the Tests
+
+The suite runs offline. It does not start FreeSWITCH or Docker; the ESL peer is a loopback simulator on `127.0.0.1`.
+
+```bash
+poetry install
+poetry run pytest
+poetry run black --check genesis/ tests/ examples/
+poetry run mypy genesis/
+poetry run tox
+```
+
+Suite layout:
+
+- `tests/features/` and `tests/bdd/`: Gherkin scenarios and steps for RingGroup, Session, and Consumer
+- `tests/contract/`: ESL wire and protocol boundary checks
+- `tests/unit/`: in-memory internals such as the logger, queue, CLI, routing, parser, and reader state machine
+- `tests/simulator/`: the loopback ESL peer (it does not import Genesis)
+- `tests/references/`: captured and synthetic ESL bytes; see [tests/references/README.md](tests/references/README.md) for provenance and simulator limits
+
+Async tests coordinate with `asyncio.Event`, `asyncio.Condition`, or `asyncio.Future`, bounded by `asyncio.wait_for`. Do not use `asyncio.sleep` or `time.sleep` in tests.

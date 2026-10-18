@@ -1,0 +1,10 @@
+{
+  "kind": "real",
+  "freeswitch_version": "1.11.3",
+  "git": "ef32e205295e29f034f1453ad245ba5efb07b94a",
+  "image": "genesis-esl-research-fs:v1.11.3",
+  "source": "captures-recovery/uuid_dump_txt_note.txt",
+  "captured_at": "2026-10-16",
+  "reproduction": "Body of api uuid_dump <uuid> txt after uuid_setvar research_note to café test.",
+  "note": "Header values are URL-encoded and are not wrapped in brackets. variable_research_note is caf%C3%A9%20test. The body is the api/response payload only."
+}

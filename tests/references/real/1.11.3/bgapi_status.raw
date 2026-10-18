@@ -1,0 +1,32 @@
+Content-Type: command/reply
+Reply-Text: +OK Job-UUID: 0ae3e0fd-155c-4825-8a10-c1ed7f206b7e
+Job-UUID: 0ae3e0fd-155c-4825-8a10-c1ed7f206b7e
+
+Content-Length: 922
+Content-Type: text/event-plain
+
+Event-Name: BACKGROUND_JOB
+Core-UUID: 97a4b1dd-33c1-4e6a-9dc9-7f9b4f3a1d37
+FreeSWITCH-Hostname: b3a36bf9f090
+FreeSWITCH-Switchname: b3a36bf9f090
+FreeSWITCH-IPv4: 172.20.0.2
+FreeSWITCH-IPv6: %3A%3A1
+Event-Date-Local: 2026-10-14%2023%3A50%3A19
+Event-Date-GMT: Wed,%2014%20Oct%202026%2023%3A50%3A19%20GMT
+Event-Date-Timestamp: 1792021819528860
+Event-Calling-File: mod_event_socket.c
+Event-Calling-Function: api_exec
+Event-Calling-Line-Number: 1580
+Event-Sequence: 366
+Job-UUID: 0ae3e0fd-155c-4825-8a10-c1ed7f206b7e
+Job-Command: status
+Content-Length: 369
+
+UP 0 years, 0 days, 0 hours, 0 minutes, 33 seconds, 685 milliseconds, 162 microseconds
+FreeSWITCH (Version 1.11.3-release git ef32e20 2026-08-28 20:49:48Z 64bit) is ready
+0 session(s) since startup
+0 session(s) - peak 0, last 5min 0 
+0 session(s) per Sec out of max 30, peak 0, last 5min 0 
+1000 session(s) max
+min idle cpu 0.00/97.83
+Current Stack Size/Max 240K/8192K

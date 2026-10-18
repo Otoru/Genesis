@@ -21,6 +21,10 @@ Genesis exposes the following metrics via OpenTelemetry:
 - **`genesis_commands_errors_total`** (Counter)
   - Description: Number of failed ESL commands
   - Attributes: `command`, `error`
+  - `stage` is also set when `error` is `connection_lost`:
+    - `NOT_SENT`
+    - `UNCONFIRMED`
+    - `ACCEPTED`
 
 **Event Metrics:**
 - **`genesis_events_received_total`** (Counter)
@@ -40,10 +44,15 @@ Genesis exposes the following metrics via OpenTelemetry:
 - **`genesis_channel_operations_total`** (Counter)
   - Description: Number of channel operations
   - Attributes: `operation` (answer, hangup, bridge, playback, say, etc.), `success`, `error`
+  - `get_channel` records `result` instead of `success` and `error`:
+    - `found`
+    - `not_found`
+    - `error`
 
 - **`genesis_channel_operation_duration_seconds`** (Histogram)
   - Description: Duration of channel operations
   - Attributes: `operation`
+  - `get_channel` also sets `result` (`found`, `not_found`, `error`)
 
 - **`genesis_channel_hangup_causes_total`** (Counter)
   - Description: Hangup causes

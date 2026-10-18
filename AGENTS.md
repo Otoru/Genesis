@@ -72,35 +72,37 @@ Run tests with pytest:
 # Run all tests
 poetry run pytest
 
-# Run specific test file
-poetry run pytest tests/test_channel.py
+# Run one module
+poetry run pytest tests/contract/test_inbound.py
 
 # Run with verbose output
 poetry run pytest -vvv
 
-# Run specific test
-poetry run pytest tests/test_channel.py::test_channel_state
+# Run one test
+poetry run pytest tests/contract/test_channel.py::test_channel_state
 ```
 
-**Test Structure**:
-- Tests in `tests/` directory
-- Fixtures in `tests/conftest.py`
-- Mocks/stubs in `tests/doubles.py`
-- Test data in `tests/payloads.py`
+**Test layout**:
+- `tests/features/` and `tests/bdd/` hold RingGroup, Session, and Consumer scenarios
+- `tests/contract/` holds wire and protocol boundary tests, including the loopback simulator and the parser-versus-codec check
+- `tests/unit/` holds logger, queue, CLI, routing, the ESL parser, the reader state machine, and other internals
+- `tests/simulator/` is the loopback ESL peer. It does not import Genesis
+- `tests/references/real/` and `tests/references/synthetic/` hold raw bytes plus a sidecar `*.meta.json`. The pin, capture provenance, and simulator limits are in `tests/references/README.md`
+- `tests/conftest.py` exposes `esl_server`. BDD steps use the `world` fixture in `tests/bdd/conftest.py`
 - Async tests use `pytest.mark.asyncio` or `asyncio_mode = "auto"`
+- The suite does not start FreeSWITCH or any container
 
 **Configuration**: See `[tool.pytest.ini_options]` in `pyproject.toml`:
 - `asyncio_mode = "auto"` (auto-detect async tests)
 - `timeout = 10` (via pytest-timeout)
 - `addopts = "-vvv -x --full-trace --timeout=10"`
 
-**CRITICAL: Never use `asyncio.sleep()` in tests**:
+**CRITICAL: Never use `asyncio.sleep()` or `time.sleep()` in tests or test support**:
 - Tests must use events, awaitables, or proper synchronization primitives
-- Use `wait_for_channels()` helper or similar event-based waiting
 - Use `asyncio.create_task()` and await the task completion
 - Use `asyncio.Event`, `asyncio.Condition`, or `asyncio.Future` for coordination
 - Use `asyncio.wait_for()` with events/conditions for timeout handling
-- **NO EXCEPTIONS** - all sleeps must be replaced with event-driven mechanisms
+- This includes `asyncio.sleep(0)`. Production code is outside this ban
 - Sleeps make tests flaky, slow, and unreliable
 
 #### tox

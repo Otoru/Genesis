@@ -1,0 +1,10 @@
+Content-Type: auth/request
+
+Content-Type: command/reply
+Reply-Text: -ERR invalid
+
+Content-Type: text/disconnect-notice
+Content-Length: 67
+
+Disconnected, goodbye.
+See you at ClueCon! http://www.cluecon.com/

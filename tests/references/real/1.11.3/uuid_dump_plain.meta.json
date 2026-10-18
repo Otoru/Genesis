@@ -1,0 +1,10 @@
+{
+  "kind": "real",
+  "freeswitch_version": "1.11.3",
+  "git": "ef32e205295e29f034f1453ad245ba5efb07b94a",
+  "image": "genesis-esl-research-fs:v1.11.3",
+  "source": "captures-recovery/uuid_dump_plain.txt",
+  "captured_at": "2026-10-16",
+  "reproduction": "Body of api uuid_dump <uuid> plain for a parked loopback leg.",
+  "note": "Values are wrapped in brackets and are not URL-encoded. This is not the default format. The body is the api/response payload only. Event-Date-GMT in the body is Sat, 17 Oct 2026 00:32:41 GMT."
+}

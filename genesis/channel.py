@@ -1,26 +1,47 @@
 from __future__ import annotations
 
-from typing import (
-    Any,
-    Mapping,
-    Optional,
-    Union,
-    Dict,
-    Literal,
-    TYPE_CHECKING,
-    Awaitable,
-    Callable,
+import contextlib
+import re
+import time
+from asyncio import (
+    FIRST_COMPLETED,
+    AbstractEventLoop,
+    CancelledError,
+    Event,
+    Task,
+    create_task,
+    get_running_loop,
+    wait,
+    wait_for,
+    TimeoutError as AsyncioTimeoutError,
 )
 from collections.abc import Coroutine
-import time
-from asyncio import Event, wait_for, TimeoutError as AsyncioTimeoutError
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    TypeVar,
+    Union,
+    cast,
+    TYPE_CHECKING,
+)
 
 from opentelemetry import trace
 
 from genesis.protocol import Protocol
-from genesis.session import Session
+from genesis.session import (
+    Session,
+    _build_sendmsg_cmd,
+    _install_execution_wait,
+    _rejected,
+)
 from genesis.inbound import Inbound
-from genesis.protocol.parser import ESLEvent
+from genesis.protocol.parser import ESLEvent, parse_headers
 from genesis.protocol.metrics import (
     channel_operations_counter,
     channel_operation_duration,
@@ -29,9 +50,19 @@ from genesis.protocol.metrics import (
     dtmf_received_counter,
     call_duration_histogram,
     timeout_counter,
+    safe_add,
+    safe_record,
+    ObservingSpan,
 )
+from genesis.protocol.subscriptions import EventLease, ensure_channel_events
 from genesis.types import HangupCause, ChannelState, ContextType
-from genesis.exceptions import ChannelError, TimeoutError
+from genesis.exceptions import (
+    ChannelError,
+    ChannelNotFound,
+    CommandStage,
+    SessionGoneAway,
+    TimeoutError,
+)
 from genesis.observability import logger
 
 tracer = trace.get_tracer(__name__)
@@ -46,6 +77,23 @@ ATTR_HANGUP_CAUSE_Q850 = "hangup.cause.q850"
 ATTR_WAIT_TYPE = "wait.type"
 ATTR_WAIT_RESULT = "wait.result"
 ATTR_WAIT_DURATION = "wait.duration"
+ATTR_GET_CHANNEL_RESULT = "get_channel.result"
+
+_CHANNEL_UUID = re.compile(
+    r"\A[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\Z"
+)
+_TERMINAL_EVENTS = frozenset(
+    {"CHANNEL_HANGUP", "CHANNEL_HANGUP_COMPLETE", "CHANNEL_DESTROY"}
+)
+_TERMINAL_STATES = frozenset({"CS_HANGUP", "CS_DESTROY", "CS_REPORTING"})
+_T = TypeVar("_T")
+
+
+def require_channel_uuid(value: Optional[str]) -> str:
+    """Reject a uuid that could inject another ESL command."""
+    if value is None or _CHANNEL_UUID.fullmatch(value) is None:
+        raise ChannelError("invalid channel uuid: %r" % (value,))
+    return value
 
 
 def _context_str(context: Mapping[str, Any], key: str) -> str:
@@ -54,6 +102,95 @@ def _context_str(context: Mapping[str, Any], key: str) -> str:
     if isinstance(value, list):
         return value[0] if value else ""
     return value if isinstance(value, str) else ""
+
+
+def _header(event: Mapping[str, Any], key: str) -> Optional[str]:
+    value = event.get(key)
+    if isinstance(value, list):
+        value = value[0] if value else None
+    if isinstance(value, str):
+        return value
+    return None
+
+
+def _sequence(value: Any) -> Optional[int]:
+    if isinstance(value, list):
+        value = value[0] if value else None
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
+def _copy_context(headers: Mapping[str, Any]) -> ContextType:
+    copied: ContextType = {}
+    for key, value in headers.items():
+        if isinstance(key, str) and isinstance(value, list):
+            copied[key] = [str(item) for item in value]
+        elif isinstance(key, str) and isinstance(value, str):
+            copied[key] = value
+    return copied
+
+
+def _api_body(event: ESLEvent) -> str:
+    return (event.body or "").strip()
+
+
+def _terminal(event: ESLEvent) -> bool:
+    if _header(event, "Event-Name") in _TERMINAL_EVENTS:
+        return True
+    return _header(event, "Channel-State") in _TERMINAL_STATES
+
+
+def _invalid_session(event: ESLEvent) -> bool:
+    reply = _header(event, "Reply-Text") or ""
+    return "invalid session id" in reply
+
+
+class _LookupWatch:
+    """Events seen while ``uuid_dump`` is still the newer observation.
+
+    Frames processed before that reply stay in ``early`` and are not
+    applied. Frames processed after it are later state, including a
+    hangup that means the lookup missed a live channel.
+    """
+
+    def __init__(self, channel_uuid: str) -> None:
+        self.channel_uuid = channel_uuid
+        self.expect_dump = False
+        self.dump_noted = False
+        self.terminal = False
+        self.early: List[ESLEvent] = []
+        self.later: List[ESLEvent] = []
+
+    def note(self, _protocol: Protocol, event: ESLEvent) -> None:
+        if (
+            self.expect_dump
+            and not self.dump_noted
+            and event.get("Content-Type") == "api/response"
+        ):
+            self.dump_noted = True
+            return
+        if _header(event, "Unique-ID") != self.channel_uuid:
+            return
+        if self.dump_noted:
+            self.later.append(event)
+            return
+        self.early.append(event)
+
+    def apply_later(self, channel: "Channel") -> None:
+        snapshot = _sequence(channel.context.get("Event-Sequence"))
+        for event in self.later:
+            if _terminal(event):
+                self.terminal = True
+                return
+            event_sequence = _sequence(event.get("Event-Sequence"))
+            if (
+                snapshot is not None
+                and event_sequence is not None
+                and event_sequence <= snapshot
+            ):
+                continue
+            channel._state_handler(event)
 
 
 class Channel:
@@ -72,6 +209,11 @@ class Channel:
         self.context: ContextType = {}
         self._created_at: Optional[float] = None
         self._state_changes: Dict[ChannelState, float] = {}
+        self._state_listening = False
+        self._destroy_listening = False
+        self._event_lease: Optional[EventLease] = None
+        self._loop: Optional[AbstractEventLoop] = None
+        self._release_tasks: set[Task[None]] = set()
 
     @property
     def state(self) -> ChannelState:
@@ -89,6 +231,82 @@ class Channel:
                     self._state_changes[new_state] = time.time()
                 self._state = new_state
             self.context.update(event)
+            if self._state == ChannelState.DESTROY:
+                self._schedule_release()
+
+    def _arm_state_listener(self) -> None:
+        # ``register_channel_handler`` stops routing, so a user observer of
+        # the same event would never run. Global handlers both receive it.
+        if self._state_listening:
+            return
+        self.protocol.on("CHANNEL_STATE", self._state_handler)
+        self._state_listening = True
+
+    def _on_destroy(self, event: ESLEvent) -> None:
+        if _header(event, "Unique-ID") != self.uuid:
+            return
+        self._schedule_release()
+
+    def attach_lease(self, lease: EventLease) -> None:
+        self._event_lease = lease
+
+    def arm_observed_state(self) -> None:
+        """Listen for later state. The lease ends when the channel is destroyed."""
+        self._loop = get_running_loop()
+        self._arm_state_listener()
+        if not self._destroy_listening:
+            self.protocol.on("CHANNEL_DESTROY", self._on_destroy)
+            self._destroy_listening = True
+        if self._state == ChannelState.DESTROY:
+            self._schedule_release()
+
+    def _drop_listener(self) -> None:
+        if self._state_listening:
+            self.protocol.remove("CHANNEL_STATE", self._state_handler)
+            self._state_listening = False
+        if self._destroy_listening:
+            self.protocol.remove("CHANNEL_DESTROY", self._on_destroy)
+            self._destroy_listening = False
+
+    def _schedule_release(self) -> None:
+        lease = self._event_lease
+        loop = self._loop
+        if lease is None or loop is None:
+            return
+        self._event_lease = None
+
+        def _kick() -> None:
+            task = create_task(self._finish_release(lease))
+            self._release_tasks.add(task)
+            task.add_done_callback(self._release_done)
+
+        loop.call_soon_threadsafe(_kick)
+
+    def _release_done(self, task: Task[None]) -> None:
+        self._release_tasks.discard(task)
+        if task.cancelled():
+            return
+        error = task.exception()
+        if error is not None:
+            logger.error(f"Channel event lease release failed: {error}")
+
+    async def _finish_release(self, lease: EventLease) -> None:
+        self._drop_listener()
+        await lease.release(self.protocol)
+
+    @classmethod
+    def from_snapshot(cls, protocol: Protocol, snapshot: ESLEvent) -> "Channel":
+        """A new channel whose context is only this dump. No handlers are copied."""
+        unique = require_channel_uuid(_header(snapshot, "Unique-ID"))
+        state_name = _header(snapshot, "Channel-State") or ""
+        if state_name.startswith("["):
+            raise ChannelError("uuid_dump plain format is not a channel snapshot")
+        self = cls(protocol, _header(snapshot, "Channel-Name") or "")
+        self.uuid = unique
+        self.context = _copy_context(snapshot)
+        if state_name:
+            self._state = ChannelState.from_freeswitch(state_name)
+        return self
 
     @classmethod
     async def create(
@@ -134,7 +352,7 @@ class Channel:
                 if sip_call_id:
                     span.set_attribute(ATTR_SIP_CALL_ID, sip_call_id)
 
-                self.protocol.on("CHANNEL_STATE", self._state_handler)
+                self._arm_state_listener()
                 await self.protocol.send(f"filter Unique-ID {self.uuid}")
 
                 default_variables = {
@@ -315,7 +533,8 @@ class Channel:
         duration = time.time() - start_time
         span.set_attribute(ATTR_WAIT_RESULT, "success")
         span.set_attribute(ATTR_WAIT_DURATION, duration)
-        channel_operations_counter.add(
+        safe_add(
+            channel_operations_counter,
             1,
             attributes={
                 "operation": "wait",
@@ -335,7 +554,8 @@ class Channel:
         duration = time.time() - start_time
         span.set_attribute(ATTR_WAIT_RESULT, "timeout")
         span.set_attribute(ATTR_WAIT_DURATION, duration)
-        timeout_counter.add(
+        safe_add(
+            timeout_counter,
             1,
             attributes={
                 "timeout.type": "wait",
@@ -343,7 +563,8 @@ class Channel:
                 "timeout.duration": duration,
             },
         )
-        channel_operations_counter.add(
+        safe_add(
+            channel_operations_counter,
             1,
             attributes={
                 "operation": "wait",
@@ -376,6 +597,9 @@ class Channel:
 
         Raises:
             TimeoutError: If timeout is reached and target was not reached
+            ConnectionLost: The connection is already gone, or it drops while
+                this wait is pending. A pure wait accepts no command, so the
+                stage is ``NOT_SENT``: ``write()`` was not called for the wait.
 
         Example:
             # Wait for state
@@ -388,9 +612,9 @@ class Channel:
         start_time = time.time()
         wait_type = "event" if isinstance(target, str) else "state"
 
-        with tracer.start_as_current_span(
+        opened = ObservingSpan.open(
             "channel.wait",
-            attributes={
+            {
                 ATTR_CHANNEL_UUID: self.uuid or "unknown",
                 ATTR_CHANNEL_STATE: self.state.name,
                 "wait.target": str(target),
@@ -398,15 +622,22 @@ class Channel:
                 ATTR_WAIT_TYPE: wait_type,
                 "operation": "wait",
             },
-        ) as span:
+        )
+        try:
+            # NOT_SENT: this wait does not write a command, so ACCEPTED would
+            # claim an ack that never happened.
+            self.protocol.raise_if_lost(CommandStage.NOT_SENT)
             if isinstance(target, str):
                 try:
-                    result = await self._wait_for_event(target, timeout)
-                    self._record_wait_success(span, start_time, wait_type)
+                    result = await self._race_loss(
+                        self._wait_for_event(target, timeout),
+                        CommandStage.NOT_SENT,
+                    )
+                    self._record_wait_success(opened, start_time, wait_type)
                     return result
                 except TimeoutError:
                     self._record_wait_timeout(
-                        span, start_time, wait_type, f"wait.event.{target}"
+                        opened, start_time, wait_type, f"wait.event.{target}"
                     )
                     raise
 
@@ -414,18 +645,112 @@ class Channel:
             if self.state >= ChannelState.HANGUP or (
                 self.state == target_state and target_state != ChannelState.EXECUTE
             ):
-                span.set_attribute(ATTR_WAIT_RESULT, "already_reached")
+                opened.set_attribute(ATTR_WAIT_RESULT, "already_reached")
                 return None
 
             try:
-                state_result = await self._wait_for_state(target_state, timeout)
-                self._record_wait_success(span, start_time, wait_type)
+                state_result = await self._race_loss(
+                    self._wait_for_state(target_state, timeout),
+                    CommandStage.NOT_SENT,
+                )
+                self._record_wait_success(opened, start_time, wait_type)
                 return state_result
             except TimeoutError:
                 self._record_wait_timeout(
-                    span, start_time, wait_type, f"wait.state.{target_state.name}"
+                    opened, start_time, wait_type, f"wait.state.{target_state.name}"
                 )
                 raise
+        finally:
+            opened.close()
+
+    async def _race_loss(self, operation: Awaitable[_T], stage: CommandStage) -> _T:
+        """Finish ``operation`` or raise ``ConnectionLost(stage)`` when the link drops."""
+        inner: Task[_T] = create_task(cast(Any, operation))
+        lost: Task[None] = create_task(self.protocol.wait_lost(stage))
+        try:
+            done, _pending = await wait(
+                {inner, lost},
+                return_when=FIRST_COMPLETED,
+            )
+            if inner in done:
+                return inner.result()
+            await lost
+            raise AssertionError("connection loss did not fail the wait")
+        finally:
+            if not lost.done():
+                lost.cancel()
+                with contextlib.suppress(CancelledError):
+                    await lost
+            elif not lost.cancelled():
+                lost.exception()
+            if not inner.done():
+                inner.cancel()
+                with contextlib.suppress(CancelledError):
+                    await inner
+
+    async def _await_execution(self, execution: Any) -> ESLEvent:
+        """Wait for this execute after ``+OK``. Loss here is ``ACCEPTED``."""
+        lost: Task[None] = create_task(self.protocol.wait_lost(CommandStage.ACCEPTED))
+        try:
+            done, _pending = await wait(
+                cast(List[Any], [execution.future, lost]),
+                return_when=FIRST_COMPLETED,
+            )
+            if execution.future in done:
+                return cast(ESLEvent, execution.future.result())
+            await lost
+            raise AssertionError("connection loss did not fail the completion wait")
+        finally:
+            if not lost.done():
+                lost.cancel()
+                with contextlib.suppress(CancelledError):
+                    await lost
+            elif not lost.cancelled():
+                lost.exception()
+
+    async def _inbound_execute(
+        self,
+        application: str,
+        data: Optional[str],
+        block: bool,
+        completion_timeout: Optional[float],
+    ) -> ESLEvent:
+        """``sendmsg`` execute. ``block`` waits for this Event-UUID, not the ack.
+
+        ``completion_timeout`` is a relative duration in seconds, the same bound
+        as the public ``timeout`` argument. It limits only the wait for
+        ``CHANNEL_EXECUTE_COMPLETE`` after the command is accepted. ``None``
+        waits without a limit. The send itself is outside this bound, so the
+        caller cannot wrap the whole method. ``asyncio.wait_for`` applies the
+        duration; Python 3.10 has no ``asyncio.timeout``.
+        """
+        require_channel_uuid(self.uuid)
+        _cmd, event_uuid = _build_sendmsg_cmd(
+            "execute",
+            application,
+            data,
+            uuid=self.uuid,
+        )
+        if not block or event_uuid is None:
+            result = await self.protocol.send(_cmd)
+            if _invalid_session(result):
+                raise ChannelNotFound(self.uuid or "")
+            return result
+        self.protocol.raise_if_lost(CommandStage.NOT_SENT)
+        self.protocol.subscriptions.require_completion_visible(self.uuid or "")
+        execution = _install_execution_wait(self.protocol, event_uuid, None, self.uuid)
+        try:
+            result = await self.protocol.send(_cmd)
+            if _invalid_session(result):
+                raise ChannelNotFound(self.uuid or "")
+            if _rejected(result):
+                return result
+            completion = self._await_execution(execution)
+            if completion_timeout is None:
+                return await completion
+            return await wait_for(completion, completion_timeout)
+        finally:
+            execution.abandon()
 
     async def _sendmsg_or_send(
         self,
@@ -440,21 +765,13 @@ class Channel:
             return await self.protocol.sendmsg(
                 command, application, data, block=block, timeout=timeout
             )
-        else:
-            # For Inbound, use api commands
-            if command == "execute":
-                if data:
-                    cmd = f"api uuid_execute {self.uuid} {application} {data}"
-                else:
-                    cmd = f"api uuid_execute {self.uuid} {application}"
-            elif command == "hangup":
-                cause = data or "NORMAL_CLEARING"
-                cmd = f"api uuid_kill {self.uuid} {cause}"
-            else:
-                raise ChannelError(
-                    f"Command {command} not supported for Inbound protocol"
-                )
-            return await self.protocol.send(cmd)
+        if command == "execute":
+            return await self._inbound_execute(application, data, block, timeout)
+        if command == "hangup":
+            require_channel_uuid(self.uuid)
+            cause = data or "NORMAL_CLEARING"
+            return await self.protocol.send("api uuid_kill %s %s" % (self.uuid, cause))
+        raise ChannelError("Command %s not supported for Inbound protocol" % command)
 
     def _get_peer_uuid(self, other: Channel | Session) -> Optional[str]:
         """Extract UUID from a Channel or Session for bridge/peer operations."""
@@ -478,39 +795,50 @@ class Channel:
     ) -> ESLEvent:
         """Run a channel operation with tracing and metrics (single implementation)."""
         start_time = time.time()
-        with tracer.start_as_current_span(
-            span_name, attributes=span_attributes
-        ) as span:
+        opened = ObservingSpan.open(span_name, span_attributes)
+        try:
             try:
                 result = await get_result()
-                duration = time.time() - start_time
-                success = result.get("Reply-Text", "").startswith("+OK")
-                span.set_attribute(f"channel.{operation}.success", success)
-                span.set_attribute(f"channel.{operation}.duration", duration)
-                channel_operations_counter.add(
-                    1,
-                    attributes={"operation": operation, "success": str(success)},
-                )
-                channel_operation_duration.record(
-                    duration, attributes={"operation": operation}
-                )
-                if extra_on_success:
-                    extra_on_success(span, result, duration)
-                return result
-            except Exception as e:
-                span.record_exception(e)
-                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
-                channel_operations_counter.add(
+            except Exception as exc:
+                opened.record_exception(exc)
+                opened.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
+                safe_add(
+                    channel_operations_counter,
                     1,
                     attributes={
                         "operation": operation,
                         "success": "false",
-                        "error": type(e).__name__,
+                        "error": type(exc).__name__,
                     },
                 )
-                if extra_on_error:
-                    extra_on_error(e)
+                try:
+                    if extra_on_error:
+                        extra_on_error(exc)
+                except Exception:
+                    logger.debug("channel operation error telemetry failed")
                 raise
+            duration = time.time() - start_time
+            try:
+                success = result.get("Reply-Text", "").startswith("+OK")
+                opened.set_attribute(f"channel.{operation}.success", success)
+                opened.set_attribute(f"channel.{operation}.duration", duration)
+                safe_add(
+                    channel_operations_counter,
+                    1,
+                    attributes={"operation": operation, "success": str(success)},
+                )
+                safe_record(
+                    channel_operation_duration,
+                    duration,
+                    attributes={"operation": operation},
+                )
+                if extra_on_success:
+                    extra_on_success(opened, result, duration)
+            except Exception:
+                logger.debug("channel operation telemetry failed")
+            return result
+        finally:
+            opened.close()
 
     async def answer(self) -> ESLEvent:
         """Answer the call associated with the channel."""
@@ -573,9 +901,8 @@ class Channel:
         async def do_hangup() -> ESLEvent:
             if isinstance(self.protocol, Session):
                 return await self._sendmsg_or_send("execute", "hangup", cause)
-            if self.protocol is not None:
-                return await self.protocol.send(f"api uuid_kill {self.uuid} {cause}")
-            raise ChannelError("Protocol not connected")
+            require_channel_uuid(self.uuid)
+            return await self.protocol.send("api uuid_kill %s %s" % (self.uuid, cause))
 
         return await self._execute_operation(
             "hangup",
@@ -604,6 +931,8 @@ class Channel:
         other_uuid = self._get_peer_uuid(other)
         if not self.uuid or not other_uuid:
             raise ChannelError("Both channels must have valid UUIDs to bridge.")
+        require_channel_uuid(self.uuid)
+        require_channel_uuid(other_uuid)
 
         def on_success(span: Any, result: ESLEvent, duration: float) -> None:
             success = result.get("Reply-Text", "").startswith("+OK")
@@ -811,8 +1140,10 @@ class Channel:
                             },
                         ) as span:
                             try:
-                                dtmf_received_counter.add(
-                                    1, attributes={"dtmf.digit": dtmf_digit}
+                                safe_add(
+                                    dtmf_received_counter,
+                                    1,
+                                    attributes={"dtmf.digit": dtmf_digit},
                                 )
                                 await func(dtmf_digit)
                                 span.set_attribute("dtmf.handled", True)
@@ -828,3 +1159,78 @@ class Channel:
             return func
 
         return decorator
+
+
+async def get_inbound_channel(protocol: Inbound, channel_uuid: str) -> Channel:
+    """Observe one live channel. Events from before the dump do not replace it."""
+    started = time.perf_counter()
+    outcome = "error"
+    try:
+        require_channel_uuid(channel_uuid)
+        protocol.raise_if_lost(CommandStage.NOT_SENT)
+        opened = ObservingSpan.open(
+            "get_channel",
+            {"channel.uuid": channel_uuid},
+        )
+        try:
+            watch = _LookupWatch(channel_uuid)
+            lease: Optional[EventLease] = None
+            protocol.event_processors.append(watch.note)
+            try:
+                lease = await ensure_channel_events(protocol, channel_uuid)
+                exists = await protocol.send("api uuid_exists %s" % channel_uuid)
+                exists_body = _api_body(exists)
+                if exists_body == "false" or exists_body.startswith(
+                    "-ERR No such channel"
+                ):
+                    raise ChannelNotFound(channel_uuid)
+                if exists_body != "true":
+                    raise ChannelError("unexpected uuid_exists reply")
+                watch.expect_dump = True
+                dumped = await protocol.send("api uuid_dump %s" % channel_uuid)
+                dump_body = dumped.body or ""
+                if dump_body.startswith("-ERR No such channel"):
+                    raise ChannelNotFound(channel_uuid)
+                if dump_body.startswith(("-ERR", "-USAGE")):
+                    raise ChannelError(dump_body.strip())
+                snapshot = parse_headers(dump_body)
+                if _header(snapshot, "Unique-ID") != channel_uuid:
+                    raise ChannelNotFound(channel_uuid)
+                channel = Channel.from_snapshot(protocol, snapshot)
+                watch.apply_later(channel)
+                if watch.terminal:
+                    raise ChannelNotFound(channel_uuid)
+                channel.attach_lease(lease)
+                lease = None
+                channel.arm_observed_state()
+                outcome = "found"
+                opened.set_attribute(ATTR_GET_CHANNEL_RESULT, "found")
+                return channel
+            except ChannelNotFound:
+                outcome = "not_found"
+                opened.set_attribute(ATTR_GET_CHANNEL_RESULT, "not_found")
+                raise
+            except Exception as exc:
+                outcome = "error"
+                opened.record_exception(exc)
+                opened.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
+                opened.set_attribute(ATTR_GET_CHANNEL_RESULT, "error")
+                raise
+            finally:
+                if watch.note in protocol.event_processors:
+                    protocol.event_processors.remove(watch.note)
+                if lease is not None:
+                    await lease.release(protocol)
+        finally:
+            opened.close()
+    finally:
+        safe_add(
+            channel_operations_counter,
+            1,
+            attributes={"operation": "get_channel", "result": outcome},
+        )
+        safe_record(
+            channel_operation_duration,
+            time.perf_counter() - started,
+            attributes={"operation": "get_channel", "result": outcome},
+        )

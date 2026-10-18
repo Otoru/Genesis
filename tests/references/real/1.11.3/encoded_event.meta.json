@@ -1,0 +1,9 @@
+{
+  "kind": "real",
+  "freeswitch_version": "1.11.3",
+  "git": "ef32e205295e29f034f1453ad245ba5efb07b94a",
+  "image": "genesis-esl-research-fs:v1.11.3",
+  "source": "captures-out/encoded.raw",
+  "captured_at": "2026-10-14",
+  "note": "Unmodified copy. command/reply plus text/event-plain. Outer Content-Length is 605 and the body contains a blank line plus the percent-encoded header research-note. Lab hostnames and loopback addresses are left as captured."
+}

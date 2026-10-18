@@ -1,0 +1,11 @@
+{
+  "kind": "real",
+  "freeswitch_version": "1.11.3",
+  "git": "ef32e205295e29f034f1453ad245ba5efb07b94a",
+  "image": "genesis-esl-research-fs:v1.11.3",
+  "source": "captures-from-container/report.json#unicode_api_body",
+  "captured_at": "2026-10-14",
+  "reconstructed": true,
+  "body_bytes_hex": "636166c3a92de7a094e7a9b6",
+  "note": "No dedicated .raw file was in the capture directory. Bytes are header_raw plus body_bytes_hex from report.json unicode_api_body. Declared length 12, character length 7. Not a full TCP dump, and not a substitute for the research agent's final report."
+}
