@@ -27,13 +27,13 @@ def auth_request_processor(protocol: "Protocol", event: ESLEvent) -> None:
         protocol.authentication_event.set()
 
 
-async def command_reply_processor(protocol: "Protocol", event: ESLEvent) -> None:
+def command_reply_processor(protocol: "Protocol", event: ESLEvent) -> None:
     """Match command/reply to the oldest pending send."""
     if event.get("Content-Type") == "command/reply":
         protocol.exchange.deliver(event)
 
 
-async def api_response_processor(protocol: "Protocol", event: ESLEvent) -> None:
+def api_response_processor(protocol: "Protocol", event: ESLEvent) -> None:
     """Match api/response to the oldest pending send."""
     if event.get("Content-Type") == "api/response":
         protocol.exchange.deliver(event)

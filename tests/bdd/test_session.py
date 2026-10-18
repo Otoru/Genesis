@@ -552,7 +552,8 @@ def sendmsg_parameters(world: World) -> World:
 
         async def handler(session: Session) -> None:
             target = session.uuid
-            assert isinstance(target, str) and target
+            assert isinstance(target, str)
+            assert target
             assert target == _session_uuid(world)
             world.facts["explicit_uuid"] = target
             await session.sendmsg("execute", "playback", "test.wav", lock=True)
@@ -588,7 +589,8 @@ def sendmsg_parameters(world: World) -> World:
 def sendmsg_cases(story: World) -> None:
     commands = _execute_commands(story)
     explicit = story.facts["explicit_uuid"]
-    assert isinstance(explicit, str) and explicit
+    assert isinstance(explicit, str)
+    assert explicit
     assert any("event-lock: true" in command for command in commands)
     assert any(command.startswith("sendmsg %s" % explicit) for command in commands)
     assert any("Event-UUID: test-event-5678" in command for command in commands)

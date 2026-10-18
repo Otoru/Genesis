@@ -152,8 +152,10 @@ class _Peer:
 
     @property
     def port(self) -> int:
-        assert self._server is not None and self._server.sockets
-        return int(self._server.sockets[0].getsockname()[1])
+        server = self._server
+        assert server is not None
+        assert server.sockets
+        return int(server.sockets[0].getsockname()[1])
 
     async def command(self) -> str:
         return await asyncio.wait_for(self._commands.get(), 1)

@@ -72,36 +72,56 @@ class CommandExchange:
             try:
                 await transmit(evidence)
             except asyncio.CancelledError:
-                if evidence.wrote:
-                    slot.future = None
-                else:
-                    self._discard(slot)
+                self._tombstone_cancelled_transmit(slot, evidence)
                 raise
             except Exception as exc:
-                if not evidence.wrote:
-                    self._discard(slot)
-                    if self.closed:
-                        raise ConnectionLost(CommandStage.NOT_SENT) from exc
-                    raise
-                try:
-                    if self._flush is not None:
-                        await self._flush()
-                except asyncio.CancelledError:
-                    if not future.done():
-                        slot.future = None
-                    raise
-                if future.done():
-                    self._write_failure = exc
-                    return future.result()
-                self._discard(slot)
-                self.fail_pending()
-                raise ConnectionLost(CommandStage.UNCONFIRMED) from exc
+                return await self._recover_failed_transmit(slot, evidence, future, exc)
 
         try:
             return await future
         except asyncio.CancelledError:
             slot.future = None
             raise
+
+    def _tombstone_cancelled_transmit(
+        self, slot: _Slot, evidence: WriteEvidence
+    ) -> None:
+        """Drop the slot when the write never happened. Otherwise keep a tombstone."""
+        if evidence.wrote:
+            slot.future = None
+            return
+        self._discard(slot)
+
+    async def _recover_failed_transmit(
+        self,
+        slot: _Slot,
+        evidence: WriteEvidence,
+        future: asyncio.Future[ESLEvent],
+        exc: Exception,
+    ) -> ESLEvent:
+        """Return a reply already buffered after a failed write, or fail the command.
+
+        Cancellation leaves a tombstone only when the bytes may already have been
+        sent. The command is not retried.
+        """
+        if not evidence.wrote:
+            self._discard(slot)
+            if self.closed:
+                raise ConnectionLost(CommandStage.NOT_SENT) from exc
+            raise exc
+        try:
+            if self._flush is not None:
+                await self._flush()
+        except asyncio.CancelledError:
+            if not future.done():
+                slot.future = None
+            raise
+        if future.done():
+            self._write_failure = exc
+            return future.result()
+        self._discard(slot)
+        self.fail_pending()
+        raise ConnectionLost(CommandStage.UNCONFIRMED) from exc
 
     def deliver(self, event: ESLEvent) -> None:
         """Give ``event`` to the oldest slot. A tombstone discards that reply."""

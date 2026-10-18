@@ -5,13 +5,32 @@ Event Dispatcher
 Helper for dispatching events to handlers asynchronously.
 """
 
-from asyncio import Task, create_task, to_thread, iscoroutinefunction
+from asyncio import Task, create_task, iscoroutine, iscoroutinefunction, to_thread
 from typing import List, Optional, Set, Any
 
 from genesis.observability import logger
 from genesis.protocol.parser import ESLEvent
 from genesis.protocol.metrics import consumer_handlers_counter, safe_add
 from genesis.types import EventHandler
+
+_RUN_ON_LOOP = "_genesis_run_on_loop"
+
+
+def run_on_loop(handler: EventHandler) -> EventHandler:
+    """Run this handler on the event-loop thread.
+
+    Synchronous handlers otherwise go through ``to_thread``. Callbacks that
+    complete an asyncio future have to stay on the loop that owns it.
+    """
+    setattr(handler, _RUN_ON_LOOP, True)
+    return handler
+
+
+async def _invoke_on_loop(handler: EventHandler, event: ESLEvent) -> None:
+    """Call ``handler`` on the loop and await it when it returns a coroutine."""
+    outcome = handler(event)
+    if iscoroutine(outcome):
+        await outcome
 
 
 def _handler_done_callback(task_set: Set[Task[Any]], task: Task[Any]) -> None:
@@ -43,6 +62,8 @@ def dispatch_to_handlers(
         )
         if iscoroutinefunction(handler):
             task = create_task(handler(event))
+        elif getattr(handler, _RUN_ON_LOOP, False):
+            task = create_task(_invoke_on_loop(handler, event))
         else:
             task = create_task(to_thread(handler, event))
 

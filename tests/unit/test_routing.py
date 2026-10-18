@@ -3,6 +3,7 @@ Tests for routing strategies and dispatcher.
 """
 
 import asyncio
+import threading
 from asyncio import Task
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -10,7 +11,7 @@ from unittest.mock import MagicMock, patch
 from genesis.protocol.parser import ESLEvent
 from genesis.protocol.routing.channel import ChannelRoutingStrategy
 from genesis.protocol.routing.composite import CompositeRoutingStrategy
-from genesis.protocol.routing.dispatcher import dispatch_to_handlers
+from genesis.protocol.routing.dispatcher import dispatch_to_handlers, run_on_loop
 from genesis.protocol.routing.global_ import GlobalRoutingStrategy
 
 # ---------------------------------------------------------------------------
@@ -332,3 +333,40 @@ async def test_dispatch_no_task_set_does_not_raise() -> None:
     event = make_event(**{"Event-Name": "HEARTBEAT"})
     dispatch_to_handlers([handler], event)
     await asyncio.wait_for(done.wait(), timeout=5)
+
+
+async def test_run_on_loop_handler_stays_on_the_owning_loop_thread() -> None:
+    """Callbacks that complete a future must not run on the executor."""
+    loop = asyncio.get_running_loop()
+    owner = threading.get_ident()
+    completed: asyncio.Future[int] = loop.create_future()
+    worker_thread: asyncio.Future[int] = loop.create_future()
+
+    def on_loop(event: ESLEvent) -> None:
+        completed.set_result(threading.get_ident())
+
+    def on_worker(event: ESLEvent) -> None:
+        ident = threading.get_ident()
+        loop.call_soon_threadsafe(worker_thread.set_result, ident)
+
+    event = make_event(**{"Event-Name": "CHANNEL_EXECUTE_COMPLETE"})
+    task_set: set[Task[Any]] = set()
+    dispatch_to_handlers([run_on_loop(on_loop), on_worker], event, task_set)
+
+    assert await asyncio.wait_for(completed, timeout=5) == owner
+    assert await asyncio.wait_for(worker_thread, timeout=5) != owner
+
+
+async def test_run_on_loop_handler_exception_is_logged() -> None:
+    task_set, removed = _track_dispatcher_callback()
+
+    def bad_handler(event: ESLEvent) -> None:
+        raise ValueError("loop handler exploded")
+
+    event = make_event(**{"Event-Name": "CHANNEL_EXECUTE_COMPLETE"})
+    with patch("genesis.protocol.routing.dispatcher.logger") as mock_log:
+        dispatch_to_handlers([run_on_loop(bad_handler)], event, task_set)
+        await asyncio.wait_for(removed, timeout=5)
+
+    error_calls = mock_log.error.call_args_list
+    assert any("loop handler exploded" in str(call) for call in error_calls)

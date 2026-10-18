@@ -77,6 +77,7 @@ ATTR_HANGUP_CAUSE_Q850 = "hangup.cause.q850"
 ATTR_WAIT_TYPE = "wait.type"
 ATTR_WAIT_RESULT = "wait.result"
 ATTR_WAIT_DURATION = "wait.duration"
+ATTR_GET_CHANNEL_RESULT = "get_channel.result"
 
 _CHANNEL_UUID = re.compile(
     r"\A[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\Z"
@@ -212,6 +213,7 @@ class Channel:
         self._destroy_listening = False
         self._event_lease: Optional[EventLease] = None
         self._loop: Optional[AbstractEventLoop] = None
+        self._release_tasks: set[Task[None]] = set()
 
     @property
     def state(self) -> ChannelState:
@@ -274,9 +276,19 @@ class Channel:
         self._event_lease = None
 
         def _kick() -> None:
-            create_task(self._finish_release(lease))
+            task = create_task(self._finish_release(lease))
+            self._release_tasks.add(task)
+            task.add_done_callback(self._release_done)
 
         loop.call_soon_threadsafe(_kick)
+
+    def _release_done(self, task: Task[None]) -> None:
+        self._release_tasks.discard(task)
+        if task.cancelled():
+            return
+        error = task.exception()
+        if error is not None:
+            logger.error(f"Channel event lease release failed: {error}")
 
     async def _finish_release(self, lease: EventLease) -> None:
         self._drop_listener()
@@ -676,20 +688,14 @@ class Channel:
                 with contextlib.suppress(CancelledError):
                     await inner
 
-    async def _await_execution(
-        self, execution: Any, timeout: Optional[float]
-    ) -> ESLEvent:
+    async def _await_execution(self, execution: Any) -> ESLEvent:
         """Wait for this execute after ``+OK``. Loss here is ``ACCEPTED``."""
         lost: Task[None] = create_task(self.protocol.wait_lost(CommandStage.ACCEPTED))
         try:
-            race = wait(
+            done, _pending = await wait(
                 cast(List[Any], [execution.future, lost]),
                 return_when=FIRST_COMPLETED,
             )
-            if timeout is not None:
-                done, _pending = await wait_for(race, timeout)
-            else:
-                done, _pending = await race
             if execution.future in done:
                 return cast(ESLEvent, execution.future.result())
             await lost
@@ -707,9 +713,17 @@ class Channel:
         application: str,
         data: Optional[str],
         block: bool,
-        timeout: Optional[float],
+        completion_timeout: Optional[float],
     ) -> ESLEvent:
-        """``sendmsg`` execute. ``block`` waits for this Event-UUID, not the ack."""
+        """``sendmsg`` execute. ``block`` waits for this Event-UUID, not the ack.
+
+        ``completion_timeout`` is a relative duration in seconds, the same bound
+        as the public ``timeout`` argument. It limits only the wait for
+        ``CHANNEL_EXECUTE_COMPLETE`` after the command is accepted. ``None``
+        waits without a limit. The send itself is outside this bound, so the
+        caller cannot wrap the whole method. ``asyncio.wait_for`` applies the
+        duration; Python 3.10 has no ``asyncio.timeout``.
+        """
         require_channel_uuid(self.uuid)
         _cmd, event_uuid = _build_sendmsg_cmd(
             "execute",
@@ -731,7 +745,10 @@ class Channel:
                 raise ChannelNotFound(self.uuid or "")
             if _rejected(result):
                 return result
-            return await self._await_execution(execution, timeout)
+            completion = self._await_execution(execution)
+            if completion_timeout is None:
+                return await completion
+            return await wait_for(completion, completion_timeout)
         finally:
             execution.abandon()
 
@@ -1174,7 +1191,7 @@ async def get_inbound_channel(protocol: Inbound, channel_uuid: str) -> Channel:
                 dump_body = dumped.body or ""
                 if dump_body.startswith("-ERR No such channel"):
                     raise ChannelNotFound(channel_uuid)
-                if dump_body.startswith("-ERR") or dump_body.startswith("-USAGE"):
+                if dump_body.startswith(("-ERR", "-USAGE")):
                     raise ChannelError(dump_body.strip())
                 snapshot = parse_headers(dump_body)
                 if _header(snapshot, "Unique-ID") != channel_uuid:
@@ -1187,17 +1204,17 @@ async def get_inbound_channel(protocol: Inbound, channel_uuid: str) -> Channel:
                 lease = None
                 channel.arm_observed_state()
                 outcome = "found"
-                opened.set_attribute("get_channel.result", "found")
+                opened.set_attribute(ATTR_GET_CHANNEL_RESULT, "found")
                 return channel
             except ChannelNotFound:
                 outcome = "not_found"
-                opened.set_attribute("get_channel.result", "not_found")
+                opened.set_attribute(ATTR_GET_CHANNEL_RESULT, "not_found")
                 raise
             except Exception as exc:
                 outcome = "error"
                 opened.record_exception(exc)
                 opened.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
-                opened.set_attribute("get_channel.result", "error")
+                opened.set_attribute(ATTR_GET_CHANNEL_RESULT, "error")
                 raise
             finally:
                 if watch.note in protocol.event_processors:

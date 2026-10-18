@@ -181,7 +181,8 @@ async def test_channel_bridge_with_session(esl_server: Simulator) -> None:
         await app.start(block=False)
         try:
             bound = app.server
-            assert bound is not None and bound.sockets
+            assert bound is not None
+            assert bound.sockets
             port = int(bound.sockets[0].getsockname()[1])
             await esl_server.connect_dialplan("127.0.0.1", port, full=True)
             response = await asyncio.wait_for(done, 2)

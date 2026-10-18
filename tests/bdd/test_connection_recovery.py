@@ -157,7 +157,8 @@ def seeded_call_hung_up(story: World) -> None:
 def lost_command_not_retried(story: World) -> None:
     first_id = story.facts["first_id"]
     second_id = story.facts["second_id"]
-    assert isinstance(first_id, str) and isinstance(second_id, str)
+    assert isinstance(first_id, str)
+    assert isinstance(second_id, str)
     assert first_id != second_id
     assert _commands(story, first_id) == [
         "auth %s" % story.server.password,

@@ -18,8 +18,9 @@ from asyncio import (
     Task,
     CancelledError,
 )
-from typing import List, Dict, Optional, Any
 from abc import ABC
+from functools import partial
+from typing import List, Dict, Optional, Any
 import time
 
 from opentelemetry import trace
@@ -275,8 +276,6 @@ class Protocol(ABC):
                     body_events = fsm.process_body(data)
                     for ev in body_events:
                         await self.events.put(ev)
-        except CancelledError:
-            raise
         finally:
             await self._signal_reader_done()
 
@@ -327,7 +326,8 @@ class Protocol(ABC):
             except Exception:
                 pass
 
-            for processor in list(self.event_processors):
+            # Snapshot: a processor may register or drop adapters during this event.
+            for processor in self.event_processors.copy():
                 try:
                     result = processor(self, event)
                     if asyncio.iscoroutine(result):
@@ -481,6 +481,55 @@ class Protocol(ABC):
         except Exception:
             pass
 
+    async def _transmit(
+        self, cmd: str, command_name: str, evidence: WriteEvidence
+    ) -> None:
+        writer = self.writer
+        if writer is None:
+            raise UnconnectedError()
+        evidence.wrote = True
+        writer.write(f"{cmd}\n\n".encode())
+        if command_name:
+            safe_add(commands_sent_counter, 1, attributes={"command": command_name})
+        await writer.drain()
+
+    async def _stop_after_unconfirmed(
+        self, command_name: str, span: Optional[Any], exc: ConnectionLost
+    ) -> None:
+        self._observe_lost(command_name, span, exc)
+        if exc.stage is CommandStage.UNCONFIRMED and not self._stopped:
+            if not self._lost:
+                self.note_peer_loss("write_error")
+            await self.stop()
+
+    async def _finish_accepted_reply(
+        self,
+        cmd: str,
+        command_name: str,
+        result: ESLEvent,
+        span: Optional[Any],
+    ) -> ESLEvent:
+        failure = self.exchange.take_write_failure()
+        self._annotate_reply(result, command_name, span)
+        self.subscriptions.observe(cmd, result)
+        if failure is not None and not self._stopped:
+            if not self._lost:
+                self.note_peer_loss("write_error")
+            try:
+                await self.stop()
+            except Exception:
+                logger.error("Failed to stop after a recovered ESL reply.")
+        return result
+
+    def _record_send_duration(self, command_name: str, start_time: float) -> None:
+        if not command_name:
+            return
+        safe_record(
+            command_duration_histogram,
+            time.perf_counter() - start_time,
+            attributes={"command": command_name},
+        )
+
     async def _execute_send(
         self,
         cmd: str,
@@ -490,48 +539,19 @@ class Protocol(ABC):
     ) -> ESLEvent:
         """Execute command over the wire and record metrics (single implementation)."""
         logger.debug(f"Send command: {cmd}")
-
-        async def transmit(evidence: WriteEvidence) -> None:
-            writer = self.writer
-            if writer is None:
-                raise UnconnectedError()
-            evidence.wrote = True
-            writer.write(f"{cmd}\n\n".encode())
-            if command_name:
-                safe_add(commands_sent_counter, 1, attributes={"command": command_name})
-            await writer.drain()
-
+        transmit = partial(self._transmit, cmd, command_name)
         try:
             result = await self.exchange.exchange(transmit)
         except ConnectionLost as exc:
-            self._observe_lost(command_name, span, exc)
-            if exc.stage is CommandStage.UNCONFIRMED and not self._stopped:
-                if not self._lost:
-                    self.note_peer_loss("write_error")
-                await self.stop()
+            await self._stop_after_unconfirmed(command_name, span, exc)
             raise
         except Exception as exc:
             self._record_command_error(command_name, type(exc).__name__)
             raise
         else:
-            failure = self.exchange.take_write_failure()
-            self._annotate_reply(result, command_name, span)
-            self.subscriptions.observe(cmd, result)
-            if failure is not None and not self._stopped:
-                if not self._lost:
-                    self.note_peer_loss("write_error")
-                try:
-                    await self.stop()
-                except Exception:
-                    logger.error("Failed to stop after a recovered ESL reply.")
-            return result
+            return await self._finish_accepted_reply(cmd, command_name, result, span)
         finally:
-            if command_name:
-                safe_record(
-                    command_duration_histogram,
-                    time.perf_counter() - start_time,
-                    attributes={"command": command_name},
-                )
+            self._record_send_duration(command_name, start_time)
 
 
 class _CommandSpan:

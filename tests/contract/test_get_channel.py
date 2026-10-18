@@ -442,11 +442,19 @@ async def test_playback_timeout_does_not_complete_the_next_execute(
     esl_server.seed_channel(PRESENT, name="loopback/9900-a", state="CS_EXECUTE")
     async with Inbound(esl_server.host, esl_server.port, esl_server.password) as client:
         channel = await client.get_channel(PRESENT)
-        with pytest.raises(asyncio.TimeoutError):
-            task = asyncio.create_task(
-                channel.playback("first.wav", block=True, timeout=0.05)
-            )
+        task = asyncio.create_task(
+            channel.playback("first.wav", block=True, timeout=0.05)
+        )
+        try:
             first = await esl_server.next_execution()
+        except BaseException:
+            if not task.done():
+                task.cancel()
+                await asyncio.wait({task})
+            if task.done() and not task.cancelled():
+                task.exception()
+            raise
+        with pytest.raises(asyncio.TimeoutError):
             await task
         await esl_server.complete_execution(first)
         second_task = asyncio.create_task(
@@ -565,8 +573,9 @@ async def test_invalid_session_playback_is_channel_not_found(
         channel = await client.get_channel(PRESENT)
         killed = await channel.hangup()
         assert killed.body == "+OK\n"
+        playback = channel.playback("missing.wav", block=True)
         with pytest.raises(ChannelNotFound) as caught:
-            await asyncio.wait_for(channel.playback("missing.wav", block=True), 1)
+            await asyncio.wait_for(playback, 1)
     assert caught.value.uuid == PRESENT
     assert esl_server.open_executions == {}
     assert any(
@@ -642,6 +651,7 @@ async def test_cancelling_wait_drops_the_loss_task(esl_server: Simulator) -> Non
 
 async def test_get_channel_span_records_result_and_metrics_omit_uuid(
     esl_server: Simulator,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     esl_server.seed_channel(PRESENT, name="loopback/9900-a", state="CS_EXECUTE")
     exporter = InMemorySpanExporter()
@@ -651,16 +661,11 @@ async def test_get_channel_span_records_result_and_metrics_omit_uuid(
         trace.set_tracer_provider(provider)
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     tap = _MetricTap()
-    channel_operations_counter.add = tap.add  # type: ignore[method-assign]
-    try:
-        async with Inbound(
-            esl_server.host, esl_server.port, esl_server.password
-        ) as client:
-            await client.get_channel(PRESENT)
-            with pytest.raises(ChannelNotFound):
-                await client.get_channel(ABSENT)
-    finally:
-        channel_operations_counter.add = tap._real  # type: ignore[method-assign]
+    monkeypatch.setattr(channel_operations_counter, "add", tap.add)
+    async with Inbound(esl_server.host, esl_server.port, esl_server.password) as client:
+        await client.get_channel(PRESENT)
+        with pytest.raises(ChannelNotFound):
+            await client.get_channel(ABSENT)
     found = _spans(exporter, "get_channel")
     assert found
     assert found[-1].attributes["get_channel.result"] == "not_found"

@@ -27,6 +27,7 @@ from genesis.exceptions import CommandStage, SessionGoneAway
 from genesis.observability import logger
 from genesis.protocol import Protocol
 from genesis.protocol.parser import ESLEvent
+from genesis.protocol.routing.dispatcher import run_on_loop
 from genesis.protocol.metrics import (
     session_command_duration,
     session_commands_counter,
@@ -72,20 +73,30 @@ class _ExecutionWait:
         """Listen for this command's completion and for hangup of its channel."""
         self._protocol = protocol
 
-        async def on_complete(event: ESLEvent) -> None:
+        def on_complete(event: ESLEvent) -> None:
             if _one(event.get("Application-UUID")) != self.application_uuid:
                 return
             self.succeed(event)
 
-        async def on_hangup(event: ESLEvent) -> None:
+        def on_hangup(event: ESLEvent) -> None:
             if self.hangup_uuid is None:
                 return
             if _one(event.get("Unique-ID")) != self.hangup_uuid:
                 return
             self.fail(SessionGoneAway())
 
-        self._bind(protocol, channel_uuid, "CHANNEL_EXECUTE_COMPLETE", on_complete)
-        self._bind(protocol, channel_uuid, "CHANNEL_HANGUP_COMPLETE", on_hangup)
+        self._bind(
+            protocol,
+            channel_uuid,
+            "CHANNEL_EXECUTE_COMPLETE",
+            run_on_loop(on_complete),
+        )
+        self._bind(
+            protocol,
+            channel_uuid,
+            "CHANNEL_HANGUP_COMPLETE",
+            run_on_loop(on_hangup),
+        )
         logger.debug(
             "Register event handler for Application-UUID: %s", self.application_uuid
         )

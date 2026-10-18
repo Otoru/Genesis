@@ -356,8 +356,8 @@ async def test_invalid_password_reply_before_close_raises_authentication_error(
     await _until(lambda: _contains(writer, "auth secret"))
     reader.feed_data(_reply("-ERR invalid"))
     reader.feed_eof()
+    response = await asyncio.wait_for(pending, 1)
     with pytest.raises(AuthenticationError, match="Invalid password"):
-        response = await asyncio.wait_for(pending, 1)
         if response["Reply-Text"] != "+OK accepted":
             raise AuthenticationError("Invalid password")
 
