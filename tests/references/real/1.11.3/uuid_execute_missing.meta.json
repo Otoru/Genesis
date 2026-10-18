@@ -1,0 +1,10 @@
+{
+  "kind": "real",
+  "freeswitch_version": "1.11.3",
+  "git": "ef32e205295e29f034f1453ad245ba5efb07b94a",
+  "image": "genesis-esl-research-fs:v1.11.3",
+  "source": "captures-recovery/uuid_execute_missing.raw",
+  "captured_at": "2026-10-16",
+  "reproduction": "api uuid_execute, then api uuid_execute <uuid> log INFO esl-research.",
+  "note": "Both api/response bodies are -ERR uuid_execute Command not found! with a trailing newline. There is no uuid_execute API."
+}

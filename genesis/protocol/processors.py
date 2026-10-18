@@ -28,26 +28,31 @@ def auth_request_processor(protocol: "Protocol", event: ESLEvent) -> None:
 
 
 async def command_reply_processor(protocol: "Protocol", event: ESLEvent) -> None:
-    """Enqueue command/reply so send() can return the response."""
+    """Match command/reply to the oldest pending send."""
     if event.get("Content-Type") == "command/reply":
-        await protocol.commands.put(event)
+        protocol.exchange.deliver(event)
 
 
 async def api_response_processor(protocol: "Protocol", event: ESLEvent) -> None:
-    """Enqueue api/response so send() can return the response."""
+    """Match api/response to the oldest pending send."""
     if event.get("Content-Type") == "api/response":
-        await protocol.commands.put(event)
+        protocol.exchange.deliver(event)
 
 
 async def disconnect_processor(protocol: "Protocol", event: ESLEvent) -> None:
     """Stop connection on rude-rejection or disconnect-notice unless lingering."""
-    if event.get("Content-Type") in [
-        "text/rude-rejection",
-        "text/disconnect-notice",
-    ] and not (
-        "Content-Disposition" in event and event.get("Content-Disposition") == "linger"
-    ):
-        await protocol.stop()
+    content_type = event.get("Content-Type")
+    if content_type not in ("text/rude-rejection", "text/disconnect-notice"):
+        return
+    if event.get("Content-Disposition") == "linger":
+        return
+    reason = (
+        "rude_rejection"
+        if content_type == "text/rude-rejection"
+        else "disconnect_notice"
+    )
+    protocol.note_peer_loss(reason)
+    await protocol.stop()
 
 
 def default_processors() -> List[EventProcessor]:

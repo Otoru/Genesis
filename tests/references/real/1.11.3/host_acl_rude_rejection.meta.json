@@ -1,0 +1,9 @@
+{
+  "kind": "real",
+  "freeswitch_version": "1.11.3",
+  "git": "ef32e205295e29f034f1453ad245ba5efb07b94a",
+  "image": "genesis-esl-research-fs:v1.11.3",
+  "source": "captures/host_acl_rude_rejection.raw",
+  "captured_at": "2026-10-14",
+  "note": "ACL deny from the Mac to published port 18021. text/rude-rejection length 24, then 67-byte disconnect. Not a malformed frame."
+}

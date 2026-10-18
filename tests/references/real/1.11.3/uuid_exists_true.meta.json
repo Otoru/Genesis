@@ -1,0 +1,10 @@
+{
+  "kind": "real",
+  "freeswitch_version": "1.11.3",
+  "git": "ef32e205295e29f034f1453ad245ba5efb07b94a",
+  "image": "genesis-esl-research-fs:v1.11.3",
+  "source": "captures-recovery/uuid_exists_true.raw",
+  "captured_at": "2026-10-16",
+  "reproduction": "Inbound api uuid_exists for a live loopback channel.",
+  "note": "api/response body is the four bytes true. There is no trailing newline."
+}

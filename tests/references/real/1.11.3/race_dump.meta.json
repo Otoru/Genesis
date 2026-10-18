@@ -1,0 +1,10 @@
+{
+  "kind": "real",
+  "freeswitch_version": "1.11.3",
+  "git": "ef32e205295e29f034f1453ad245ba5efb07b94a",
+  "image": "genesis-esl-research-fs:v1.11.3",
+  "source": "captures-recovery/race_dump.raw",
+  "captured_at": "2026-10-16",
+  "reproduction": "sendmsg execute log, then api uuid_dump <uuid> plain, read on that same socket until idle.",
+  "note": "Three frames. The api/response dump is first. CHANNEL_EXECUTE and CHANNEL_EXECUTE_COMPLETE follow as separate text/event-plain frames and share Application-UUID 439c369d-8977-4758-beb7-458d4f4a2ed0. The dump format is plain."
+}

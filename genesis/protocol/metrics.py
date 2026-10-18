@@ -10,7 +10,7 @@ created with different descriptions in multiple modules).
 """
 
 import weakref
-from typing import Any, Iterable
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 from opentelemetry import trace, metrics
 from opentelemetry.metrics import Observation
@@ -224,7 +224,7 @@ def _commands_queue_depth(_options: Any) -> Iterable[Observation]:
     total = 0
     for proto in tuple(_protocol_registry):
         try:
-            total += proto.commands.qsize()
+            total += proto.exchange.depth
         except Exception:
             pass
     yield Observation(total, {})
@@ -271,6 +271,88 @@ def safe_record(histogram: Any, *args: Any, **kwargs: Any) -> None:
         pass
 
 
+class ObservingSpan:
+    """Span that cannot replace a result already obtained.
+
+    ``open`` and ``close`` swallow tracer failures. Callers still return the
+    operation result when telemetry raises.
+    """
+
+    __slots__ = ("span", "_context")
+
+    def __init__(self) -> None:
+        self.span: Optional[Any] = None
+        self._context: Optional[Any] = None
+
+    @classmethod
+    def open(
+        cls, name: str, attributes: Optional[Mapping[str, Any]] = None
+    ) -> "ObservingSpan":
+        opened = cls()
+        try:
+            kwargs: Dict[str, Any] = {}
+            if attributes is not None:
+                kwargs["attributes"] = dict(attributes)
+            opened._context = tracer.start_as_current_span(name, **kwargs)
+            opened.span = opened._context.__enter__()
+        except Exception:
+            opened._context = None
+            opened.span = None
+        return opened
+
+    def close(self) -> None:
+        context = self._context
+        self._context = None
+        self.span = None
+        if context is None:
+            return
+        try:
+            context.__exit__(None, None, None)
+        except Exception:
+            pass
+
+    def set_attribute(self, key: str, value: Any) -> None:
+        span = self.span
+        if span is None:
+            return
+        try:
+            span.set_attribute(key, value)
+        except Exception:
+            pass
+
+    def add_event(
+        self, name: str, attributes: Optional[Mapping[str, Any]] = None
+    ) -> None:
+        span = self.span
+        if span is None:
+            return
+        try:
+            if attributes is None:
+                span.add_event(name)
+            else:
+                span.add_event(name, attributes=dict(attributes))
+        except Exception:
+            pass
+
+    def record_exception(self, exc: BaseException) -> None:
+        span = self.span
+        if span is None:
+            return
+        try:
+            span.record_exception(exc)
+        except Exception:
+            pass
+
+    def set_status(self, status: Any) -> None:
+        span = self.span
+        if span is None:
+            return
+        try:
+            span.set_status(status)
+        except Exception:
+            pass
+
+
 # Re-export for callers that import a batch of instruments (kept alphabetical).
 __all__ = [
     "tracer",
@@ -308,4 +390,5 @@ __all__ = [
     "register_protocol",
     "safe_add",
     "safe_record",
+    "ObservingSpan",
 ]

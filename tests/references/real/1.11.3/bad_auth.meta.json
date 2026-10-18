@@ -1,0 +1,11 @@
+{
+  "kind": "real",
+  "freeswitch_version": "1.11.3",
+  "git": "ef32e205295e29f034f1453ad245ba5efb07b94a",
+  "image": "genesis-esl-research-fs:v1.11.3",
+  "source": "captures-from-container/bad_auth.raw",
+  "captured_at": "2026-10-14",
+  "report_port_field": 8021,
+  "host_mapping_observed_later": "127.0.0.1:18021",
+  "note": "Unmodified copy. Three frames: auth/request, command/reply -ERR invalid, text/disconnect-notice with a 67-byte body. The report.json port field is 8021. A later read-only docker inspect showed host port 18021. This file does not by itself prove which host port was dialed."
+}

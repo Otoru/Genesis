@@ -7,8 +7,12 @@ ESL implementation used for incoming connections on freeswitch.
 from __future__ import annotations
 
 from asyncio import TimeoutError, open_connection, wait_for
+from typing import TYPE_CHECKING
 
 from opentelemetry import trace
+
+if TYPE_CHECKING:
+    from genesis.channel import Channel
 
 from genesis.exceptions import AuthenticationError, ConnectionTimeoutError
 from genesis.observability import logger
@@ -106,5 +110,17 @@ class Inbound(Protocol):
 
     async def stop(self) -> None:
         """Terminates the connection."""
+        if self._stopped:
+            return
         await super().stop()
         safe_add(connections_active_counter, -1, attributes={"type": "inbound"})
+
+    async def get_channel(self, channel_uuid: str) -> "Channel":
+        """Return a new Channel for one live uuid on this connection.
+
+        The result is the channel observed by this call's ``uuid_dump``.
+        Nothing is cached, replayed, or copied from an older Channel.
+        """
+        from genesis.channel import get_inbound_channel
+
+        return await get_inbound_channel(self, channel_uuid)

@@ -1,0 +1,8 @@
+{
+  "kind": "synthetic",
+  "freeswitch_version": "1.11.3",
+  "git": "ef32e205295e29f034f1453ad245ba5efb07b94a",
+  "source": "constructed for the simulator fault",
+  "captured_at": "2026-10-14",
+  "note": "Declared Content-Length is 10 and only 4 body bytes follow. Not produced by FreeSWITCH 1.11.3."
+}

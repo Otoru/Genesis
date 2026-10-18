@@ -141,11 +141,14 @@ def channel_lifecycle_processor(protocol: "Protocol", event: ESLEvent) -> None:
     attrs = _channel_attrs(event)
     _record_sip_gap(event, attrs)
 
-    emit = _LIFECYCLE_EMITTERS.get(name)
-    if emit is not None:
-        emit(event, attrs)
-    elif name in ("CHANNEL_PARK", "CHANNEL_UNPARK"):
-        _emit_state_span(event, attrs, f"freeswitch.channel.{name.lower()[8:]}")
+    try:
+        emit = _LIFECYCLE_EMITTERS.get(name)
+        if emit is not None:
+            emit(event, attrs)
+        elif name in ("CHANNEL_PARK", "CHANNEL_UNPARK"):
+            _emit_state_span(event, attrs, f"freeswitch.channel.{name.lower()[8:]}")
+    except Exception:
+        logger.debug("lifecycle telemetry failed: %s", name)
 
 
 def _emit_create(event: ESLEvent, attrs: Dict[str, Any]) -> None:
@@ -401,18 +404,21 @@ def custom_subclass_processor(protocol: "Protocol", event: ESLEvent) -> None:
     attrs = _channel_attrs(event)
     kind = _CUSTOM_MAP[subclass]
 
-    if kind in ("transferor", "transferee"):
-        _emit_transfer(event, attrs, kind)
-    elif kind in ("reinvite", "replaced"):
-        _emit_reinvite(event, attrs, kind)
-    elif kind == "register":
-        _emit_register(event, attrs, subclass)
-    elif kind == "callcenter":
-        _emit_callcenter(event, attrs)
-    elif kind == "conference":
-        _emit_conference(event, attrs, subclass)
-    elif kind == "valet":
-        _emit_valet(event, attrs)
+    try:
+        if kind in ("transferor", "transferee"):
+            _emit_transfer(event, attrs, kind)
+        elif kind in ("reinvite", "replaced"):
+            _emit_reinvite(event, attrs, kind)
+        elif kind == "register":
+            _emit_register(event, attrs, subclass)
+        elif kind == "callcenter":
+            _emit_callcenter(event, attrs)
+        elif kind == "conference":
+            _emit_conference(event, attrs, subclass)
+        elif kind == "valet":
+            _emit_valet(event, attrs)
+    except Exception:
+        logger.debug("custom telemetry failed: %s", subclass)
 
 
 def _emit_transfer(event: ESLEvent, attrs: Dict[str, Any], role: str) -> None:

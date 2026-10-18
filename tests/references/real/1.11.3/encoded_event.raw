@@ -1,0 +1,24 @@
+Content-Type: command/reply
+Reply-Text: +OK ad489b9b-d025-4549-96ba-4fc5f57c158e
+
+Content-Length: 605
+Content-Type: text/event-plain
+
+Event-Subclass: esl.research.enc
+Command: sendevent%20CUSTOM
+research-note: caf%C3%A9%20test
+Event-UUID: ad489b9b-d025-4549-96ba-4fc5f57c158e
+Event-Name: CUSTOM
+Core-UUID: 97a4b1dd-33c1-4e6a-9dc9-7f9b4f3a1d37
+FreeSWITCH-Hostname: b3a36bf9f090
+FreeSWITCH-Switchname: b3a36bf9f090
+FreeSWITCH-IPv4: 172.20.0.2
+FreeSWITCH-IPv6: %3A%3A1
+Event-Date-Local: 2026-10-14%2023%3A54%3A53
+Event-Date-GMT: Wed,%2014%20Oct%202026%2023%3A54%3A53%20GMT
+Event-Date-Timestamp: 1792022093463605
+Event-Calling-File: mod_event_socket.c
+Event-Calling-Function: parse_command
+Event-Calling-Line-Number: 2283
+Event-Sequence: 651
+

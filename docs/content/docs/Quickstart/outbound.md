@@ -182,7 +182,35 @@ This behavior is confirmed by the FreeSWITCH source code in `mod_event_socket.c`
 [View on GitHub](https://github.com/signalwire/freeswitch/blob/v1.10/src/mod/event_handlers/mod_event_socket/mod_event_socket.c#L803)
 {{< /callout >}}
 
+A blocking `sendmsg` or `playback` raises `ChannelError` before the command is sent when a negative `Event-Name` or `Unique-ID` filter hides `CHANNEL_EXECUTE_COMPLETE`. The filter stays. The `timeout` argument is not used for that refusal. A negative filter on any other header is not detected, so that wait has no guarantee.
+
 This approach ensures you receive all necessary events for the main call while retaining the ability to track related channels without flood or restriction.
+
+## Lost socket
+
+Catch `ConnectionLost` in the handler and return. That ends the local flow. `stage` has the same meaning as on [Lost connection]({{< relref "inbound.md#lost-connection" >}}):
+
+- `NOT_SENT`: `write()` was not called
+- `UNCONFIRMED`: `write()` was called, and this wait received no reply
+- `ACCEPTED`: the reply was already seen, and the socket dropped while waiting for the command to finish
+
+Genesis does not retry the command, reconnect this socket, restore the `Session`, copy its handlers, or replay events.
+
+A new `Inbound.get_channel(session.uuid)` can control the call only while FreeSWITCH still has that channel. Closing this socket returns the call to the dialplan, and a dialplan with nothing left to run can end the call first. `ChannelNotFound` means the channel is already gone. `hangup()` on the channel returned by that lookup is a new command, not a repeat of the one that was in flight.
+
+```python
+from genesis.exceptions import ConnectionLost
+
+async def handler(session):
+    try:
+        await session.channel.answer()
+        await session.channel.playback("ivr/ivr-welcome")
+    except ConnectionLost as lost:
+        # lost.stage is NOT_SENT, UNCONFIRMED, or ACCEPTED.
+        # Keep session.uuid only for a later Inbound.get_channel
+        # while the channel is still up.
+        return
+```
 
 ## Use Cases
 

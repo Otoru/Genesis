@@ -8,44 +8,44 @@ Handles common functionality for inbound and outbound connections.
 
 import asyncio
 from asyncio import (
-    iscoroutinefunction,
+    IncompleteReadError,
     StreamWriter,
     StreamReader,
     create_task,
-    to_thread,
+    current_task,
     Event,
     Queue,
     Task,
     CancelledError,
 )
-from typing import List, Dict, Optional, Callable, Coroutine, Any, Union, cast
+from typing import List, Dict, Optional, Any
 from abc import ABC
 import time
 
 from opentelemetry import trace
 
-from genesis.exceptions import ConnectionError, GenesisError, UnconnectedError
-from genesis.observability import logger, TRACE_LEVEL_NUM
-from genesis.protocol.parser import ESLEvent, parse_headers
+from genesis.exceptions import (
+    CommandStage,
+    ConnectionError,
+    ConnectionLost,
+    GenesisError,
+    UnconnectedError,
+)
+from genesis.observability import logger
+from genesis.protocol.exchange import CommandExchange, WriteEvidence
+from genesis.protocol.parser import ESLEvent
 from genesis.protocol.reader_fsm import ESLReaderFSM
 from genesis.protocol.metrics import (
     tracer,
     commands_sent_counter,
-    events_received_counter,
     command_duration_histogram,
     command_errors_counter,
-    channel_operations_counter,
-    channel_operation_duration,
-    hangup_causes_counter,
-    bridge_operations_counter,
-    dtmf_received_counter,
-    call_duration_histogram,
-    timeout_counter,
-    channel_routing_counter,
-    global_routing_counter,
     event_processing_duration,
+    connection_errors_counter,
     register_protocol,
+    safe_add,
     safe_record,
+    ObservingSpan,
 )
 from genesis.protocol.routing import (
     CompositeRoutingStrategy,
@@ -59,16 +59,22 @@ from genesis.protocol.telemetry import (
     log_event,
 )
 from genesis.protocol.processors import default_processors
+from genesis.protocol.subscriptions import SubscriptionLedger
 from genesis.types import EventHandler
 
 
 class Protocol(ABC):
     def __init__(self):
-        self.events: Queue[ESLEvent] = Queue()
-        self.commands: Queue[ESLEvent] = Queue()
+        self.events: Queue[Optional[ESLEvent]] = Queue()
+        self.exchange = CommandExchange(self._flush_queued_events)
         self.is_connected = False
         self.is_lingering = False
         self.authentication_event = Event()
+        self._closed = Event()
+        self._lost = False
+        self._stopped = False
+        self._reader_signaled = False
+        self._pending_loss_reason: Optional[str] = None
         self.producer: Optional[Task] = None
         self.consumer: Optional[Task] = None
         self.reader: Optional[StreamReader] = None
@@ -76,6 +82,7 @@ class Protocol(ABC):
         self.handlers: Dict[str, List[EventHandler]] = {}
         self.channel_registry: Dict[str, List[EventHandler]] = {}
         self.handler_tasks: set[Task[Any]] = set()
+        self.subscriptions = SubscriptionLedger()
         # Register so the ObservableGauges can report this protocol's queue depth.
         register_protocol(self)
 
@@ -99,22 +106,89 @@ class Protocol(ABC):
 
     async def stop(self) -> None:
         """Terminates connection to a freeswitch."""
-        if self.writer and not self.writer.is_closing():
+        if self._stopped:
+            return
+        self._stopped = True
+        self.is_connected = False
+        self.authentication_event.set()
+        self.exchange.fail_pending()
+
+        if self.writer is not None and not self.writer.is_closing():
             logger.debug("Closer stream writer.")
             self.writer.close()
 
-        self.is_connected = False
-        await self._cancel_task(self.producer, "event producer")
-        await self._cancel_task(self.consumer, "event consumer")
+        await self._settle_handlers()
+        self._closed.set()
+
+        current = current_task()
+        await self._cancel_unless(self.producer, current, "event producer")
+        await self._cancel_unless(self.consumer, current, "event consumer")
         for task in list(self.handler_tasks):
-            await self._cancel_task(task, "handler task")
+            await self._cancel_unless(task, current, "handler task")
         self.handler_tasks.clear()
+
+    def raise_if_lost(self, stage: CommandStage) -> None:
+        """Raise ``ConnectionLost(stage)`` when this connection is already closed."""
+        if self._closed.is_set():
+            raise ConnectionLost(stage)
+
+    async def wait_lost(self, stage: CommandStage) -> None:
+        """Wait until this connection closes, then raise ``ConnectionLost(stage)``.
+
+        The caller supplies ``stage``. ``ACCEPTED`` is for a wait that already
+        observed the command reply. A local ``stop()`` closes the connection too.
+        """
+        await self._closed.wait()
+        raise ConnectionLost(stage)
+
+    def note_peer_loss(self, reason: str) -> None:
+        """Mark the peer gone. Queued events still run before ``wait_lost``."""
+        if self._lost:
+            return
+        self._lost = True
+        self.is_connected = False
+        self.exchange.close()
+        safe_add(
+            connection_errors_counter,
+            1,
+            attributes={"error": reason, "type": "esl"},
+        )
+        self.authentication_event.set()
+
+    async def _flush_queued_events(self) -> None:
+        """Let the consumer deliver events already queued. No new socket read."""
+        turns = self.events.qsize() + 1
+        for _ in range(turns):
+            await asyncio.sleep(0)
+
+    async def _settle_handlers(self) -> None:
+        """One turn for handlers already scheduled. Does not wait past their first await."""
+        if not any(not task.done() for task in self.handler_tasks):
+            return
+        await asyncio.sleep(0)
+
+    async def _cancel_unless(
+        self,
+        task: Optional[Task[Any]],
+        current: Optional[Task[Any]],
+        label: str,
+    ) -> None:
+        """Cancel ``task`` unless it is the caller. ``stop()`` must not await itself."""
+        if task is None or task is current:
+            return
+        await self._cancel_task(task, label)
 
     async def _cancel_task(
         self, task: Optional[Task[Any]], label: str = "task"
     ) -> None:
         """Cancel a task and wait for it; swallow CancelledError."""
-        if task is None or task.cancelled():
+        if task is None:
+            return
+        if task.done():
+            try:
+                await task
+            except (Exception, CancelledError):
+                pass
             return
         logger.debug(f"Cancel {label} task.")
         task.cancel()
@@ -134,14 +208,23 @@ class Protocol(ABC):
         while self.is_connected:
             try:
                 content = await self.reader.readline()  # type: ignore[union-attr]
-                if not content:
-                    self.is_connected = False
-                    return None
-                buffer += content.decode("utf-8")
-            except Exception as e:
-                logger.error(f"Error reading from stream. {str(e)}")
+            except CancelledError:
+                raise
+            except IncompleteReadError:
+                self._pending_loss_reason = "truncated"
                 self.is_connected = False
                 return None
+            except Exception as e:
+                logger.error(f"Error reading from stream. {str(e)}")
+                self._pending_loss_reason = "eof"
+                self.is_connected = False
+                return None
+
+            if not content:
+                self._pending_loss_reason = "truncated" if buffer else "eof"
+                self.is_connected = False
+                return None
+            buffer += content.decode("utf-8")
 
             if buffer.endswith("\n\n") or buffer.endswith("\r\n\r\n"):
                 logger.trace(f"Complete message received: {repr(buffer)}")
@@ -157,8 +240,11 @@ class Protocol(ABC):
         """
         try:
             return await self.reader.readexactly(content_length)  # type: ignore[union-attr]
+        except CancelledError:
+            raise
         except Exception as e:
             logger.error(f"Error reading body: {str(e)}")
+            self._pending_loss_reason = "truncated"
             self.is_connected = False
             return None
 
@@ -168,32 +254,50 @@ class Protocol(ABC):
             return
 
         fsm = ESLReaderFSM()
+        try:
+            while self.is_connected:
+                # State: READING_HEADERS — accumulate until end of header block
+                request = await self._read_header_block()
 
-        while self.is_connected:
-            # State: READING_HEADERS — accumulate until end of header block
-            request = await self._read_header_block()
-
-            if not request or not self.is_connected:
-                break
-
-            events_from_headers, content_length = fsm.process_headers(request)
-
-            for ev in events_from_headers:
-                await self.events.put(ev)
-
-            if content_length > 0:
-                logger.trace(f"Total content length: {content_length} bytes")
-                data = await self._read_body_bytes(content_length)
-                if data is None:
+                if not request or not self.is_connected:
                     break
-                body_events = fsm.process_body(data)
-                for ev in body_events:
+
+                events_from_headers, content_length = fsm.process_headers(request)
+
+                for ev in events_from_headers:
                     await self.events.put(ev)
+
+                if content_length > 0:
+                    logger.trace(f"Total content length: {content_length} bytes")
+                    data = await self._read_body_bytes(content_length)
+                    if data is None:
+                        break
+                    body_events = fsm.process_body(data)
+                    for ev in body_events:
+                        await self.events.put(ev)
+        except CancelledError:
+            raise
+        finally:
+            await self._signal_reader_done()
+
+    async def _signal_reader_done(self) -> None:
+        """After the reader stops, let the consumer drain events already queued."""
+        if self._stopped or self._reader_signaled:
+            return
+        reason = self._pending_loss_reason
+        if reason is None:
+            return
+        self._reader_signaled = True
+        self.note_peer_loss(reason)
+        await self.events.put(None)
 
     async def consume(self) -> None:
         """Arm all event processors."""
-        while self.is_connected:
+        while not self._stopped:
             event = await self.events.get()
+            if event is None:
+                await self.stop()
+                return
             try:
                 await self._process_one_event(event)
             except Exception as outer_e:
@@ -212,22 +316,32 @@ class Protocol(ABC):
             attributes = {}
 
         start_time = time.perf_counter()
-        with tracer.start_as_current_span("process_event", attributes=attributes):
+        opened = ObservingSpan.open("process_event", attributes)
+        try:
             try:
                 record_event_metrics(event)
+            except Exception:
+                pass
+            try:
                 log_event(event)
             except Exception:
-                record_event_metrics(event)
-                log_event(event)
+                pass
 
-            for processor in self.event_processors:
-                result = processor(self, event)
-                if asyncio.iscoroutine(result):
-                    await result
+            for processor in list(self.event_processors):
+                try:
+                    result = processor(self, event)
+                    if asyncio.iscoroutine(result):
+                        await result
+                except CancelledError:
+                    raise
+                except Exception:
+                    logger.debug("event processor failed")
 
             handlers, _ = await self.routing_strategy.route(event)
             if handlers:
                 dispatch_to_handlers(handlers, event, self.handler_tasks)
+        finally:
+            opened.close()
 
         safe_record(
             event_processing_duration,
@@ -301,6 +415,8 @@ class Protocol(ABC):
     async def send(self, cmd: str) -> ESLEvent:
         """Method used to send commands to or freeswitch."""
         if not self.is_connected or self.writer is None:
+            if self._lost:
+                raise ConnectionLost(CommandStage.NOT_SENT)
             raise UnconnectedError()
 
         if self.writer.is_closing():
@@ -308,28 +424,60 @@ class Protocol(ABC):
 
         command_name = cmd.split()[0] if cmd.strip() else ""
         start_time = time.perf_counter()
-
+        opened = _CommandSpan.open(command_name, cmd)
         try:
-            with tracer.start_as_current_span("send_command") as span:
-                # Use the command verb (first token) as command.name to avoid
-                # high-cardinality span attributes (raw cmd may carry UUIDs).
-                span.set_attribute("command.name", command_name)
-                remainder = cmd[len(command_name) :].strip()
-                if remainder:
-                    span.set_attribute("command.args", remainder[:200])
-                return await self._execute_send(cmd, command_name, start_time, span)
-        except Exception:
-            # OTel not initialized - run without tracing
-            return await self._execute_send(cmd, command_name, start_time, None)
+            return await self._execute_send(cmd, command_name, start_time, opened.span)
+        finally:
+            opened.close()
 
-    def _record_command_error(self, command_name: str, error: str) -> None:
+    def _record_command_error(
+        self,
+        command_name: str,
+        error: str,
+        stage: Optional[CommandStage] = None,
+    ) -> None:
         """Record command error metric (best-effort)."""
         if not command_name:
             return
+        attributes: Dict[str, str] = {"command": command_name, "error": error}
+        if stage is not None:
+            attributes["stage"] = stage.value
+        safe_add(command_errors_counter, 1, attributes=attributes)
+
+    def _observe_lost(
+        self, command_name: str, span: Optional[Any], exc: ConnectionLost
+    ) -> None:
+        self._record_command_error(command_name, "connection_lost", exc.stage)
+        if span is None:
+            return
         try:
-            command_errors_counter.add(
-                1, attributes={"command": command_name, "error": error}
-            )
+            span.set_attribute("command.observation", exc.stage.value)
+            span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
+            span.record_exception(exc)
+        except Exception:
+            pass
+
+    def _annotate_reply(
+        self, result: ESLEvent, command_name: str, span: Optional[Any]
+    ) -> None:
+        reply = result.get("Reply-Text", "")
+        if isinstance(reply, str) and reply.startswith("-ERR"):
+            self._record_command_error(command_name, "protocol_error")
+            if span is not None:
+                try:
+                    span.set_attribute("command.error", "protocol_error")
+                    span.set_status(trace.Status(trace.StatusCode.ERROR, reply))
+                    span.record_exception(GenesisError(reply))
+                except Exception:
+                    pass
+
+        if span is None:
+            return
+        reply_text = result.get("Reply-Text")
+        if not reply_text:
+            return
+        try:
+            span.set_attribute("command.reply", reply_text)
         except Exception:
             pass
 
@@ -342,42 +490,84 @@ class Protocol(ABC):
     ) -> ESLEvent:
         """Execute command over the wire and record metrics (single implementation)."""
         logger.debug(f"Send command: {cmd}")
-        try:
-            if command_name:
-                commands_sent_counter.add(1, attributes={"command": command_name})
-        except Exception:
-            pass
 
-        try:
-            if self.writer is None:
+        async def transmit(evidence: WriteEvidence) -> None:
+            writer = self.writer
+            if writer is None:
                 raise UnconnectedError()
-            self.writer.write(f"{cmd}\n\n".encode())
-            await self.writer.drain()
-            result = await self.commands.get()
+            evidence.wrote = True
+            writer.write(f"{cmd}\n\n".encode())
+            if command_name:
+                safe_add(commands_sent_counter, 1, attributes={"command": command_name})
+            await writer.drain()
 
-            reply = result.get("Reply-Text", "")
-            if reply.startswith("-ERR"):
-                self._record_command_error(command_name, "protocol_error")
-                if span is not None:
-                    span.set_attribute("command.error", "protocol_error")
-                    span.set_status(trace.Status(trace.StatusCode.ERROR, reply))
-                    span.record_exception(GenesisError(reply))
-
-            if span is not None:
-                reply_text = result.get("Reply-Text")
-                if reply_text:
-                    span.set_attribute("command.reply", reply_text)
-
-            return result
-        except Exception as e:
-            self._record_command_error(command_name, type(e).__name__)
+        try:
+            result = await self.exchange.exchange(transmit)
+        except ConnectionLost as exc:
+            self._observe_lost(command_name, span, exc)
+            if exc.stage is CommandStage.UNCONFIRMED and not self._stopped:
+                if not self._lost:
+                    self.note_peer_loss("write_error")
+                await self.stop()
             raise
+        except Exception as exc:
+            self._record_command_error(command_name, type(exc).__name__)
+            raise
+        else:
+            failure = self.exchange.take_write_failure()
+            self._annotate_reply(result, command_name, span)
+            self.subscriptions.observe(cmd, result)
+            if failure is not None and not self._stopped:
+                if not self._lost:
+                    self.note_peer_loss("write_error")
+                try:
+                    await self.stop()
+                except Exception:
+                    logger.error("Failed to stop after a recovered ESL reply.")
+            return result
         finally:
             if command_name:
-                try:
-                    duration = time.perf_counter() - start_time
-                    command_duration_histogram.record(
-                        duration, attributes={"command": command_name}
-                    )
-                except Exception:
-                    pass
+                safe_record(
+                    command_duration_histogram,
+                    time.perf_counter() - start_time,
+                    attributes={"command": command_name},
+                )
+
+
+class _CommandSpan:
+    """Send span that cannot cause a second write."""
+
+    def __init__(self) -> None:
+        self.span: Optional[Any] = None
+        self._context: Optional[Any] = None
+
+    @classmethod
+    def open(cls, command_name: str, cmd: str) -> "_CommandSpan":
+        opened = cls()
+        try:
+            opened._context = tracer.start_as_current_span("send_command")
+            opened.span = opened._context.__enter__()
+        except Exception:
+            opened._context = None
+            opened.span = None
+            return opened
+        try:
+            if opened.span is not None:
+                # Command verb only: the raw command may carry UUIDs.
+                opened.span.set_attribute("command.name", command_name)
+                remainder = cmd[len(command_name) :].strip()
+                if remainder:
+                    opened.span.set_attribute("command.args", remainder[:200])
+        except Exception:
+            pass
+        return opened
+
+    def close(self) -> None:
+        context = self._context
+        self._context = None
+        if context is None:
+            return
+        try:
+            context.__exit__(None, None, None)
+        except Exception:
+            pass

@@ -1,0 +1,28 @@
+Content-Length: 491
+Content-Type: text/event-plain
+
+Event-Name: API
+Core-UUID: 97a4b1dd-33c1-4e6a-9dc9-7f9b4f3a1d37
+FreeSWITCH-Hostname: b3a36bf9f090
+FreeSWITCH-Switchname: b3a36bf9f090
+FreeSWITCH-IPv4: 172.20.0.2
+FreeSWITCH-IPv6: %3A%3A1
+Event-Date-Local: 2026-10-14%2023%3A55%3A05
+Event-Date-GMT: Wed,%2014%20Oct%202026%2023%3A55%3A05%20GMT
+Event-Date-Timestamp: 1792022105903811
+Event-Calling-File: switch_loadable_module.c
+Event-Calling-Function: switch_api_execute
+Event-Calling-Line-Number: 3140
+Event-Sequence: 690
+API-Command: status
+
+Content-Type: command/reply
+Reply-Text: +OK bye
+
+Content-Type: text/disconnect-notice
+Controlled-Session-UUID: cd069052-dd73-4d3e-a3da-a24fbb5f5e75
+Content-Disposition: disconnect
+Content-Length: 67
+
+Disconnected, goodbye.
+See you at ClueCon! http://www.cluecon.com/
