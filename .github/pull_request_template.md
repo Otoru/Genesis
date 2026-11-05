@@ -25,7 +25,6 @@ Closes #
 - [ ] All existing tests pass
 - [ ] New tests added for new functionality
 - [ ] Manual testing performed
-- [ ] Tested on Python 3.10
 - [ ] Tested on Python 3.11
 - [ ] Tested on Python 3.12
 - [ ] Tested on Python 3.13
