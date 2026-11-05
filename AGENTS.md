@@ -107,14 +107,14 @@ poetry run pytest tests/contract/test_channel.py::test_channel_state
 
 #### tox
 
-Validate across Python versions (3.10, 3.11, 3.12, 3.13, 3.14):
+Validate across Python versions (3.11, 3.12, 3.13, 3.14):
 
 ```bash
 # Run tests on all Python versions
 poetry run tox
 
 # Run specific environment
-poetry run tox -e py310
+poetry run tox -e py311
 
 # List environments
 poetry run tox list
@@ -202,7 +202,7 @@ from genesis.consumer import Consumer
 The project uses a consolidated CI/CD pipeline in `.github/workflows/main.yml`:
 
 **Main Workflow** (`main.yml`):
-- **Tests**: Runs on all PRs and pushes to main (Python 3.10, 3.11, 3.12, 3.13, 3.14)
+- **Tests**: Runs on all PRs and pushes to main (Python 3.11, 3.12, 3.13, 3.14)
   - Linter (Black)
   - Type checker (Mypy)
   - Unit tests (pytest)
@@ -363,7 +363,7 @@ Before submitting a PR, you MUST run all CI checks locally:
 1. **Formatting**: `poetry run black --check genesis/ tests/ examples/` - MUST pass
 2. **Types**: `poetry run mypy genesis/` - MUST pass with no errors
 3. **Tests**: `poetry run pytest tests/ -v` - MUST pass (all tests)
-4. **Multi-version**: `poetry run tox` - MUST pass on all Python versions (3.10, 3.11, 3.12, 3.13, 3.14)
+4. **Multi-version**: `poetry run tox` - MUST pass on all Python versions (3.11, 3.12, 3.13, 3.14)
 
 **Never open a PR without running these commands first.** PRs that fail CI checks will be rejected.
 
@@ -377,9 +377,9 @@ Additional checks:
 
 ## Python Versions
 
-Supported: Python 3.10, 3.11, 3.12, 3.13, 3.14
+Supported: Python 3.11, 3.12, 3.13, 3.14
 
-Constraint: `>=3.10,<4.0` (see `pyproject.toml`)
+Constraint: `>=3.11,<4.0` (see `pyproject.toml`)
 
 ## Resources
 

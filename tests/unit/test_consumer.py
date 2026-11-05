@@ -7,6 +7,7 @@ synthetic text.
 
 import asyncio
 import contextlib
+import inspect
 from typing import Any, Dict, Tuple
 from unittest.mock import AsyncMock
 
@@ -110,7 +111,7 @@ async def test_filtrate_invokes_the_handler(
     decorator = filtrate(*parameters)
     assert callable(decorator)
     new_handler = decorator(handler)
-    assert asyncio.iscoroutinefunction(new_handler)
+    assert inspect.iscoroutinefunction(new_handler)
     await new_handler(event)
     assert handler.called is expected
 

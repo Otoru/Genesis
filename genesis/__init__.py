@@ -21,7 +21,7 @@ from .queue import (
     InMemoryBackend,
     RedisBackend,
 )
-from .loop import use_uvloop
+from .loop import new_event_loop, use_uvloop
 
 __all__ = [
     "Inbound",
@@ -42,6 +42,7 @@ __all__ = [
     "QueueTimeoutError",
     "InMemoryBackend",
     "RedisBackend",
+    "new_event_loop",
     "use_uvloop",
 ]
 __version__ = importlib.metadata.version("genesis")

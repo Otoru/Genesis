@@ -316,6 +316,7 @@ async def test_disconnect_before_reply_writes_nothing() -> None:
         await simulator.fail(Fault.DISCONNECT_BEFORE_REPLY, peer.connection_id)
         await peer.send("api uuid_exists %s" % PRESENT)
         received = await _read_until_closed(peer.reader)
+        await peer.close()
     commands = [item.text for item in simulator.journal.commands(peer.connection_id)]
     replies = [
         item.frame.header("Content-Type")
@@ -338,6 +339,7 @@ async def test_ack_then_disconnect_leaves_execution_pending_for_a_new_socket() -
         ack = await peer.read()
         with pytest.raises(ConnectionError):
             await peer.read()
+        await peer.close()
         pending = simulator.open_executions[EVENT]
         assert _plain(simulator, peer.connection_id) == []
         fresh = await Peer.open(simulator)
@@ -374,6 +376,7 @@ async def test_truncated_reply_is_not_a_complete_frame() -> None:
         await simulator.fail(Fault.TRUNCATED_REPLY, peer.connection_id)
         await peer.send("api uuid_exists %s" % ABSENT)
         received = await _read_until_closed(peer.reader)
+        await peer.close()
     assert received == captured[:-1]
     assert received != captured
     with pytest.raises(IncompleteFrame):
@@ -386,6 +389,7 @@ async def test_clean_eof_sends_no_disconnect_notice() -> None:
         marked = len(simulator.journal.events(peer.connection_id))
         await simulator.fail(Fault.CLEAN_EOF, peer.connection_id)
         received = await _read_until_closed(peer.reader)
+        await peer.close()
         later = simulator.journal.events(peer.connection_id)[marked:]
     assert received == b""
     assert later == ()
