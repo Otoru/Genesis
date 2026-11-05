@@ -80,3 +80,24 @@ def test_outbound_readiness_set_false(observability, client):
     response = client.get("/ready")
     assert response.status_code == 503
     assert response.json() == {"status": "not ready"}
+
+
+def test_port_defaults_to_8000(monkeypatch):
+    monkeypatch.delenv("GENESIS_OBSERVABILITY_PORT", raising=False)
+    assert Observability().port == 8000
+
+
+def test_port_comes_from_environment(monkeypatch):
+    monkeypatch.setenv("GENESIS_OBSERVABILITY_PORT", "9090")
+    assert Observability().port == 9090
+
+
+def test_explicit_port_wins_over_environment(monkeypatch):
+    monkeypatch.setenv("GENESIS_OBSERVABILITY_PORT", "9090")
+    assert Observability(port=9191).port == 9191
+
+
+def test_invalid_port_in_environment_is_rejected(monkeypatch):
+    monkeypatch.setenv("GENESIS_OBSERVABILITY_PORT", "not-a-port")
+    with pytest.raises(ValueError, match="GENESIS_OBSERVABILITY_PORT"):
+        Observability()
