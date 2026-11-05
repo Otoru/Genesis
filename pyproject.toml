@@ -20,6 +20,8 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Framework :: AsyncIO",
     "Topic :: Communications :: Telephony",
     "Topic :: Internet",
@@ -28,7 +30,7 @@ classifiers = [
 exclude = ["tests"]
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.13"
+python = ">=3.10,<4.0"
 rich = "^13.7.1"
 typer = "^0.12.3"
 watchdog = "^4.0.2"
@@ -38,7 +40,7 @@ fastapi = ">=0.128.0"
 pyjwt = ">=2.13.0"
 uvicorn = {extras = ["standard"], version = "^0.32.0"}
 redis = "^5.0.0"
-uvloop = {version = "^0.19.0", optional = true}
+uvloop = {version = ">=0.21.0,<1.0", optional = true}
 opentelemetry-exporter-otlp-proto-http = "^1.39.1"
 
 [tool.poetry.extras]
@@ -55,7 +57,7 @@ opentelemetry-sdk = "^1.39.1"
 mypy = "^1.19.1"
 types-mock = "^5.2.0.20250924"
 pytest-timeout = "^2.4.0"
-httpx = "^0.27.0"
+httpx2 = ">=2.14.0"
 pytest-bdd = "^9.0.0"
 
 [tool.poetry.group.examples.dependencies]

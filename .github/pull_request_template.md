@@ -28,6 +28,8 @@ Closes #
 - [ ] Tested on Python 3.10
 - [ ] Tested on Python 3.11
 - [ ] Tested on Python 3.12
+- [ ] Tested on Python 3.13
+- [ ] Tested on Python 3.14
 
 ## Checklist
 <!-- Mark completed items with an "x" -->
