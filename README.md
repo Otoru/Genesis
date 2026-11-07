@@ -24,7 +24,7 @@ Install Genesis using `pip`:
 pip install genesis
 ```
 
-For better asyncio performance on Unix (Linux and macOS), use the optional uvloop extra: `pip install genesis[uvloop]`. See the [Installation Guide](https://otoru.github.io/Genesis/docs/installation/) for details.
+For better asyncio performance on Unix (Linux and macOS), use the optional uvloop extra: `pip install genesis[uvloop]`. `RedisLoadBalancer` and `RedisBackend` need the redis extra: `pip install genesis[redis]`. See the [Installation Guide](https://otoru.github.io/Genesis/docs/installation/) for details.
 
 ## Quickstart
 

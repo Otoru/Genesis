@@ -21,7 +21,12 @@ queue = Queue()  # InMemoryBackend by default
 
 ## Multiple Instances
 
-If you run multiple instances (horizontal scaling), pass `RedisBackend` so all instances share the same queue state:
+If you run multiple instances (horizontal scaling), pass `RedisBackend` so all instances share the same queue state. It needs the optional `redis` extra:
+
+```bash
+pip install genesis[redis]
+```
+
 
 ```python
 from genesis import Queue

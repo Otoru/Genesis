@@ -11,8 +11,6 @@ import asyncio
 import time
 from typing import Any, Optional
 
-import redis.asyncio as redis
-
 from genesis.exceptions import QueueTimeoutError
 
 # Lua: try to acquire if we're at head and slots available. Keys: waiting_list, in_use_key. Args: item_id, max_concurrent.
@@ -49,6 +47,13 @@ class RedisBackend:
 
     async def _get_client(self) -> Any:
         if self._client is None:
+            try:
+                import redis.asyncio as redis
+            except ImportError:
+                raise ImportError(
+                    "The redis package is required for RedisBackend. "
+                    "Install it with: pip install genesis[redis]"
+                )
             self._client = await redis.from_url(self._url)
         return self._client
 
