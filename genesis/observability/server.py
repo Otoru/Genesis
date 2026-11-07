@@ -6,6 +6,7 @@ Observability module for Genesis, providing health and readiness checks, and met
 """
 
 import asyncio
+import os
 from typing import Optional
 from time import time
 from enum import Enum
@@ -15,6 +16,18 @@ from uvicorn import Config, Server
 from prometheus_client import make_asgi_app
 
 from genesis.observability.logger import logger
+
+
+def _port_from_environment() -> int:
+    raw = os.getenv("GENESIS_OBSERVABILITY_PORT", "").strip()
+    if not raw:
+        return 8000
+    try:
+        return int(raw)
+    except ValueError:
+        raise ValueError(
+            f"GENESIS_OBSERVABILITY_PORT must be an integer, got {raw!r}"
+        ) from None
 
 
 class AppType(str, Enum):
@@ -31,8 +44,8 @@ class Observability:
     Exposes /metrics, /health, and /ready endpoints.
     """
 
-    def __init__(self, port: int = 8000) -> None:
-        self.port = port
+    def __init__(self, port: Optional[int] = None) -> None:
+        self.port = port if port is not None else _port_from_environment()
         self.app = FastAPI(title="Genesis Observability")
         self.last_heartbeat: Optional[float] = None
         self.outbound_ready: bool = False

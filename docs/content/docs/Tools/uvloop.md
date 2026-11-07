@@ -23,6 +23,21 @@ pip install genesis[uvloop]
 
 When the extra is installed, the Genesis CLI uses uvloop automatically.
 
+In your own entry point, pass `new_event_loop` as the loop factory. It returns a uvloop loop when uvloop is available and a default asyncio loop otherwise:
+
+```python
+import asyncio
+
+from genesis import new_event_loop
+
+with asyncio.Runner(loop_factory=new_event_loop) as runner:
+    runner.run(main())
+```
+
+{{< callout type="info" >}}
+`use_uvloop()` is deprecated. It sets a global event loop policy, and asyncio policies are deprecated since Python 3.14 and removed in 3.16.
+{{< /callout >}}
+
 ## See also
 
 - [uvloop on GitHub](https://github.com/MagicStack/uvloop)

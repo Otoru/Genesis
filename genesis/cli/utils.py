@@ -1,22 +1,10 @@
-import sys
 import logging
 from typing import Iterator
 
 
 def get_log_level_map() -> dict[str, int]:
-    """Return a mapping of log level names to values, compatible with Python < 3.11."""
-    if sys.version_info >= (3, 11):
-        return logging.getLevelNamesMapping()
-
-    # Fallback for Python < 3.11
-    return {
-        "CRITICAL": logging.CRITICAL,
-        "ERROR": logging.ERROR,
-        "WARNING": logging.WARNING,
-        "INFO": logging.INFO,
-        "DEBUG": logging.DEBUG,
-        "NOTSET": logging.NOTSET,
-    }
+    """Return a mapping of log level names to values."""
+    return logging.getLevelNamesMapping()
 
 
 def complete_log_levels(incomplete: str) -> Iterator[str]:

@@ -361,6 +361,8 @@ async def test_exit_or_drop_removes_one_peer_and_the_listener_stays_up():
         assert (await staying.read()).body == b"still"
         await staying.close()
         await replacement.close()
+        await leaving.close()
+        await dropped.close()
     captured_exit = (REAL / "full_exit.raw").read_bytes()
     assert b"Reply-Text: +OK bye" in captured_exit
     assert b"Content-Disposition: disconnect" in captured_exit
@@ -461,6 +463,7 @@ async def test_faults_are_opt_in_and_synthetic_bytes_stay_out_of_real_captures()
         await simulator.fail(Fault.RUDE_REJECTION, peer.connection_id)
         await peer.send("api status")
         rude_received = await _read_until_closed(peer.reader)
+        await peer.close()
     assert short_received == short
     assert mismatch_received == mismatch
     assert rude_received == rude
@@ -517,6 +520,7 @@ async def test_bad_password_on_one_peer_leaves_the_other_authenticated():
         await good.send("api eval alpha")
         assert (await good.read()).body == b"alpha"
         await good.close()
+        await other.close()
 
 
 async def _accept_outbound(
@@ -718,6 +722,7 @@ async def test_command_content_length_errors_do_not_wait_for_a_body() -> None:
         await fresh.send("api eval listener")
         alive = await fresh.read()
         await fresh.close()
+        await second.close()
     assert invalid.header("Reply-Text") == "-ERR invalid Content-Length"
     assert capped.header("Reply-Text") == "-ERR Content-Length exceeds %s" % (
         MAX_CONTENT_LENGTH,

@@ -4,7 +4,7 @@ weight: 20
 ---
 
 {{< callout type="info" >}}
-Genesis requires Python 3.10 or higher.
+Genesis requires Python 3.11 or higher.
 {{< /callout >}}
 
 {{% steps %}}

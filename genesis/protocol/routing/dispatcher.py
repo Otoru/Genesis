@@ -5,7 +5,8 @@ Event Dispatcher
 Helper for dispatching events to handlers asynchronously.
 """
 
-from asyncio import Task, create_task, iscoroutine, iscoroutinefunction, to_thread
+from asyncio import Task, create_task, iscoroutine, to_thread
+from inspect import iscoroutinefunction
 from typing import List, Optional, Set, Any
 
 from genesis.observability import logger

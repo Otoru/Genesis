@@ -7,7 +7,7 @@ import logging
 import typer
 
 from genesis.cli import watcher
-from genesis.loop import use_uvloop
+from genesis.loop import new_event_loop
 from genesis.observability import logger
 from genesis.outbound import Outbound
 from genesis.cli.exceptions import CLIExcpetion
@@ -174,12 +174,11 @@ def _run(
         levels = get_log_level_map()
         logger.setLevel(levels.get(loglevel.upper(), logging.INFO))
 
-        use_uvloop()
-
-        if reload:
-            asyncio.run(_run_with_reload(outbound_app, path))
-        else:
-            asyncio.run(_run_production(outbound_app))
+        with asyncio.Runner(loop_factory=new_event_loop) as runner:
+            if reload:
+                runner.run(_run_with_reload(outbound_app, path))
+            else:
+                runner.run(_run_production(outbound_app))
 
     except CLIExcpetion as e:
         logger.error(e)

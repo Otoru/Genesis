@@ -722,7 +722,7 @@ class Channel:
         ``CHANNEL_EXECUTE_COMPLETE`` after the command is accepted. ``None``
         waits without a limit. The send itself is outside this bound, so the
         caller cannot wrap the whole method. ``asyncio.wait_for`` applies the
-        duration; Python 3.10 has no ``asyncio.timeout``.
+        duration to that wait alone.
         """
         require_channel_uuid(self.uuid)
         _cmd, event_uuid = _build_sendmsg_cmd(
