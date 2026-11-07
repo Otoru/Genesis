@@ -346,3 +346,30 @@ async def test_redis_backend_context_manager():
 
     client.aclose.assert_called_once()
     assert backend._client is None
+
+
+@pytest.mark.asyncio
+async def test_redis_backend_depth():
+    """RedisBackend.depth returns the length of the waiting list."""
+    client = _make_redis_mock()
+    client.llen = AsyncMock(return_value=3)
+    backend = RedisBackend()
+    backend._client = client
+
+    assert await backend.depth("q1") == 3
+    client.llen.assert_called_once_with("genesis:queue:q1:waiting")
+
+
+@pytest.mark.asyncio
+async def test_queue_slot_with_redis_backend():
+    """Queue.slot works with RedisBackend and records the waiting depth."""
+    client = _make_redis_mock(script_result=1)
+    client.llen = AsyncMock(return_value=1)
+    backend = RedisBackend()
+    backend._client = client
+    queue = Queue(backend)
+
+    async with queue.slot("sales", item_id="call1"):
+        client.rpush.assert_called_once_with("genesis:queue:sales:waiting", "call1")
+    client.llen.assert_called_once_with("genesis:queue:sales:waiting")
+    client.decr.assert_called_once_with("genesis:queue:sales:in_use")

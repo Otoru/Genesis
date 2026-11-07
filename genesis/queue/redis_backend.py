@@ -161,6 +161,11 @@ class RedisBackend:
         await client.decr(in_use_key)
         await client.publish(channel, "1")
 
+    async def depth(self, queue_id: str) -> int:
+        """Return the number of items waiting in the queue (not yet acquired)."""
+        client = await self._get_client()
+        return int(await client.llen(self._waiting_key(queue_id)))
+
     async def close(self) -> None:
         """Close the Redis connection."""
         if self._client is not None:
