@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections import deque
-from typing import Awaitable, Optional, Protocol, Union, runtime_checkable
+from typing import Awaitable, Optional, Protocol, runtime_checkable
 
 from genesis.exceptions import QueueTimeoutError
 
@@ -60,7 +60,7 @@ class QueueBackend(Protocol):
         """Release one slot for the queue."""
         ...
 
-    def depth(self, queue_id: str) -> Union[int, Awaitable[int]]:
+    def depth(self, queue_id: str) -> int | Awaitable[int]:
         """
         Return the number of items waiting in the queue (not yet acquired).
 
