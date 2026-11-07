@@ -31,6 +31,6 @@ jobs:
         run: poetry install --no-interaction --without dev
 
       - name: Build and publish to PyPI
-        uses: JRubics/poetry-publish@0f571e7f0320737205a74472dbd089c1263e171f
-        with:
-          pypi_token: ${{ secrets.PYPI_API_TOKEN }}
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
+        run: poetry publish --build --no-interaction
