@@ -11,8 +11,6 @@ import asyncio
 import time
 from typing import Any, Optional
 
-import redis.asyncio as redis
-
 from genesis.exceptions import QueueTimeoutError
 
 # Lua: try to acquire if we're at head and slots available. Keys: waiting_list, in_use_key. Args: item_id, max_concurrent.
@@ -49,6 +47,13 @@ class RedisBackend:
 
     async def _get_client(self) -> Any:
         if self._client is None:
+            try:
+                import redis.asyncio as redis
+            except ImportError:
+                raise ImportError(
+                    "The redis package is required for RedisBackend. "
+                    "Install it with: pip install genesis[redis]"
+                )
             self._client = await redis.from_url(self._url)
         return self._client
 
@@ -155,6 +160,11 @@ class RedisBackend:
         channel = self._channel(queue_id)
         await client.decr(in_use_key)
         await client.publish(channel, "1")
+
+    async def depth(self, queue_id: str) -> int:
+        """Return the number of items waiting in the queue (not yet acquired)."""
+        client = await self._get_client()
+        return int(await client.llen(self._waiting_key(queue_id)))
 
     async def close(self) -> None:
         """Close the Redis connection."""

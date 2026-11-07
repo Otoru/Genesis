@@ -39,13 +39,17 @@ The load balancer automatically tracks active calls and distributes them evenly.
 
 ### Multiple Instances
 
-If you're running multiple instances of your application, use `RedisLoadBalancer` so all instances can coordinate:
+If you're running multiple instances of your application, use `RedisLoadBalancer` so all instances can coordinate. It needs the optional `redis` extra:
+
+```bash
+pip install genesis[redis]
+```
+
 
 ```python
 from genesis import Inbound, RingGroup, RingMode, RedisLoadBalancer
 
 # Create load balancer with Redis URL
-# The redis package is automatically installed if needed
 balancer = RedisLoadBalancer("redis://localhost:6379")
 
 async with Inbound("127.0.0.1", 8021, "ClueCon") as client:
@@ -57,7 +61,7 @@ async with Inbound("127.0.0.1", 8021, "ClueCon") as client:
     )
 ```
 
-All application instances share the same Redis connection, so they coordinate load distribution across the entire cluster. The redis package is automatically installed when needed.
+All application instances share the same Redis connection, so they coordinate load distribution across the entire cluster.
 
 ## Custom Redis Key Prefix
 

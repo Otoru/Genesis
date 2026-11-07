@@ -7,6 +7,7 @@ Queue abstraction with context-manager and semaphore-like API.
 
 from __future__ import annotations
 
+import inspect
 import time
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -72,6 +73,9 @@ class QueueSlot:
 
     async def __aenter__(self) -> "QueueSlot":
         await self._queue._enqueue(self._queue_id, self._item_id)
+        depth = self._queue._backend.depth(self._queue_id)
+        if inspect.isawaitable(depth):
+            depth = await depth
         start = time.monotonic()
         with tracer.start_as_current_span(
             "queue.wait_and_acquire",
@@ -80,7 +84,7 @@ class QueueSlot:
                 ATTR_QUEUE_ITEM_ID: self._item_id,
                 # queue.depth as a SPAN attribute (not a metric label) keeps
                 # backpressure observable without metric cardinality blow-up.
-                "queue.depth": self._queue._backend.depth(self._queue_id),
+                "queue.depth": depth,
             },
         ) as span:
             try:
